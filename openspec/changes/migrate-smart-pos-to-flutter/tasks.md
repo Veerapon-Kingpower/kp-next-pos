@@ -1,27 +1,27 @@
 ## 1. Discovery and migration inventory
 
-- [ ] 1.1 Create an active-workflow inventory that maps every legacy route to its referenced page, models, providers, APIs, assets, permissions, and hardware dependency.
-- [ ] 1.2 Record the approved Flutter API environment matrix and capture request/response fixtures for Sale Engine, Register, Flight, Print Hub, Member, and Cash Card services.
-- [ ] 1.3 Obtain and document Windows vendor models, SDKs, drivers, Serial/COM parameters, and test procedures for EDC, signature pad, magnetic-card reader, and smart-card reader.
-- [ ] 1.4 Define Android and Windows parity checklists for each active workflow and connected peripheral.
+- [x] 1.1 Create an active-workflow inventory that maps every legacy route to its referenced page, models, providers, APIs, assets, permissions, and hardware dependency.
+- [x] 1.2 Record the approved Flutter API environment matrix and capture request/response fixtures for Sale Engine, Register, Flight, Print Hub, Member, and Cash Card services.
+- [ ] 1.3 Obtain and document Windows vendor models, SDKs, drivers, Serial/COM parameters, and test procedures for EDC, signature pad, magnetic-card reader, and smart-card reader. **BLOCKED (2026-08-18): no vendor/procurement information available yet — the legacy app is Android-only with no Windows hardware code to derive this from. Needs vendor selection input from King Power hardware/procurement before this can be completed. See design.md Risks and Open Questions.**
+- [x] 1.4 Define Android and Windows parity checklists for each active workflow and connected peripheral.
 
 ## 2. Flutter foundation
 
-- [ ] 2.1 Create the Flutter project with Android and Windows targets, development/UAT/production configuration, linting, formatting, and test commands.
-- [ ] 2.2 Establish the feature-first Clean Architecture directory structure with core configuration, network, error, logging, and dependency-injection boundaries.
-- [ ] 2.3 Implement environment configuration, secure session persistence, device settings persistence, and startup validation with unit tests.
-- [ ] 2.4 Implement application shell, routing, authentication guard, retryable error presentation, and offline/device-unavailable states with widget tests.
+- [x] 2.1 Create the Flutter project with Android and Windows targets, development/UAT/production configuration, linting, formatting, and test commands.
+- [x] 2.2 Establish the feature-first Clean Architecture directory structure with core configuration, network, error, logging, and dependency-injection boundaries.
+- [x] 2.3 Implement environment configuration, secure session persistence, device settings persistence, and startup validation with unit tests.
+- [x] 2.4 Implement application shell, routing, authentication guard, retryable error presentation, and offline/device-unavailable states with widget tests.
 
 ## 3. King Power visual system
 
-- [ ] 3.1 Package approved King Power fonts and active image assets selected by the migration inventory.
-- [ ] 3.2 Define accessible colour, typography, spacing, elevation, sizing, and transaction-status tokens based on the approved King Power visual direction.
-- [ ] 3.3 Build shared app shell, navigation, header, search/scan input, buttons, cards, forms, dialogs, status chips, and loading/empty/error components.
-- [ ] 3.4 Implement responsive Android touch-first and Windows keyboard/scanner-first layouts with golden tests for the shared component states.
+- [x] 3.1 Package approved King Power fonts and active image assets selected by the migration inventory.
+- [x] 3.2 Define accessible colour, typography, spacing, elevation, sizing, and transaction-status tokens based on the approved King Power visual direction.
+- [x] 3.3 Build shared app shell, navigation, header, search/scan input, buttons, cards, forms, dialogs, status chips, and loading/empty/error components.
+- [x] 3.4 Implement responsive Android touch-first and Windows keyboard/scanner-first layouts with golden tests for the shared component states.
 
 ## 4. Core sale and customer workflows
 
-- [ ] 4.1 Implement authentication, store/user context, settings access, and logout using the approved service contracts.
+- [x] 4.1 Implement authentication, store/user context, settings access, and logout using the approved service contracts.
 - [ ] 4.2 Implement product/article lookup, barcode scan input, serial/record validation, and cart state with domain and widget tests.
 - [ ] 4.3 Implement customer search, selection, creation, profile, nationality, contact, shipping-address, agent, and guide workflows with API contract tests.
 - [ ] 4.4 Implement sale creation, edit-sale, shopping cart, totals, currency selection, and change calculation with unit and integration tests.
@@ -36,18 +36,20 @@
 ## 6. Remaining operational workflows
 
 - [ ] 6.1 Implement pickup, picking-list creation, pickup print, claim check, and amount-remaining workflows with contract tests.
-- [ ] 6.2 Implement flight, registration, customer scanning, and setting-by-QR workflows with Android/Windows parity tests.
-- [ ] 6.3 Implement enquiry, enquiry detail, member information, article information, information, and about workflows using active source inventory requirements.
-- [ ] 6.4 Implement app menu, tabs, workflow navigation, no-internet recovery, and modal/picker patterns using shared visual components.
+- [ ] 6.2 Implement the flight lookup workflow with Android/Windows parity tests. (Registration is covered by task 4.3's customer-form workflow; `RegistrationPage`, `ScanCustomerPage`, and `SettingByQrPage` are dead code per `inventory.md` and excluded from migration.)
+- [ ] 6.3 Implement enquiry, enquiry detail, member information, and article information workflows using active source inventory requirements. (`InformationPage` and `AboutPage` are dead code per `inventory.md` and excluded from migration.)
+- [ ] 6.4 Implement app menu, workflow navigation, no-internet recovery, and modal/picker patterns using shared visual components. (`TabsPage` is dead code per `inventory.md` and excluded from migration.)
 
 ## 7. Hardware integration
 
-- [ ] 7.1 Define printer, payment terminal, signature, magnetic-card, and smart-card domain contracts plus fake adapters for automated tests.
+- [ ] 7.1 Define printer, payment terminal, signature, magnetic-card, smart-card, and AOT e-tax receipt agent domain contracts plus fake adapters for automated tests.
 - [ ] 7.2 Implement Android Bluetooth discovery, pairing, connection health, and Woosim receipt printing with adapter tests.
 - [ ] 7.3 Implement Windows USB/Serial/COM discovery, configuration, connection health, and Epson thermal receipt printing with adapter tests.
 - [ ] 7.4 Implement the approved Windows Serial/COM EDC protocol including approve, decline, cancel, timeout, transaction reference, and unresolved-result handling.
 - [ ] 7.5 Implement Windows signature, magnetic-card, and smart-card adapters from the approved vendor SDKs and validate each device using its test procedure.
 - [ ] 7.6 Add hardware diagnostics screens and ensure dependent workflows block only the unavailable device operation.
+- [ ] 7.7 Implement the Android Sunmi built-in printer adapter, selectable alongside the Woosim adapter by device configuration, with adapter tests.
+- [ ] 7.8 Implement the Android RCAgent AOT e-tax receipt agent adapter (login/status-check, submit-receipt, confirm-receipt, logout) and wire it into login and checkout finalization per the store's configured policy.
 
 ## 8. Automated verification
 

@@ -48,9 +48,15 @@ Defining tokens and shared components once prevents visual drift across migrated
 
 ### Hardware ports with platform adapters
 
-The domain exposes hardware contracts for printing, payment, signature capture, magnetic-card reading, and smart-card reading. Android and Windows supply adapter implementations selected at runtime by platform and device configuration. Windows native interop is permitted behind these adapters for USB/Serial/COM; Android Bluetooth/Woosim is likewise isolated.
+The domain exposes hardware contracts for printing, payment, signature capture, magnetic-card reading, and smart-card reading. Android and Windows supply adapter implementations selected at runtime by platform and device configuration. Windows native interop is permitted behind these adapters for USB/Serial/COM; Android Bluetooth/Woosim is likewise isolated. Android printing has two adapters behind the same printer contract — Bluetooth/Woosim and the Sunmi built-in printer SDK — selected by device configuration, matching the source application's dual printer paths.
 
 This approach permits deterministic adapter fakes in automated tests. Direct platform calls from checkout were rejected because they make payment integrity and cross-platform testing unreliable.
+
+### RCAgent AOT e-tax receipt agent as a platform port
+
+The source application integrates a King Power native plugin (`RCAgentPlugin`) at login and checkout to submit e-tax receipts to the Airport of Thailand (AOT) agent, independent of printing or payment. This has no HTTP backend of its own. The Flutter app exposes it as its own platform port (login/status-check, submit-receipt, confirm-receipt, logout operations) with an Android adapter and a fake for tests, following the same pattern as the printer and payment ports.
+
+This keeps AOT submission testable and swappable like the other device integrations, and avoids scattering plugin calls through login/checkout use cases. Treating it as an unstructured side effect inside checkout was rejected because it would hide a required business integration from the domain layer and from tests.
 
 ### Explicit checkout state machine
 
@@ -75,6 +81,7 @@ Business rules and use cases are unit-tested; repository/API serialization is te
 ## Risks / Trade-offs
 
 - [Vendor SDK/protocols for EDC and readers are unavailable or vary by model] → Obtain model-specific integration material and run a hardware spike before implementing each Windows adapter.
+- [RCAgent AOT plugin or protocol documentation is unavailable, or the integration is no longer required at all stores] → Confirm current business requirement and obtain the plugin's integration material before implementing the Android adapter; treat it as excludable per store/device configuration if confirmed optional.
 - [Legacy API contracts differ by environment or are undocumented] → Capture request/response fixtures from approved environments and add contract tests before migrating dependent flows.
 - [Feature parity expands delivery time] → Track parity per workflow and platform; do not release a feature as complete until both checklists pass.
 - [Payment timeout can result in an unknown charge state] → Mark it unresolved, block finalization, preserve the transaction, and require terminal verification.
@@ -106,3 +113,5 @@ Business rules and use cases are unit-tested; repository/API serialization is te
 
 - Which specific models, SDKs, and Serial/COM parameters apply to the Windows EDC, signature pad, magnetic-card reader, and smart-card reader?
 - Are current legacy API request/response contracts the approved integration baseline for the Flutter release, or is a newer backend API required?
+- Is the RCAgent AOT e-tax receipt integration still a required business capability for the Flutter release, and is it required at every store/device or only specific ones (e.g. airport locations)?
+- Is Sunmi built-in printer support still required, or has the store fleet standardized on Bluetooth/Woosim printers only?

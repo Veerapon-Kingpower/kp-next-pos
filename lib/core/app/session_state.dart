@@ -1,12 +1,13 @@
-import 'package:flutter/foundation.dart';
+import 'package:get/get.dart';
 
 import '../startup/startup_validator.dart';
 
 /// App-wide auth/session status, drives the router's redirect guard (see
 /// `router.dart`). Kept separate from [StartupValidator] itself so the
-/// router can listen for changes (`ChangeNotifier`) after login/logout,
-/// not just at cold start.
-class SessionState extends ChangeNotifier {
+/// router can listen for changes (`GetxController` genuinely implements
+/// `Listenable`, so it works directly as go_router's `refreshListenable`)
+/// after login/logout, not just at cold start.
+class SessionState extends GetxController {
   final StartupValidator _startupValidator;
 
   StartupStatus _status = StartupStatus.needsDeviceSetup;
@@ -18,27 +19,30 @@ class SessionState extends ChangeNotifier {
   StartupStatus get status => _status;
   String? get sessionKey => _sessionKey;
 
-  Future<void> refresh() async {
+  /// Named to avoid colliding with [GetxController]'s own internal
+  /// `refresh()` (called by `update()` to notify listeners) — overriding
+  /// that with this unrelated async validation method would recurse.
+  Future<void> refreshSession() async {
     final result = await _startupValidator.validate();
     _status = result.status;
     _sessionKey = result.sessionKey;
-    notifyListeners();
+    update();
   }
 
   void signedIn(String sessionKey) {
     _sessionKey = sessionKey;
     _status = StartupStatus.ready;
-    notifyListeners();
+    update();
   }
 
   void signedOut() {
     _sessionKey = null;
     _status = StartupStatus.needsLogin;
-    notifyListeners();
+    update();
   }
 
   void deviceSetupCompleted() {
     _status = StartupStatus.needsLogin;
-    notifyListeners();
+    update();
   }
 }

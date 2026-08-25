@@ -41,3 +41,10 @@ app.*.map.json
 
 # Claude Code local runtime state
 .claude/worktrees/
+.superpowers/
+
+# Flutter test runtime lock files (generated per test run, e.g. Hive/Isar)
+*.realm.lock
+
+# golden_toolkit diff output from a failed golden comparison run
+**/failures/

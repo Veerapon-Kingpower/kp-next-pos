@@ -23,12 +23,10 @@ void main() {
           'Message': [],
         },
       );
-      final dataSource = AuthRemoteDataSource(
-        apiClient: apiClient,
-        saleEngineEndpoint: 'https://sale-engine',
-      );
+      final dataSource = AuthRemoteDataSource(apiClient: apiClient);
 
       final session = await dataSource.login(
+        saleEngineEndpoint: 'https://sale-engine',
         userCode: 'U001',
         userPassword: 'pass',
         branchNo: '03',
@@ -66,13 +64,11 @@ void main() {
           'Message': [],
         },
       );
-      final dataSource = AuthRemoteDataSource(
-        apiClient: apiClient,
-        saleEngineEndpoint: 'https://sale-engine',
-      );
+      final dataSource = AuthRemoteDataSource(apiClient: apiClient);
 
       expect(
         () => dataSource.login(
+          saleEngineEndpoint: 'https://sale-engine',
           userCode: 'bad',
           userPassword: 'bad',
           branchNo: '03',
@@ -88,12 +84,12 @@ void main() {
     final apiClient = FakeApiClient(
       response: {'isCompleted': true, 'Data': true, 'Message': []},
     );
-    final dataSource = AuthRemoteDataSource(
-      apiClient: apiClient,
-      saleEngineEndpoint: 'https://sale-engine',
-    );
+    final dataSource = AuthRemoteDataSource(apiClient: apiClient);
 
-    await dataSource.logout('abc123');
+    await dataSource.logout(
+      saleEngineEndpoint: 'https://sale-engine',
+      sessionKey: 'abc123',
+    );
 
     expect(apiClient.lastUrl, 'https://sale-engine/SaleEngine/SignOut');
     expect(apiClient.lastData, {'SessionKey': 'abc123'});

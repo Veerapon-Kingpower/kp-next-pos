@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:get/get.dart';
 
 import '../../../core/error/app_exception.dart';
 import '../domain/entities/user_session.dart';
@@ -6,7 +7,7 @@ import '../domain/usecases/login_usecase.dart';
 
 enum LoginStatus { idle, submitting, success, failure }
 
-class LoginViewModel extends ChangeNotifier {
+class LoginViewModel extends GetxController {
   final LoginUseCase _loginUseCase;
 
   LoginViewModel({required LoginUseCase loginUseCase})
@@ -22,7 +23,11 @@ class LoginViewModel extends ChangeNotifier {
   }) async {
     status = LoginStatus.submitting;
     errorMessage = null;
-    notifyListeners();
+    update();
+    if (kDebugMode) {
+      // Never log userPassword.
+      debugPrint('[LoginViewModel.submit] userCode=$userCode');
+    }
 
     try {
       session = await _loginUseCase(
@@ -30,13 +35,24 @@ class LoginViewModel extends ChangeNotifier {
         userPassword: userPassword,
       );
       status = LoginStatus.success;
+      if (kDebugMode) {
+        debugPrint(
+          '[LoginViewModel.submit] success sessionKey=${session?.sessionKey}',
+        );
+      }
     } on ApiException catch (e) {
       status = LoginStatus.failure;
       errorMessage = e.messageDesc;
-    } catch (_) {
+      if (kDebugMode) {
+        debugPrint('[LoginViewModel.submit] failed: $e');
+      }
+    } catch (e) {
       status = LoginStatus.failure;
       errorMessage = 'Could not sign in. Check your connection and try again.';
+      if (kDebugMode) {
+        debugPrint('[LoginViewModel.submit] failed: $e');
+      }
     }
-    notifyListeners();
+    update();
   }
 }

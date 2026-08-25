@@ -21,10 +21,20 @@ class AppPrimaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Gold background needs a dark foreground, not `colorScheme.onPrimary`,
+    // to clear WCAG AA — see `app_colors_test.dart` and `app_theme.dart`'s
+    // class doc. Styled here rather than through the theme so it doesn't
+    // leak into other FilledButton users like [AppDestructiveButton].
+    final style = FilledButton.styleFrom(
+      backgroundColor: AppColors.goldAccent,
+      foregroundColor: AppColors.textPrimary,
+      minimumSize: const Size.fromHeight(AppSizing.controlHeight),
+    );
     return icon == null
-        ? FilledButton(onPressed: onPressed, child: Text(label))
+        ? FilledButton(onPressed: onPressed, style: style, child: Text(label))
         : FilledButton.icon(
             onPressed: onPressed,
+            style: style,
             icon: Icon(icon),
             label: Text(label),
           );

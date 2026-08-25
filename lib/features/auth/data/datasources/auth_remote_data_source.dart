@@ -7,15 +7,12 @@ import '../models/user_session_model.dart';
 /// ops 1 and 5).
 class AuthRemoteDataSource {
   final ApiClient _apiClient;
-  final String _saleEngineEndpoint;
 
-  const AuthRemoteDataSource({
-    required ApiClient apiClient,
-    required String saleEngineEndpoint,
-  }) : _apiClient = apiClient,
-       _saleEngineEndpoint = saleEngineEndpoint;
+  const AuthRemoteDataSource({required ApiClient apiClient})
+    : _apiClient = apiClient;
 
   Future<UserSessionModel> login({
+    required String saleEngineEndpoint,
     required String userCode,
     required String userPassword,
     required String branchNo,
@@ -23,7 +20,7 @@ class AuthRemoteDataSource {
     required String machineIp,
   }) async {
     final response = await _apiClient.post(
-      '$_saleEngineEndpoint/Authen/LoginAuthen',
+      '$saleEngineEndpoint/Authen/LoginAuthen',
       data: {
         'user_code': userCode,
         'user_password': userPassword,
@@ -49,9 +46,12 @@ class AuthRemoteDataSource {
     return session;
   }
 
-  Future<void> logout(String sessionKey) async {
+  Future<void> logout({
+    required String saleEngineEndpoint,
+    required String sessionKey,
+  }) async {
     await _apiClient.post(
-      '$_saleEngineEndpoint/SaleEngine/SignOut',
+      '$saleEngineEndpoint/SaleEngine/SignOut',
       data: {'SessionKey': sessionKey},
     );
   }

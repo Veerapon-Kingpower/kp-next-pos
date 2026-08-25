@@ -22,8 +22,8 @@
 ## 4. Core sale and customer workflows
 
 - [x] 4.1 Implement authentication, store/user context, settings access, and logout using the approved service contracts.
-- [ ] 4.2 Implement product/article lookup, barcode scan input, serial/record validation, and cart state with domain and widget tests.
-- [ ] 4.3 Implement customer search, selection, creation, profile, nationality, contact, shipping-address, agent, and guide workflows with API contract tests.
+- [x] 4.2 Implement product/article lookup, barcode scan input, serial/record validation, and cart state with domain and widget tests.
+- [x] 4.3 Implement customer search, selection, creation, profile, nationality, contact, shipping-address, agent, and guide workflows with API contract tests.
 - [ ] 4.4 Implement sale creation, edit-sale, shopping cart, totals, currency selection, and change calculation with unit and integration tests.
 
 ## 5. Checkout and payment workflows
@@ -36,7 +36,7 @@
 ## 6. Remaining operational workflows
 
 - [ ] 6.1 Implement pickup, picking-list creation, pickup print, claim check, and amount-remaining workflows with contract tests.
-- [ ] 6.2 Implement the flight lookup workflow with Android/Windows parity tests. (Registration is covered by task 4.3's customer-form workflow; `RegistrationPage`, `ScanCustomerPage`, and `SettingByQrPage` are dead code per `inventory.md` and excluded from migration.)
+- [ ] 6.2 Implement the flight lookup workflow with Android/Windows parity tests. (Registration is covered by task 4.3's customer-form workflow; `RegistrationPage`, `ScanCustomerPage`, and `SettingByQrPage` are dead code per `inventory.md` and excluded from migration.) **Domain layer done (2026-08-25): `lib/features/flight/` ports `FlightProvider` (getFlightByCode/getDateByFlight/validateFlight) with contract tests. Partial UI (2026-08-25): the Register form's optional Flight field (`AutocompleteField<Flight>` in `CustomerRegistrationPage`) lets staff search and attach a flight code to a new customer — but flight-date lookup (`getDateByFlight`), `validateFlight`, and tour-data wiring (all of which the legacy client derives from the chosen flight) are still not wired up, and there's no dedicated Android/Windows parity test pass. Remaining work stays deferred alongside the rest of customer-registration v2 (task 7.9 / `customer-register-deferred` project memory).**
 - [ ] 6.3 Implement enquiry, enquiry detail, member information, and article information workflows using active source inventory requirements. (`InformationPage` and `AboutPage` are dead code per `inventory.md` and excluded from migration.)
 - [ ] 6.4 Implement app menu, workflow navigation, no-internet recovery, and modal/picker patterns using shared visual components. (`TabsPage` is dead code per `inventory.md` and excluded from migration.)
 
@@ -50,6 +50,7 @@
 - [ ] 7.6 Add hardware diagnostics screens and ensure dependent workflows block only the unavailable device operation.
 - [ ] 7.7 Implement the Android Sunmi built-in printer adapter, selectable alongside the Woosim adapter by device configuration, with adapter tests.
 - [ ] 7.8 Implement the Android RCAgent AOT e-tax receipt agent adapter (login/status-check, submit-receipt, confirm-receipt, logout) and wire it into login and checkout finalization per the store's configured policy.
+- [ ] 7.9 Implement camera-based MRZ/passport scanning (select a camera + MRZ-parsing library; none is in `pubspec.yaml` today) to prefill the customer registration form, matching the legacy `CustomerFormPage` scan-to-autofill flow. **Deferred (2026-08-25): blocks full customer-registration parity, alongside task 6.2 (flight lookup) — see the `customer-register-deferred` project memory for the ground-truth field mapping already captured from the legacy source.**
 
 ## 8. Automated verification
 

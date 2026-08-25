@@ -1,23 +1,31 @@
 import 'package:flutter/material.dart';
 
-/// King Power brand and semantic colour tokens, carried forward from the
-/// legacy app's `theme/color.scss` / `theme/variables.scss` (source values
-/// noted per token) per design.md's "King Power visual system" decision:
-/// gold stays a restrained accent, not the primary text colour, so
-/// operational text stays high-contrast — see `contrast.dart` and
-/// `app_colors_test.dart` for the accessibility check backing that choice.
+/// King Power brand and semantic colour tokens per design.md's "King Power
+/// visual system" decision: a navy-and-gold two-tone rebrand, superseding
+/// the original all-neutral-with-restrained-gold system. Navy is the
+/// dominant chrome colour (app shell, navigation, header); gold is an
+/// accent reserved for primary actions and membership/status highlights,
+/// never used as body text colour. See `contrast.dart` and
+/// `app_colors_test.dart` for the WCAG AA checks backing every pairing —
+/// `goldAccent` in particular is light enough that it needs a dark
+/// foreground, not white, wherever it carries text.
 abstract class AppColors {
-  // Brand gold — legacy `$colors: (primary: #9F8957, darkGold: #654f1c,
-  // lightGold: #c0ac7e)`.
-  static const goldPrimary = Color(0xFF9F8957);
+  // Brand navy — primary chrome colour.
+  static const navy = Color(0xFF0A192F);
+  static const navyLight = Color(0xFF1B3A63); // selected/hover nav state
+
+  // Brand gold — accent for primary actions (e.g. Pay Now) and
+  // membership/status highlights. `goldDark`/`goldLight` are the legacy
+  // gold family, kept for decorative tints that don't carry text.
+  static const goldAccent = Color(0xFFC5A059);
   static const goldDark = Color(0xFF654F1C);
   static const goldLight = Color(0xFFC0AC7E);
 
-  // Neutrals — legacy `dark: #222`, `lightGrey: #838688`, `light: #f4f4f4`.
-  static const textPrimary = Color(0xFF222222);
+  // Neutrals.
+  static const textPrimary = Color(0xFF1E293B);
   static const textSecondary = Color(0xFF5C5F61);
   static const surface = Color(0xFFFFFFFF);
-  static const surfaceAlt = Color(0xFFF4F4F4);
+  static const surfaceAlt = Color(0xFFF4F6F9);
   static const divider = Color(0xFFE6E6E6);
 
   // Transaction/device-status semantics — legacy `$myColorPallet`

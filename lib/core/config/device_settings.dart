@@ -11,6 +11,9 @@ class DeviceSettings {
   final String company;
   final String serial;
   final String macAddress;
+  final String ipAddress;
+  final String printerName;
+  final String edcPort;
   final String webServiceEndpoint;
   final String updateEndpoint;
   final String uuid;
@@ -24,6 +27,15 @@ class DeviceSettings {
   final String pickupCode;
   final bool isAirportMpos;
 
+  /// Manual override (Settings page) for when staff already know the
+  /// network or backend is down: forces workflows with an offline fallback
+  /// (see openspec/changes/add-offline-article-cache) to skip the network
+  /// attempt entirely and go straight to cached data, instead of waiting
+  /// out a connection attempt/timeout on every lookup during a known
+  /// outage. Not itself a data source — it does not change what's cached,
+  /// only whether the network is tried first.
+  final bool forceOfflineMode;
+
   const DeviceSettings({
     this.moduleKey = '',
     this.branch = '',
@@ -33,6 +45,9 @@ class DeviceSettings {
     this.company = '',
     this.serial = '',
     this.macAddress = '',
+    this.ipAddress = '',
+    this.printerName = '',
+    this.edcPort = '',
     this.webServiceEndpoint = '',
     this.updateEndpoint = '',
     this.uuid = '',
@@ -47,6 +62,7 @@ class DeviceSettings {
     this.printHubEndpoint = '',
     this.pickupCode = '',
     this.isAirportMpos = false,
+    this.forceOfflineMode = false,
   });
 
   /// Matches the legacy Settings page's own completeness check
@@ -67,6 +83,9 @@ class DeviceSettings {
     String? company,
     String? serial,
     String? macAddress,
+    String? ipAddress,
+    String? printerName,
+    String? edcPort,
     String? webServiceEndpoint,
     String? updateEndpoint,
     String? uuid,
@@ -79,6 +98,7 @@ class DeviceSettings {
     String? printHubEndpoint,
     String? pickupCode,
     bool? isAirportMpos,
+    bool? forceOfflineMode,
   }) {
     return DeviceSettings(
       moduleKey: moduleKey ?? this.moduleKey,
@@ -89,6 +109,9 @@ class DeviceSettings {
       company: company ?? this.company,
       serial: serial ?? this.serial,
       macAddress: macAddress ?? this.macAddress,
+      ipAddress: ipAddress ?? this.ipAddress,
+      printerName: printerName ?? this.printerName,
+      edcPort: edcPort ?? this.edcPort,
       webServiceEndpoint: webServiceEndpoint ?? this.webServiceEndpoint,
       updateEndpoint: updateEndpoint ?? this.updateEndpoint,
       uuid: uuid ?? this.uuid,
@@ -101,6 +124,7 @@ class DeviceSettings {
       printHubEndpoint: printHubEndpoint ?? this.printHubEndpoint,
       pickupCode: pickupCode ?? this.pickupCode,
       isAirportMpos: isAirportMpos ?? this.isAirportMpos,
+      forceOfflineMode: forceOfflineMode ?? this.forceOfflineMode,
     );
   }
 
@@ -113,6 +137,9 @@ class DeviceSettings {
     'company': company,
     'serial': serial,
     'macAddress': macAddress,
+    'ipAddress': ipAddress,
+    'printerName': printerName,
+    'edcPort': edcPort,
     'webServiceEndpoint': webServiceEndpoint,
     'updateEndpoint': updateEndpoint,
     'uuid': uuid,
@@ -125,6 +152,7 @@ class DeviceSettings {
     'printHubEndpoint': printHubEndpoint,
     'pickupCode': pickupCode,
     'isAirportMpos': isAirportMpos,
+    'forceOfflineMode': forceOfflineMode,
   };
 
   factory DeviceSettings.fromJson(Map<String, dynamic> json) => DeviceSettings(
@@ -136,6 +164,9 @@ class DeviceSettings {
     company: json['company'] as String? ?? '',
     serial: json['serial'] as String? ?? '',
     macAddress: json['macAddress'] as String? ?? '',
+    ipAddress: json['ipAddress'] as String? ?? '',
+    printerName: json['printerName'] as String? ?? '',
+    edcPort: json['edcPort'] as String? ?? '',
     webServiceEndpoint: json['webServiceEndpoint'] as String? ?? '',
     updateEndpoint: json['updateEndpoint'] as String? ?? '',
     uuid: json['uuid'] as String? ?? '',
@@ -148,5 +179,6 @@ class DeviceSettings {
     printHubEndpoint: json['printHubEndpoint'] as String? ?? '',
     pickupCode: json['pickupCode'] as String? ?? '',
     isAirportMpos: json['isAirportMpos'] as bool? ?? false,
+    forceOfflineMode: json['forceOfflineMode'] as bool? ?? false,
   );
 }

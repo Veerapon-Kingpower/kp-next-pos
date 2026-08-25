@@ -34,6 +34,7 @@ class AuthRepositoryImpl implements AuthRepository {
     final settings = await _deviceSettingsStorage.read();
 
     final session = await _remote.login(
+      saleEngineEndpoint: settings.saleEngineEndpoint,
       userCode: userCode,
       userPassword: userPassword,
       branchNo: settings.branch,
@@ -53,7 +54,11 @@ class AuthRepositoryImpl implements AuthRepository {
       // Best-effort — the legacy app clears the local session regardless
       // of whether the server call succeeds.
       try {
-        await _remote.logout(session.sessionKey);
+        final settings = await _deviceSettingsStorage.read();
+        await _remote.logout(
+          saleEngineEndpoint: settings.saleEngineEndpoint,
+          sessionKey: session.sessionKey,
+        );
       } catch (_) {
         // Ignored: local logout must still proceed.
       }

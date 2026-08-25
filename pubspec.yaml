@@ -39,6 +39,9 @@ dependencies:
   flutter_secure_storage: ^11.0.0
   shared_preferences: ^2.5.5
   go_router: ^17.5.0
+  qr_flutter: ^4.1.0
+  get: ^4.7.3
+  realm: ^20.2.0
 
 dev_dependencies:
   flutter_test:
@@ -51,6 +54,12 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
   shared_preferences_platform_interface: ^2.4.2
+  # realm_generator is deliberately NOT listed here directly — the `realm`
+  # package (runtime dependency above) already carries it transitively and
+  # registers its own build.yaml builder; adding it again at the top level
+  # causes build_runner to see two conflicting builder registrations for
+  # the same generated output ("Conflicting outputs" error).
+  build_runner: ^2.4.15
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -68,7 +77,6 @@ flutter:
   # inventory.md) — unused legacy assets are deliberately excluded — plus
   # new King Power brand assets supplied directly for the Flutter app.
   assets:
-    - assets/images/home-promo-banner.png
     - assets/images/customer-form-background.jpg
     - assets/images/guiding-slide-4.png
     - assets/images/card/

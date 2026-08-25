@@ -30,7 +30,11 @@ void main() {
       saleEngineEndpoint: 'https://sale',
       webServiceEndpoint: 'https://register',
       flightApi: 'https://flight',
+      ipAddress: '10.0.0.5',
+      printerName: 'Woosim-1',
+      edcPort: 'COM3',
       isAirportMpos: true,
+      forceOfflineMode: true,
     );
 
     final restored = DeviceSettings.fromJson(settings.toJson());
@@ -42,6 +46,14 @@ void main() {
     expect(restored.saleEngineEndpoint, settings.saleEngineEndpoint);
     expect(restored.webServiceEndpoint, settings.webServiceEndpoint);
     expect(restored.flightApi, settings.flightApi);
+    expect(restored.ipAddress, settings.ipAddress);
+    expect(restored.printerName, settings.printerName);
+    expect(restored.edcPort, settings.edcPort);
     expect(restored.isAirportMpos, settings.isAirportMpos);
+    expect(restored.forceOfflineMode, settings.forceOfflineMode);
+  });
+
+  test('forceOfflineMode defaults to false', () {
+    expect(const DeviceSettings().forceOfflineMode, isFalse);
   });
 }

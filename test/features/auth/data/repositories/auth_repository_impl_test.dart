@@ -39,10 +39,7 @@ void main() {
       final local = FakeAuthLocalDataSource();
       final coreSession = FakeSessionStorage();
       final repo = AuthRepositoryImpl(
-        remote: AuthRemoteDataSource(
-          apiClient: apiClient,
-          saleEngineEndpoint: deviceSettings.saleEngineEndpoint,
-        ),
+        remote: AuthRemoteDataSource(apiClient: apiClient),
         local: local,
         coreSessionStorage: coreSession,
         deviceSettingsStorage: FakeDeviceSettingsStorage(deviceSettings),
@@ -82,10 +79,7 @@ void main() {
         },
       );
       final repo = AuthRepositoryImpl(
-        remote: AuthRemoteDataSource(
-          apiClient: apiClient,
-          saleEngineEndpoint: deviceSettings.saleEngineEndpoint,
-        ),
+        remote: AuthRemoteDataSource(apiClient: apiClient),
         local: FakeAuthLocalDataSource(),
         coreSessionStorage: FakeSessionStorage(),
         deviceSettingsStorage: FakeDeviceSettingsStorage(
@@ -117,10 +111,7 @@ void main() {
       );
       final coreSession = FakeSessionStorage('abc123');
       final repo = AuthRepositoryImpl(
-        remote: AuthRemoteDataSource(
-          apiClient: apiClient,
-          saleEngineEndpoint: deviceSettings.saleEngineEndpoint,
-        ),
+        remote: AuthRemoteDataSource(apiClient: apiClient),
         local: local,
         coreSessionStorage: coreSession,
         deviceSettingsStorage: FakeDeviceSettingsStorage(deviceSettings),
@@ -142,10 +133,7 @@ void main() {
       authorizedActions: [],
     );
     final repo = AuthRepositoryImpl(
-      remote: AuthRemoteDataSource(
-        apiClient: FakeApiClient(),
-        saleEngineEndpoint: deviceSettings.saleEngineEndpoint,
-      ),
+      remote: AuthRemoteDataSource(apiClient: FakeApiClient()),
       local: FakeAuthLocalDataSource(session),
       coreSessionStorage: FakeSessionStorage(),
       deviceSettingsStorage: FakeDeviceSettingsStorage(deviceSettings),

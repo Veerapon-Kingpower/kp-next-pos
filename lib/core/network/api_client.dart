@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import '../error/app_exception.dart';
 import '../error/failure.dart';
@@ -32,8 +33,8 @@ class DioApiClient implements ApiClient {
   static Dio _buildDio() {
     final dio = Dio(
       BaseOptions(
-        connectTimeout: const Duration(seconds: 15),
-        receiveTimeout: const Duration(seconds: 30),
+        connectTimeout: const Duration(seconds: 60),
+        receiveTimeout: const Duration(seconds: 60),
       ),
     );
     dio.interceptors.add(AuthInterceptor());
@@ -64,6 +65,13 @@ class DioApiClient implements ApiClient {
   ) async {
     try {
       final response = await request();
+      if (kDebugMode) {
+        debugPrint(
+          '[ApiClient] ${response.requestOptions.uri} -> HTTP ${response.statusCode}\n'
+          '  request: ${response.requestOptions.data}\n'
+          '  response: ${response.data}',
+        );
+      }
       final body = response.data;
       if (body is Map<String, dynamic>) return body;
       throw ApiException(
@@ -71,6 +79,13 @@ class DioApiClient implements ApiClient {
             'Unexpected response shape from ${response.requestOptions.uri}',
       );
     } on DioException catch (e) {
+      if (kDebugMode) {
+        debugPrint(
+          '[ApiClient] ${e.requestOptions.uri} -> HTTP ${e.response?.statusCode ?? 'no response'}\n'
+          '  request: ${e.requestOptions.data}\n'
+          '  response: ${e.response?.data}',
+        );
+      }
       throw _mapDioException(e);
     }
   }
@@ -98,8 +113,23 @@ class DioApiClient implements ApiClient {
 
 /// Maps a caught [ApiException]/[DioException]-derived exception to a
 /// domain [Failure]. Repositories call this at the data → domain boundary.
+///
+/// [DioApiClient._mapDioException] already collapses every Dio-level error
+/// into an [ApiException], keeping only its `messageDesc`/`messageCode` —
+/// the connectivity/timeout distinction survives solely as those two
+/// literal messages it sets, so that's what this checks first. A caller
+/// that needs to tell "unreachable" apart from a legitimate server-side
+/// business error (e.g. to fall back to a local cache only for the former)
+/// depends on this returning [NetworkFailure]/[TimeoutFailure] specifically
+/// for those two cases, not a generic [ApiFailure].
 Failure mapExceptionToFailure(Object error) {
   if (error is ApiException) {
+    if (error.messageDesc == 'No network connection.') {
+      return const NetworkFailure();
+    }
+    if (error.messageDesc == 'The request timed out.') {
+      return const TimeoutFailure();
+    }
     return ApiFailure(
       messageDesc: error.messageDesc,
       messageCode: error.messageCode,

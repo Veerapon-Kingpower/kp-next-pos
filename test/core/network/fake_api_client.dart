@@ -5,6 +5,7 @@ import 'package:kp_pos/core/network/api_client.dart';
 class FakeApiClient implements ApiClient {
   String? lastUrl;
   Object? lastData;
+  Map<String, dynamic>? lastQueryParameters;
   Map<String, dynamic> response;
   Object? errorToThrow;
 
@@ -19,6 +20,7 @@ class FakeApiClient implements ApiClient {
   }) async {
     lastUrl = url;
     lastData = data;
+    lastQueryParameters = queryParameters;
     if (errorToThrow != null) throw errorToThrow!;
     return response;
   }

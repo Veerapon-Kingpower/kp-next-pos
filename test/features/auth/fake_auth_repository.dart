@@ -6,9 +6,14 @@ import 'package:kp_pos/features/auth/domain/repositories/auth_repository.dart';
 class FakeAuthRepository implements AuthRepository {
   final UserSession? loginResult;
   final Object? loginError;
+  final UserSession? currentSessionResult;
   int logoutCallCount = 0;
 
-  FakeAuthRepository({this.loginResult, this.loginError});
+  FakeAuthRepository({
+    this.loginResult,
+    this.loginError,
+    this.currentSessionResult,
+  });
 
   @override
   Future<UserSession> login({
@@ -32,5 +37,5 @@ class FakeAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<UserSession?> currentSession() async => null;
+  Future<UserSession?> currentSession() async => currentSessionResult;
 }

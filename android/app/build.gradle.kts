@@ -7,7 +7,10 @@ plugins {
 
 android {
     namespace = "com.kingpower.kp_pos"
-    compileSdk = flutter.compileSdkVersion
+    // Flutter's own default (flutter.compileSdkVersion) is lower than what
+    // flutter_secure_storage requires; pinned explicitly per its own build
+    // warning rather than left on the (backward-compatible) Flutter default.
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

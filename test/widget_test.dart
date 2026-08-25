@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/app/app.dart';
 import 'package:kp_pos/core/app/router.dart';
@@ -6,10 +7,34 @@ import 'package:kp_pos/core/config/device_settings.dart';
 import 'package:kp_pos/core/startup/startup_validator.dart';
 import 'package:kp_pos/features/auth/domain/usecases/login_usecase.dart';
 import 'package:kp_pos/features/auth/domain/usecases/logout_usecase.dart';
+import 'package:kp_pos/features/auth/domain/usecases/restore_session_usecase.dart';
 import 'package:kp_pos/features/auth/presentation/login_view_model.dart';
+import 'package:kp_pos/features/customer/domain/usecases/list_agents_usecase.dart';
+import 'package:kp_pos/features/customer/domain/usecases/list_guides_usecase.dart';
+import 'package:kp_pos/features/customer/domain/usecases/register_customer_usecase.dart';
+import 'package:kp_pos/features/customer/domain/usecases/search_customer_usecase.dart';
+import 'package:kp_pos/features/customer/presentation/customer_registration_view_model.dart';
+import 'package:kp_pos/features/flight/domain/usecases/get_date_by_flight_usecase.dart';
+import 'package:kp_pos/features/flight/domain/usecases/get_flight_by_code_usecase.dart';
+import 'package:kp_pos/features/home/presentation/home_view_model.dart';
+import 'package:kp_pos/features/nationality/domain/usecases/list_nationalities_usecase.dart';
+import 'package:kp_pos/features/sale/domain/usecases/add_item_to_cart_usecase.dart';
+import 'package:kp_pos/features/sale/domain/usecases/lookup_article_by_barcode_usecase.dart';
+import 'package:kp_pos/features/sale/domain/usecases/remove_cart_item_usecase.dart';
+import 'package:kp_pos/features/sale/domain/usecases/update_cart_item_quantity_usecase.dart';
+import 'package:kp_pos/features/sale/presentation/sale_cart_view_model.dart';
+import 'package:kp_pos/features/settings/domain/usecases/list_sub_branches_usecase.dart';
+import 'package:kp_pos/features/settings/domain/usecases/load_device_settings_usecase.dart';
+import 'package:kp_pos/features/settings/domain/usecases/save_device_settings_usecase.dart';
+import 'package:kp_pos/features/settings/presentation/settings_view_model.dart';
 
 import 'core/storage/fakes.dart';
 import 'features/auth/fake_auth_repository.dart';
+import 'features/customer/fake_customer_repository.dart';
+import 'features/flight/fake_flight_repository.dart';
+import 'features/nationality/fake_nationality_repository.dart';
+import 'features/sale/fake_sale_repository.dart';
+import 'features/settings/fake_settings_repository.dart';
 
 ({LoginViewModel Function() loginViewModelFactory, LogoutUseCase logoutUseCase})
 _authDeps() {
@@ -21,10 +46,56 @@ _authDeps() {
   );
 }
 
+SettingsViewModel _settingsViewModel([DeviceSettings? settings]) {
+  final repo = FakeSettingsRepository(
+    settings: settings ?? const DeviceSettings(),
+  );
+  return SettingsViewModel(
+    loadDeviceSettings: LoadDeviceSettingsUseCase(repo),
+    saveDeviceSettings: SaveDeviceSettingsUseCase(repo),
+    listSubBranches: ListSubBranchesUseCase(repo),
+  );
+}
+
+CustomerRegistrationViewModel _customerRegistrationViewModel() {
+  final repo = FakeCustomerRepository();
+  final flightRepo = FakeFlightRepository();
+  return CustomerRegistrationViewModel(
+    listNationalities: ListNationalitiesUseCase(FakeNationalityRepository()),
+    listAgents: ListAgentsUseCase(repo),
+    listGuides: ListGuidesUseCase(repo),
+    getFlightByCode: GetFlightByCodeUseCase(flightRepo),
+    getDateByFlight: GetDateByFlightUseCase(flightRepo),
+    registerCustomer: RegisterCustomerUseCase(repo),
+  );
+}
+
+SaleCartViewModel _saleCartViewModel() {
+  final auth = FakeAuthRepository();
+  return SaleCartViewModel(
+    restoreSession: RestoreSessionUseCase(auth),
+    lookupArticle: LookupArticleByBarcodeUseCase(FakeSaleRepository()),
+    addItemToCart: AddItemToCartUseCase(FakeSaleRepository()),
+    updateCartItemQuantity: UpdateCartItemQuantityUseCase(FakeSaleRepository()),
+    removeCartItem: RemoveCartItemUseCase(FakeSaleRepository()),
+  );
+}
+
+HomeViewModel _homeViewModel([DeviceSettings? settings]) {
+  final authRepo = FakeAuthRepository();
+  final settingsRepo = FakeSettingsRepository(
+    settings: settings ?? const DeviceSettings(),
+  );
+  return HomeViewModel(
+    restoreSession: RestoreSessionUseCase(authRepo),
+    loadDeviceSettings: LoadDeviceSettingsUseCase(settingsRepo),
+    searchCustomer: SearchCustomerUseCase(FakeCustomerRepository()),
+  );
+}
+
 void main() {
   testWidgets(
-    'the device setup route is still reachable when device settings are incomplete '
-    '(the guard temporarily also defaults to /login for testing — see router.dart)',
+    'renders the device settings page when device settings are incomplete',
     (tester) async {
       final sessionState = SessionState(
         startupValidator: StartupValidator(
@@ -34,22 +105,24 @@ void main() {
           sessionStorage: FakeSessionStorage(),
         ),
       );
-      await sessionState.refresh();
+      await sessionState.refreshSession();
 
       final deps = _authDeps();
       final router = buildRouter(
         sessionState,
         loginViewModelFactory: deps.loginViewModelFactory,
+        settingsViewModelFactory: _settingsViewModel,
+        homeViewModelFactory: _homeViewModel,
+        saleCartViewModelFactory: _saleCartViewModel,
+        customerRegistrationViewModelFactory: _customerRegistrationViewModel,
         logoutUseCase: deps.logoutUseCase,
       );
 
       await tester.pumpWidget(KpPosApp(router: router));
       await tester.pumpAndSettle();
 
-      router.go(AppRoutes.deviceSetup);
-      await tester.pumpAndSettle();
-
-      expect(find.textContaining('Device setup'), findsOneWidget);
+      expect(find.text('Device settings'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Save'), findsOneWidget);
     },
   );
 
@@ -67,19 +140,24 @@ void main() {
           sessionStorage: FakeSessionStorage('abc123'),
         ),
       );
-      await sessionState.refresh();
+      await sessionState.refreshSession();
 
       final deps = _authDeps();
       final router = buildRouter(
         sessionState,
         loginViewModelFactory: deps.loginViewModelFactory,
+        settingsViewModelFactory: _settingsViewModel,
+        homeViewModelFactory: _homeViewModel,
+        saleCartViewModelFactory: _saleCartViewModel,
+        customerRegistrationViewModelFactory: _customerRegistrationViewModel,
         logoutUseCase: deps.logoutUseCase,
       );
 
       await tester.pumpWidget(KpPosApp(router: router));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('Home'), findsOneWidget);
+      // Customers is the default-active tab post-login.
+      expect(find.text('Search customer'), findsOneWidget);
     },
   );
 }

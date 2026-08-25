@@ -1,11 +1,15 @@
 import 'package:go_router/go_router.dart';
 
 import '../../features/auth/domain/usecases/logout_usecase.dart';
-import '../../features/auth/presentation/authenticated_home_placeholder_page.dart';
 import '../../features/auth/presentation/login_page.dart';
 import '../../features/auth/presentation/login_view_model.dart';
+import '../../features/customer/presentation/customer_registration_view_model.dart';
+import '../../features/home/presentation/home_page.dart';
+import '../../features/home/presentation/home_view_model.dart';
+import '../../features/sale/presentation/sale_cart_view_model.dart';
+import '../../features/settings/presentation/settings_page.dart';
+import '../../features/settings/presentation/settings_view_model.dart';
 import '../startup/startup_validator.dart';
-import 'placeholder_pages.dart';
 import 'session_state.dart';
 
 abstract class AppRoutes {
@@ -26,25 +30,22 @@ abstract class AppRoutes {
 GoRouter buildRouter(
   SessionState sessionState, {
   required LoginViewModel Function() loginViewModelFactory,
+  required SettingsViewModel Function() settingsViewModelFactory,
+  required HomeViewModel Function() homeViewModelFactory,
+  required SaleCartViewModel Function() saleCartViewModelFactory,
+  required CustomerRegistrationViewModel Function()
+  customerRegistrationViewModelFactory,
   required LogoutUseCase logoutUseCase,
 }) {
   return GoRouter(
-    // TEMPORARY (dev testing, per user request): defaults to /login so the
-    // login screen is reachable before task 6.x's real device-setup
-    // workflow exists. Revert to AppRoutes.deviceSetup once that lands.
-    initialLocation: AppRoutes.login,
+    initialLocation: AppRoutes.deviceSetup,
     refreshListenable: sessionState,
     redirect: (context, state) {
       final status = sessionState.status;
       final location = state.matchedLocation;
 
       if (status == StartupStatus.needsDeviceSetup) {
-        // TEMPORARY: also allow /login through the incomplete-device-setup
-        // gate so it can be reached for testing — see note above.
-        if (location == AppRoutes.deviceSetup || location == AppRoutes.login) {
-          return null;
-        }
-        return AppRoutes.deviceSetup;
+        return location == AppRoutes.deviceSetup ? null : AppRoutes.deviceSetup;
       }
       if (status == StartupStatus.needsLogin) {
         return location == AppRoutes.login ? null : AppRoutes.login;
@@ -58,20 +59,29 @@ GoRouter buildRouter(
     routes: [
       GoRoute(
         path: AppRoutes.deviceSetup,
-        builder: (context, state) => const DeviceSetupPlaceholderPage(),
+        builder: (context, state) => SettingsPage(
+          viewModel: settingsViewModelFactory(),
+          sessionState: sessionState,
+        ),
       ),
       GoRoute(
         path: AppRoutes.login,
         builder: (context, state) => LoginPage(
           viewModel: loginViewModelFactory(),
           sessionState: sessionState,
+          settingsViewModelFactory: settingsViewModelFactory,
         ),
       ),
       GoRoute(
         path: AppRoutes.home,
-        builder: (context, state) => AuthenticatedHomePlaceholderPage(
+        builder: (context, state) => HomePage(
+          viewModel: homeViewModelFactory(),
           sessionState: sessionState,
           logoutUseCase: logoutUseCase,
+          settingsViewModelFactory: settingsViewModelFactory,
+          saleCartViewModelFactory: saleCartViewModelFactory,
+          customerRegistrationViewModelFactory:
+              customerRegistrationViewModelFactory,
         ),
       ),
     ],

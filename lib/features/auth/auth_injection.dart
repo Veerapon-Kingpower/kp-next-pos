@@ -1,4 +1,3 @@
-import '../../core/config/environment.dart';
 import '../../core/di/service_locator.dart';
 import '../../core/network/api_client.dart';
 import '../../core/storage/device_settings_storage.dart';
@@ -14,10 +13,7 @@ import 'presentation/login_view_model.dart';
 
 void setupAuthServiceLocator() {
   sl.registerLazySingleton<AuthRemoteDataSource>(
-    () => AuthRemoteDataSource(
-      apiClient: sl<ApiClient>(),
-      saleEngineEndpoint: EnvironmentConfig.current.saleEngineEndpoint,
-    ),
+    () => AuthRemoteDataSource(apiClient: sl<ApiClient>()),
   );
   sl.registerLazySingleton<AuthLocalDataSource>(
     () => SecureAuthLocalDataSource(),

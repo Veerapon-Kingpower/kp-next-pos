@@ -34,15 +34,24 @@ void main() {
   });
 
   test(
-    'white text on goldPrimary meets WCAG AA for large text only (button/banner use, not body text)',
+    'textPrimary on goldAccent meets WCAG AA for normal text (button/badge use)',
     () {
-      const white = Color(0xFFFFFFFF);
-      final ratio = contrastRatio(white, AppColors.goldPrimary);
+      final ratio = contrastRatio(AppColors.textPrimary, AppColors.goldAccent);
       expect(
-        meetsAAForLargeText(white, AppColors.goldPrimary),
+        meetsAAForNormalText(AppColors.textPrimary, AppColors.goldAccent),
         isTrue,
-        reason: '$ratio:1 (need >= 3.0:1)',
+        reason: '$ratio:1 (need >= 4.5:1)',
       );
     },
   );
+
+  test('white text on navy meets WCAG AA for normal text (header/nav use)', () {
+    const white = Color(0xFFFFFFFF);
+    final ratio = contrastRatio(white, AppColors.navy);
+    expect(
+      meetsAAForNormalText(white, AppColors.navy),
+      isTrue,
+      reason: '$ratio:1 (need >= 4.5:1)',
+    );
+  });
 }

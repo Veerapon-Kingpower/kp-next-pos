@@ -2,6 +2,7 @@ import 'package:get/get.dart';
 
 import '../../../core/error/app_exception.dart';
 import '../../auth/domain/usecases/restore_session_usecase.dart';
+import '../../customer/domain/entities/privilege.dart';
 import '../domain/barcode_scan_input.dart';
 import '../domain/entities/cart.dart';
 import '../domain/usecases/add_item_to_cart_usecase.dart';
@@ -35,6 +36,17 @@ class SaleCartViewModel extends GetxController {
   Cart? cart;
   bool isBusy = false;
   String? scanError;
+
+  /// The privilege chosen on the Customers tab before switching here, if
+  /// the customer has any (see `HomePage._goToSale`'s picker). Client-side
+  /// only — there's no discount-calculation or backend privilege API wired
+  /// into the cart yet, so this is purely informational for now.
+  Privilege? selectedPrivilege;
+
+  void selectPrivilege(Privilege? privilege) {
+    selectedPrivilege = privilege;
+    update();
+  }
 
   /// Set when the most recent scan's article came from the offline cache
   /// (see openspec/changes/add-offline-article-cache) rather than a fresh

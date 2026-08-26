@@ -60,6 +60,12 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
   // flight-date candidate, not the flight-search result itself.
   String _airlineCode = '';
   bool _allowTakeAway = false;
+  // Echoed back verbatim on submit only when the found customer already
+  // has a shopping card — see `initState`'s assignment and
+  // `CustomerPerson.listIdentity`'s doc comment for why.
+  List<Map<String, dynamic>> _listIdentity = const [];
+  String _provinceCode = '';
+  String _cityCode = '';
 
   // Whether this submits as an edit is driven by the found customer's own
   // `action` field from `GetCustomer` — NOT by "did the user tap the edit
@@ -86,6 +92,13 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
     _mobileController.text = _contactValue(person.contacts, 'MOBILE');
     _weChatController.text = _contactValue(person.contacts, 'WECHAT');
     _gender = person.gender;
+    // Matches legacy's `if (this.shoppingCard != "")` gate exactly — keyed
+    // on the existing shopping card being present, not on add-vs-edit mode.
+    if (person.shoppingCard.isNotEmpty) {
+      _listIdentity = person.listIdentity;
+      _provinceCode = person.provinceCode;
+      _cityCode = person.cityCode;
+    }
     if (person.nationality.isNotEmpty) {
       _nationality = Nationality(
         countryCode: person.nationality,
@@ -410,6 +423,9 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
       // `setFormCustomerData()`; `false` when there's no existing customer
       // (a brand-new registration), same as that method's own default.
       isActivate: widget.existingCustomer?.person.isActivate ?? false,
+      listIdentity: _listIdentity,
+      provinceCode: _provinceCode,
+      cityCode: _cityCode,
     );
     if (!mounted || !success) return;
 

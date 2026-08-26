@@ -1,4 +1,5 @@
 import '../../domain/entities/customer.dart';
+import 'privilege_model.dart';
 
 class CustomerModel extends Customer {
   const CustomerModel({
@@ -47,6 +48,10 @@ class CustomerPersonModel extends CustomerPerson {
     super.custTypeCode,
     super.typeCardMember,
     super.gender,
+    super.listIdentity,
+    super.provinceCode,
+    super.cityCode,
+    super.fastRegister,
   });
 
   factory CustomerPersonModel.fromJson(Map<String, dynamic> json) {
@@ -55,7 +60,7 @@ class CustomerPersonModel extends CustomerPerson {
       passportNo: json['passportNo'] as String? ?? '',
       nationality: json['nationality'] as String? ?? '',
       contacts: _rawList(json['listContact']),
-      privileges: _rawList(json['listPrivilege']),
+      privileges: _privilegeList(json['listPrivilege']),
       walletMembers: _rawList(json['listWalletMember']),
       shoppingCard: _identityValue(json['listIdentity'], 'SHOPCARD'),
       customerTypeCode: json['customerTypeCode'] as String? ?? '',
@@ -71,12 +76,22 @@ class CustomerPersonModel extends CustomerPerson {
       custTypeCode: _identityValue(json['singleDiscount'], 'CODE'),
       typeCardMember: _identityValue(json['singleDiscount'], 'TYPE CARD MEMBER'),
       gender: json['gender'] as String? ?? 'M',
+      listIdentity: _rawList(json['listIdentity']),
+      provinceCode: json['provinceCode'] as String? ?? '',
+      cityCode: json['cityCode'] as String? ?? '',
+      fastRegister: json['fast_register'] as bool? ?? false,
     );
   }
 
   static List<Map<String, dynamic>> _rawList(dynamic value) {
     return (value as List<dynamic>? ?? const [])
         .map((e) => e as Map<String, dynamic>)
+        .toList(growable: false);
+  }
+
+  static List<PrivilegeModel> _privilegeList(dynamic value) {
+    return (value as List<dynamic>? ?? const [])
+        .map((e) => PrivilegeModel.fromJson(e as Map<String, dynamic>))
         .toList(growable: false);
   }
 

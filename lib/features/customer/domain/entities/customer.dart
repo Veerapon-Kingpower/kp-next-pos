@@ -1,8 +1,12 @@
+import 'privilege.dart';
+
 /// Field-for-field port of the legacy `CustomerModel` returned by
 /// `Register/GetCustomer` (`api-contracts.md` section 6, op 2). The nested
-/// `person.listContact`/`listPrivilege`/`listWalletMember` and `tour` shapes
-/// are not documented beyond their field names in the source material, so
-/// they are carried as raw JSON rather than guessed at.
+/// `person.listContact`/`listWalletMember` and `tour` shapes are not
+/// documented beyond their field names in the source material, so they are
+/// carried as raw JSON rather than guessed at — `listPrivilege` is the
+/// exception, since legacy's `PrivilegeModel` documents its real shape (see
+/// [Privilege]).
 class Customer {
   final String action;
   final bool isFound;
@@ -35,7 +39,7 @@ class CustomerPerson {
   final String passportNo;
   final String nationality;
   final List<Map<String, dynamic>> contacts;
-  final List<Map<String, dynamic>> privileges;
+  final List<Privilege> privileges;
   final List<Map<String, dynamic>> walletMembers;
   // Not a direct API field — extracted from `listIdentity` (the entry whose
   // `IdentityType` is `SHOPCARD`), matching legacy's
@@ -63,6 +67,23 @@ class CustomerPerson {
   // (`customer-form.ts`'s `setFormCustomerData`); defaults to `'M'` to
   // match that same form's untouched-field default.
   final String gender;
+  // Raw `listIdentity` entries (`{IdentityType, IdentityValue}`) — kept
+  // verbatim, not just scanned for `shoppingCard`/`custTypeCode`/etc., so
+  // the Register form can echo the whole list back unmodified on submit
+  // when editing (see `provinceCode`/`cityCode` below for why).
+  final List<Map<String, dynamic>> listIdentity;
+  // Only ever echoed back verbatim on an edit submit, never displayed or
+  // user-edited — matches legacy's `addDatatoModel()`: `if (this.
+  // shoppingCard != "") { personNew.listIdentity = this.personInfo.
+  // listIdentity; personNew.provinceCode = this.personInfo.provinceCode;
+  // personNew.cityCode = this.personInfo.cityCode; ... }`. Sent as empty
+  // string when there's no existing customer, matching that same default.
+  final String provinceCode;
+  final String cityCode;
+  // Gates "go to Sale" in legacy (`customer.ts`'s `isFastRegister` getter →
+  // `checkConditionToSalePage()`'s first guard): a fast-registered card
+  // can't be used to start a sale.
+  final bool fastRegister;
 
   const CustomerPerson({
     required this.englishName,
@@ -83,5 +104,9 @@ class CustomerPerson {
     this.custTypeCode = '',
     this.typeCardMember = '',
     this.gender = 'M',
+    this.listIdentity = const [],
+    this.provinceCode = '',
+    this.cityCode = '',
+    this.fastRegister = false,
   });
 }

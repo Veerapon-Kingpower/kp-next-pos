@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/error/app_exception.dart';
 import 'package:kp_pos/features/auth/domain/entities/user_session.dart';
 import 'package:kp_pos/features/auth/domain/usecases/restore_session_usecase.dart';
+import 'package:kp_pos/features/customer/domain/entities/privilege.dart';
 import 'package:kp_pos/features/sale/domain/entities/article.dart';
 import 'package:kp_pos/features/sale/domain/entities/cart.dart';
 import 'package:kp_pos/features/sale/domain/entities/cart_item.dart';
@@ -155,5 +156,23 @@ void main() {
 
     expect(sale.lastRemovedRow, '1');
     expect(viewModel.cart?.guid, 'order-1');
+  });
+
+  test('selectPrivilege stores the chosen privilege', () {
+    final viewModel = buildViewModel();
+    const privilege = Privilege(name: 'Gold Member', discount: 10);
+
+    viewModel.selectPrivilege(privilege);
+
+    expect(viewModel.selectedPrivilege, privilege);
+  });
+
+  test('selectPrivilege(null) clears a previously chosen privilege', () {
+    final viewModel = buildViewModel();
+    viewModel.selectPrivilege(const Privilege(name: 'Gold Member', discount: 10));
+
+    viewModel.selectPrivilege(null);
+
+    expect(viewModel.selectedPrivilege, isNull);
   });
 }

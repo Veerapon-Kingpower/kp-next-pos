@@ -30,13 +30,26 @@ class RegisterOutputModel extends RegisterOutput {
   factory RegisterOutputModel.fromJson(Map<String, dynamic> json) {
     final listCoupon = json['listCoupon'] as List<dynamic>? ?? const [];
     return RegisterOutputModel(
-      runningNo: json['runningNo'] as String? ?? '',
-      shoppingCard: json['shoppingCard'] as String? ?? '',
-      qrShoppingCard: json['qrShoppingCard'] as String? ?? '',
+      runningNo: _stringValue(json['runningNo']),
+      shoppingCard: _stringValue(json['shoppingCard']),
+      qrShoppingCard: _stringValue(json['qrShoppingCard']),
       coupons: listCoupon
           .map((c) => RegisterCouponModel.fromJson(c as Map<String, dynamic>))
           .toList(growable: false),
     );
+  }
+
+  // `runningNo`/`shoppingCard` come back as raw JSON numbers for purely
+  // numeric card values (confirmed via a real response: `runningNo: 0`,
+  // `shoppingCard: 9900000033194`) rather than the quoted strings other
+  // shopping-card examples (`"CPX0001"`) use elsewhere — a plain `as
+  // String?` cast throws a TypeError on that shape (not caught as
+  // ApiException), which silently surfaced as "Could not register the
+  // customer" on an otherwise-successful registration.
+  static String _stringValue(dynamic value) {
+    if (value == null) return '';
+    if (value is String) return value;
+    return value.toString();
   }
 }
 

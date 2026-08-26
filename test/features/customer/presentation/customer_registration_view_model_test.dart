@@ -293,6 +293,79 @@ void main() {
     },
   );
 
+  test(
+    'submit echoes listIdentity/provinceCode/cityCode verbatim when given, '
+    'defaulting to empty — matches legacy\'s `if (this.shoppingCard != "")` echo',
+    () async {
+      final repo = FakeCustomerRepository();
+      final viewModel = buildViewModel(repo);
+      const existingIdentity = [
+        {'IdentityType': 'SHOPCARD', 'IdentityValue': 'CPX0001'},
+      ];
+
+      await viewModel.submit(
+        englishName: 'Jane Doe',
+        passportNo: 'P1234567',
+        nationality: 'THA',
+        gender: 'M',
+        customerTypeCode: 'VIP',
+        allowTakeAway: false,
+        isAirportMpos: false,
+        userCode: 'U001',
+        listIdentity: existingIdentity,
+        provinceCode: 'PC1',
+        cityCode: 'CC1',
+      );
+
+      final listPersonal =
+          repo.lastRegisterCall!['listPersonal'] as List<Map<String, dynamic>>;
+      expect(listPersonal.single['listIdentity'], existingIdentity);
+      expect(listPersonal.single['provinceCode'], 'PC1');
+      expect(listPersonal.single['cityCode'], 'CC1');
+
+      await viewModel.submit(
+        englishName: 'Jane Doe',
+        passportNo: 'P1234567',
+        nationality: 'THA',
+        gender: 'M',
+        customerTypeCode: 'VIP',
+        allowTakeAway: false,
+        isAirportMpos: false,
+        userCode: 'U001',
+      );
+
+      final secondListPersonal =
+          repo.lastRegisterCall!['listPersonal'] as List<Map<String, dynamic>>;
+      expect(secondListPersonal.single['listIdentity'], isEmpty);
+      expect(secondListPersonal.single['provinceCode'], '');
+      expect(secondListPersonal.single['cityCode'], '');
+    },
+  );
+
+  test(
+    'submit forces customerTypeCode to "FIT" when isAirportMpos is true, '
+    'regardless of what was collected — matches legacy exactly',
+    () async {
+      final repo = FakeCustomerRepository();
+      final viewModel = buildViewModel(repo);
+
+      await viewModel.submit(
+        englishName: 'Jane Doe',
+        passportNo: 'P1234567',
+        nationality: 'THA',
+        gender: 'M',
+        customerTypeCode: 'VIP',
+        allowTakeAway: false,
+        isAirportMpos: true,
+        userCode: 'U001',
+      );
+
+      final listPersonal =
+          repo.lastRegisterCall!['listPersonal'] as List<Map<String, dynamic>>;
+      expect(listPersonal.single['customerTypeCode'], 'FIT');
+    },
+  );
+
   test('a successful submit stores the register result', () async {
     const registerResult = RegisterResult(
       outputs: [

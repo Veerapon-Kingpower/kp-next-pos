@@ -97,6 +97,9 @@ class CustomerRegistrationViewModel extends GetxController {
     String weChat = '',
     bool isEdit = false,
     bool isActivate = false,
+    List<Map<String, dynamic>> listIdentity = const [],
+    String provinceCode = '',
+    String cityCode = '',
   }) async {
     status = CustomerRegistrationStatus.submitting;
     errorMessage = null;
@@ -118,7 +121,12 @@ class CustomerRegistrationViewModel extends GetxController {
             passportNo: passportNo,
             nationality: nationality,
             gender: gender,
-            customerTypeCode: customerTypeCode,
+            // Airport-mode registrations force customer type to "FIT" server-side,
+            // regardless of what (if anything) the form collected — matches
+            // legacy's `if (this.settingsService.settings.isAirportMpos) {
+            // personNew.customerTypeCode = "FIT"; }`, applied AFTER the
+            // shoppingCard-present override below in legacy's own source order.
+            customerTypeCode: isAirportMpos ? 'FIT' : customerTypeCode,
             flightCode: flightCode,
             flightDate: flightDate,
             flightTime: flightTime,
@@ -127,6 +135,9 @@ class CustomerRegistrationViewModel extends GetxController {
             mobile: mobile,
             weChat: weChat,
             isActivate: isActivate,
+            listIdentity: listIdentity,
+            provinceCode: provinceCode,
+            cityCode: cityCode,
           ),
         ],
       );
@@ -157,6 +168,9 @@ class CustomerRegistrationViewModel extends GetxController {
     required String mobile,
     required String weChat,
     required bool isActivate,
+    required List<Map<String, dynamic>> listIdentity,
+    required String provinceCode,
+    required String cityCode,
   }) => {
     'runningNo': 1,
     'englishName': englishName,
@@ -166,8 +180,10 @@ class CustomerRegistrationViewModel extends GetxController {
     'nationality': nationality.toUpperCase(),
     'customerTypeCode': customerTypeCode,
     'gender': gender,
-    'provinceCode': '',
-    'cityCode': '',
+    // Echoed from the found customer's current value when one exists
+    // (empty otherwise) — see `listIdentity`'s doc comment below.
+    'provinceCode': provinceCode,
+    'cityCode': cityCode,
     // Not user-entered — legacy sets this from `getDateByFlight`'s first
     // resolved candidate (`data.Data[0].airlineCode`, `customer-form.ts`'s
     // `getFlightDate()`), not from the flight-search result itself.
@@ -179,7 +195,17 @@ class CustomerRegistrationViewModel extends GetxController {
     'flightDate': flightDate,
     'flightTime': flightTime,
     'listContact': _buildListContact(email: email, mobile: mobile, weChat: weChat),
-    'listIdentity': <Map<String, dynamic>>[],
+    // Echoed back verbatim from the found customer's own `listIdentity`
+    // when one already has a shopping card (empty for a brand-new
+    // registration) — matches legacy's `if (this.shoppingCard != "") {
+    // personNew.listIdentity = this.personInfo.listIdentity; ... }`
+    // exactly. This is keyed to the *existing shopping card* being
+    // present, independent of REGISTER_ADD vs REGISTER_EDIT — a
+    // not-yet-completed customer (`isFound: false`) still has a shopping
+    // card and still echoes this. Sending an empty list here for an edit
+    // was suspected of preventing the server from correctly linking the
+    // submission back to the searched shopping card.
+    'listIdentity': listIdentity,
     // Echoed back from the found customer's current value (`false` for a
     // brand-new one) — matches legacy's `personNew.isActivate =
     // this.isActivate` exactly. The server, not the client, decides when a

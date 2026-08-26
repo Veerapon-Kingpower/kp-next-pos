@@ -662,8 +662,13 @@ void main() {
     testWidgets(
       'a shopping card that was never completed (action: REGISTER_ADD, isFound: false) submits '
       'as REGISTER_ADD even though it was opened via the edit icon — sending REGISTER_EDIT for it '
-      'gets rejected server-side as a duplicate shopping card',
+      'gets rejected server-side as a duplicate shopping card, but still echoes back listIdentity/'
+      'provinceCode/cityCode since it already has a shopping card — that echo is keyed on the '
+      'shopping card being present, independent of REGISTER_ADD vs REGISTER_EDIT',
       (tester) async {
+        const existingIdentity = [
+          {'IdentityType': 'SHOPCARD', 'IdentityValue': '9900000033194'},
+        ];
         const incompleteCustomer = Customer(
           action: 'REGISTER_ADD',
           isFound: false,
@@ -676,6 +681,10 @@ void main() {
             walletMembers: [],
             customerTypeCode: 'VIP',
             isActivate: false,
+            shoppingCard: '9900000033194',
+            listIdentity: existingIdentity,
+            provinceCode: 'PC1',
+            cityCode: 'CC1',
           ),
           tour: {},
           agentCode: '',
@@ -718,6 +727,11 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(repo.lastRegisterCall!['action'], 'REGISTER_ADD');
+        final listPersonal =
+            repo.lastRegisterCall!['listPersonal'] as List<Map<String, dynamic>>;
+        expect(listPersonal.single['listIdentity'], existingIdentity);
+        expect(listPersonal.single['provinceCode'], 'PC1');
+        expect(listPersonal.single['cityCode'], 'CC1');
       },
     );
   });

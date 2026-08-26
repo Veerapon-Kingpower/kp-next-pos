@@ -257,6 +257,54 @@ void main() {
     },
   );
 
+  test(
+    'register parses runningNo/shoppingCard as raw JSON numbers, not just strings '
+    '— a real response returned `runningNo: 0`, `shoppingCard: 9900000033194` unquoted, '
+    'which used to throw a TypeError and surface as a false "Could not register" failure',
+    () async {
+      apiClient.response = {
+        'isCompleted': true,
+        'Data': [
+          {
+            'listOutput': [
+              {
+                'runningNo': 0,
+                'shoppingCard': 9900000033194,
+                'qrShoppingCard': null,
+                'listCoupon': [],
+              },
+            ],
+            'listMessage': [],
+            'isComplete': true,
+          },
+        ],
+        'Message': [],
+      };
+
+      final result = await dataSource.register(
+        webServiceEndpoint: 'https://web-service',
+        agentCode: 'AG1',
+        subAgentCode: '',
+        subBranchCode: 'CPX-DT',
+        branchNo: '03',
+        platformCode: 'MPOS',
+        prefixShoppingCard: 'CPX',
+        userCode: 'U001',
+        machineNo: 'uuid-1',
+        action: 'register',
+        allowTakeAway: true,
+        isAirport: true,
+        tour: const {},
+        listPersonal: const [],
+      );
+
+      expect(result.outputs.single.runningNo, '0');
+      expect(result.outputs.single.shoppingCard, '9900000033194');
+      expect(result.outputs.single.qrShoppingCard, '');
+      expect(result.isComplete, true);
+    },
+  );
+
   test('register throws when the nested isComplete flag is false', () async {
     apiClient.response = {
       'isCompleted': true,

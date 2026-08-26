@@ -7,6 +7,7 @@ import 'package:kp_pos/features/auth/domain/entities/user_session.dart';
 import 'package:kp_pos/features/auth/domain/usecases/logout_usecase.dart';
 import 'package:kp_pos/features/auth/domain/usecases/restore_session_usecase.dart';
 import 'package:kp_pos/features/customer/domain/entities/customer.dart';
+import 'package:kp_pos/features/customer/domain/entities/privilege.dart';
 import 'package:kp_pos/features/customer/domain/usecases/list_agents_usecase.dart';
 import 'package:kp_pos/features/customer/domain/usecases/list_guides_usecase.dart';
 import 'package:kp_pos/features/customer/domain/usecases/register_customer_usecase.dart';
@@ -295,7 +296,7 @@ void main() {
   );
 
   testWidgets(
-    'tapping "Details" expands the card to show privileges, wallet, and tour details, but not contacts',
+    'the card always shows privileges, wallet, and tour details, but not contacts',
     (tester) async {
       const customer = Customer(
         action: 'found',
@@ -308,7 +309,12 @@ void main() {
             {'contactType': 'MOBILE', 'contactValue': '0812345678'},
           ],
           privileges: [
-            {'tier': 'Gold'},
+            Privilege(
+              name: 'Gold Member',
+              discount: 10,
+              typeCode: 'VIP',
+              promoCode: 'PROMO123',
+            ),
           ],
           walletMembers: [
             {'balance': '100'},
@@ -332,30 +338,182 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, 'Search'));
       await tester.pumpAndSettle();
 
-      // Agent is part of the always-visible header now, matching legacy —
-      // only privileges/wallet/tour stay behind the toggle; contacts are
-      // deliberately not shown at all.
+      // Agent is part of the always-visible header, matching legacy;
+      // privileges/wallet/tour are always visible too now (no toggle);
+      // contacts are deliberately not shown at all.
       expect(find.textContaining('AG1'), findsOneWidget);
-      expect(find.text('tier: Gold'), findsNothing);
-
-      await tester.tap(find.text('Details'));
-      await tester.pumpAndSettle();
-
       expect(find.text('contactType: MOBILE'), findsNothing);
       expect(find.text('contactValue: 0812345678'), findsNothing);
-      expect(find.text('tier: Gold'), findsOneWidget);
+      expect(find.text('Gold Member'), findsOneWidget);
+      expect(find.text('[VIP]:PROMO123'), findsOneWidget);
       expect(find.text('balance: 100'), findsOneWidget);
       expect(find.text('tourCode: T1'), findsOneWidget);
-
-      await tester.tap(find.text('Details'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('tier: Gold'), findsNothing);
     },
   );
 
   testWidgets(
-    'a customer with no extra data shows only the no-flight bar when expanded',
+    'tapping a privilege card selects it, tapping it again deselects it',
+    (tester) async {
+      const customer = Customer(
+        action: 'found',
+        isFound: true,
+        person: CustomerPerson(
+          englishName: 'Jane Doe',
+          passportNo: 'P1234567',
+          nationality: 'THA',
+          contacts: [],
+          privileges: [
+            Privilege(
+              name: 'Gold Member',
+              discount: 10,
+              typeCode: 'VIP',
+              promoCode: 'PROMO123',
+            ),
+          ],
+          walletMembers: [],
+          // Kept false so the header's status icon stays `Icons.cancel`,
+          // not `Icons.check_circle` — avoids colliding with the
+          // privilege card's own selected-state icon in these assertions.
+          isActivate: false,
+        ),
+        tour: {},
+        agentCode: '',
+        isMember: false,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(home: buildPage(searchResult: const [customer])),
+      );
+      await tester.pumpAndSettle();
+
+      final searchField = find.widgetWithText(
+        TextField,
+        'Search by shopping card, passport, or ID card number',
+      );
+      await tester.enterText(searchField, 'CPX0001');
+      await tester.tap(find.widgetWithText(FilledButton, 'Search'));
+      await tester.pumpAndSettle();
+
+      final card = find.byKey(const Key('privilegeCard_0'));
+      expect(card, findsOneWidget);
+      expect(find.byIcon(Icons.check_circle), findsNothing);
+      expect(find.byIcon(Icons.radio_button_unchecked), findsOneWidget);
+
+      await tester.tap(card);
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.check_circle), findsOneWidget);
+      expect(find.byIcon(Icons.radio_button_unchecked), findsNothing);
+
+      await tester.tap(card);
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.check_circle), findsNothing);
+      expect(find.byIcon(Icons.radio_button_unchecked), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'selecting a privilege on the Customers tab shows it on the Sale page',
+    (tester) async {
+      const customer = Customer(
+        action: 'found',
+        isFound: true,
+        person: CustomerPerson(
+          englishName: 'Jane Doe',
+          passportNo: 'P1234567',
+          nationality: 'THA',
+          contacts: [],
+          privileges: [
+            Privilege(
+              name: 'Gold Member',
+              discount: 10,
+              typeCode: 'VIP',
+              promoCode: 'PROMO123',
+            ),
+          ],
+          walletMembers: [],
+          isActivate: true,
+        ),
+        tour: {},
+        agentCode: '',
+        isMember: false,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(home: buildPage(searchResult: const [customer])),
+      );
+      await tester.pumpAndSettle();
+
+      final searchField = find.widgetWithText(
+        TextField,
+        'Search by shopping card, passport, or ID card number',
+      );
+      await tester.enterText(searchField, 'CPX0001');
+      await tester.tap(find.widgetWithText(FilledButton, 'Search'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('privilegeCard_0')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Sale').last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Gold Member'), findsOneWidget);
+      expect(find.text('[VIP]:PROMO123'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'starting a new search clears a previously selected privilege',
+    (tester) async {
+      const customer = Customer(
+        action: 'found',
+        isFound: true,
+        person: CustomerPerson(
+          englishName: 'Jane Doe',
+          passportNo: 'P1234567',
+          nationality: 'THA',
+          contacts: [],
+          privileges: [
+            Privilege(name: 'Gold Member', discount: 10),
+          ],
+          walletMembers: [],
+          isActivate: false,
+        ),
+        tour: {},
+        agentCode: '',
+        isMember: false,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(home: buildPage(searchResult: const [customer])),
+      );
+      await tester.pumpAndSettle();
+
+      final searchField = find.widgetWithText(
+        TextField,
+        'Search by shopping card, passport, or ID card number',
+      );
+      await tester.enterText(searchField, 'CPX0001');
+      await tester.tap(find.widgetWithText(FilledButton, 'Search'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('privilegeCard_0')));
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.check_circle), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Search'));
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.check_circle), findsNothing);
+      expect(find.byIcon(Icons.radio_button_unchecked), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'a customer with no extra data shows only the no-flight bar',
     (tester) async {
       const customer = Customer(
         action: 'found',
@@ -384,9 +542,6 @@ void main() {
       );
       await tester.enterText(searchField, 'CPX0002');
       await tester.tap(find.widgetWithText(FilledButton, 'Search'));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Details'));
       await tester.pumpAndSettle();
 
       expect(find.text('Flight: Not available'), findsOneWidget);
@@ -516,7 +671,7 @@ void main() {
   );
 
   testWidgets(
-    'shows flight info in the expanded details when present',
+    'shows flight info attached to the customer info when present',
     (tester) async {
       const customer = Customer(
         action: 'found',
@@ -552,9 +707,6 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, 'Search'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Details'));
-      await tester.pumpAndSettle();
-
       expect(find.textContaining('TG101'), findsOneWidget);
       expect(find.textContaining('BKK - NRT'), findsOneWidget);
       expect(find.textContaining('Gate A1'), findsOneWidget);
@@ -586,6 +738,65 @@ void main() {
         ),
         findsOneWidget,
       );
+    },
+  );
+
+  testWidgets(
+    '"Register new customer" is hidden once a search actually returns a result',
+    (tester) async {
+      const customer = Customer(
+        action: 'found',
+        isFound: true,
+        person: CustomerPerson(
+          englishName: 'Jane Doe',
+          passportNo: 'P1234567',
+          nationality: 'THA',
+          contacts: [],
+          privileges: [],
+          walletMembers: [],
+        ),
+        tour: {},
+        agentCode: '',
+        isMember: false,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(home: buildPage(searchResult: const [customer])),
+      );
+      await tester.pumpAndSettle();
+
+      // Not searched yet — still shown.
+      expect(find.text('Register new customer'), findsOneWidget);
+
+      final searchField = find.widgetWithText(
+        TextField,
+        'Search by shopping card, passport, or ID card number',
+      );
+      await tester.enterText(searchField, 'CPX0001');
+      await tester.tap(find.widgetWithText(FilledButton, 'Search'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Register new customer'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    '"Register new customer" is still shown after a search that finds nothing — '
+    'only an actual result hides it',
+    (tester) async {
+      await tester.pumpWidget(MaterialApp(home: buildPage()));
+      await tester.pumpAndSettle();
+
+      final searchField = find.widgetWithText(
+        TextField,
+        'Search by shopping card, passport, or ID card number',
+      );
+      await tester.enterText(searchField, 'CPX9999');
+      await tester.tap(find.widgetWithText(FilledButton, 'Search'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('No customer found.'), findsOneWidget);
+      expect(find.text('Register new customer'), findsOneWidget);
     },
   );
 
@@ -640,4 +851,5 @@ void main() {
       );
     },
   );
+
 }

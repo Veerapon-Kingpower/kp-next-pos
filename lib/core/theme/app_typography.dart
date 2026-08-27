@@ -10,6 +10,12 @@ import 'app_colors.dart';
 abstract class AppTypography {
   static const _fontFamily = 'KingPowerHeadline';
 
+  // The mockup's two-family pairing ("KP Head"/"KP Text" in its CSS) —
+  // opt-in for desktop-width widgets via [desktopTextTheme] below. Mobile
+  // keeps using [textTheme]'s single `_fontFamily` unchanged.
+  static const _headFamily = 'KingPowerHeadline';
+  static const _textFamily = 'KingPowerText';
+
   static TextTheme textTheme(Color color) => TextTheme(
     displayLarge: TextStyle(
       fontFamily: _fontFamily,
@@ -67,6 +73,76 @@ abstract class AppTypography {
     ),
     bodySmall: TextStyle(
       fontFamily: _fontFamily,
+      fontSize: 12,
+      fontWeight: FontWeight.w400,
+      color: AppColors.textSecondary,
+    ),
+  );
+
+  /// Desktop-width variant pairing `KingPowerHeadline` (display/headline/
+  /// title) with `KingPowerText` (body/label), matching the POS Desktop
+  /// mockup's "KP Head"/"KP Text" split (see
+  /// docs/superpowers/specs/2026-08-27-pos-desktop-design.md). `KingPowerText`
+  /// is not yet bundled as a Flutter-compatible asset — see that spec's Open
+  /// Items — so until it's added, text using this theme falls back to the
+  /// platform default font rather than erroring.
+  static TextTheme desktopTextTheme(Color color) => TextTheme(
+    displayLarge: TextStyle(
+      fontFamily: _headFamily,
+      fontSize: 40,
+      fontWeight: FontWeight.w700,
+      color: color,
+    ),
+    headlineLarge: TextStyle(
+      fontFamily: _headFamily,
+      fontSize: 32,
+      fontWeight: FontWeight.w700,
+      color: color,
+    ),
+    headlineMedium: TextStyle(
+      fontFamily: _headFamily,
+      fontSize: 26,
+      fontWeight: FontWeight.w700,
+      color: color,
+    ),
+    titleLarge: TextStyle(
+      fontFamily: _headFamily,
+      fontSize: 22,
+      fontWeight: FontWeight.w500,
+      color: color,
+    ),
+    titleMedium: TextStyle(
+      fontFamily: _headFamily,
+      fontSize: 18,
+      fontWeight: FontWeight.w500,
+      color: color,
+    ),
+    bodyLarge: TextStyle(
+      fontFamily: _textFamily,
+      fontSize: 16,
+      fontWeight: FontWeight.w400,
+      color: color,
+    ),
+    bodyMedium: TextStyle(
+      fontFamily: _textFamily,
+      fontSize: 14,
+      fontWeight: FontWeight.w400,
+      color: color,
+    ),
+    labelLarge: TextStyle(
+      fontFamily: _textFamily,
+      fontSize: 14,
+      fontWeight: FontWeight.w700,
+      color: color,
+    ),
+    labelMedium: TextStyle(
+      fontFamily: _textFamily,
+      fontSize: 12,
+      fontWeight: FontWeight.w700,
+      color: color,
+    ),
+    bodySmall: TextStyle(
+      fontFamily: _textFamily,
       fontSize: 12,
       fontWeight: FontWeight.w400,
       color: AppColors.textSecondary,

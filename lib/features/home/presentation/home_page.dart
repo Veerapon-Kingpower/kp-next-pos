@@ -10,6 +10,7 @@ import '../../../core/presentation/widgets/empty_state_view.dart';
 import '../../../core/presentation/widgets/loading_view.dart';
 import '../../../core/presentation/widgets/retryable_error_view.dart';
 import '../../../core/presentation/widgets/search_scan_input.dart';
+import '../../../core/theme/app_breakpoints.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_sizing.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -18,10 +19,12 @@ import '../../customer/domain/entities/customer.dart';
 import '../../customer/domain/entities/privilege.dart';
 import '../../customer/presentation/customer_registration_page.dart';
 import '../../customer/presentation/customer_registration_view_model.dart';
+import '../../enquiry/presentation/enquiry_page.dart';
 import '../../sale/presentation/sale_cart_view_model.dart';
 import '../../sale/presentation/widgets/sale_page.dart';
 import '../../settings/presentation/settings_page.dart';
 import '../../settings/presentation/settings_view_model.dart';
+import 'home_dashboard_page.dart';
 import 'home_view_model.dart';
 
 /// The `Register/GetCustomer` search only accepts a single `shoppingCard`
@@ -30,6 +33,12 @@ import 'home_view_model.dart';
 /// separate per-type selection controls (see [HomeViewModel]).
 const _customerSearchHint =
     'Search by shopping card, passport, or ID card number';
+
+/// The body sections `HomePage` can show, independent of which nav
+/// destinations are visible at the current breakpoint (mobile shows only
+/// `customers`/`sale`; desktop shows all four — see `_HomePageState`'s
+/// `_mobileSections`/`_desktopSections`).
+enum _HomeSection { home, customers, sale, enquiry }
 
 /// App shell with the primary POS navigation — Customers (default-active on
 /// landing here, including right after login), Sale, and Settings — per
@@ -62,15 +71,40 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  static const _destinations = [
+  // Canonical order backing the body's IndexedStack — index into this list
+  // (via `.values.indexOf`) must stay stable regardless of breakpoint, so
+  // switching width mid-session doesn't recreate (and lose the state of)
+  // any of these pages.
+  static const _mobileDestinations = [
     AppNavDestination(icon: Icons.people, label: 'Customers'),
     AppNavDestination(icon: Icons.point_of_sale, label: 'Sale'),
     AppNavDestination(icon: Icons.settings, label: 'Settings'),
   ];
+  static const _mobileSections = [_HomeSection.customers, _HomeSection.sale];
+
+  // Desktop's 5-item nav from the POS Desktop mockup (see
+  // docs/superpowers/specs/2026-08-27-pos-desktop-design.md, decision 2) —
+  // "Customer"/"Setup" reuse the same underlying screens as mobile's
+  // "Customers"/"Settings"; "Home" and "Enquiry" are new.
+  static const _desktopDestinations = [
+    AppNavDestination(icon: Icons.dashboard_outlined, label: 'Home'),
+    AppNavDestination(icon: Icons.point_of_sale, label: 'Sale'),
+    AppNavDestination(icon: Icons.receipt_long_outlined, label: 'Enquiry'),
+    AppNavDestination(icon: Icons.people, label: 'Customer'),
+    AppNavDestination(icon: Icons.settings, label: 'Setup'),
+  ];
+  static const _desktopSections = [
+    _HomeSection.home,
+    _HomeSection.sale,
+    _HomeSection.enquiry,
+    _HomeSection.customers,
+  ];
 
   final _customerSearchController = TextEditingController();
-  // Customers is the landing tab — including immediately after login.
-  int _tabIndex = 0;
+  // Null until the first build, which picks each breakpoint's own default
+  // landing section (Customers on mobile, Home on desktop) — see
+  // `_buildContent`. Set explicitly after that by nav taps and `_goToSale`.
+  _HomeSection? _section;
   late final SaleCartViewModel _saleCartViewModel;
   // The privilege picked from a result card's selectable privilege cards
   // (see `_selectPrivilege`) — independent of the (currently unreachable)
@@ -143,12 +177,12 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void _onDestinationSelected(int index) {
-    if (index == 2) {
+  void _onDestinationSelected(int index, List<_HomeSection> sections) {
+    if (index >= sections.length) {
       _openSettings();
       return;
     }
-    setState(() => _tabIndex = index);
+    setState(() => _section = sections[index]);
   }
 
   // Ports the two cheap, data-only guards from `customer.ts`'s
@@ -176,13 +210,13 @@ class _HomePageState extends State<HomePage> {
     }
     if (person.privileges.isEmpty) {
       _saleCartViewModel.selectPrivilege(null);
-      setState(() => _tabIndex = 1);
+      setState(() => _section = _HomeSection.sale);
       return;
     }
     final selection = await _choosePrivilege(person.privileges);
     if (selection == null) return;
     _saleCartViewModel.selectPrivilege(selection.privilege);
-    setState(() => _tabIndex = 1);
+    setState(() => _section = _HomeSection.sale);
   }
 
   Future<_PrivilegeSelection?> _choosePrivilege(
@@ -272,11 +306,20 @@ class _HomePageState extends State<HomePage> {
       return const AppShell(title: 'Home', body: LoadingView());
     }
 
+    final isWide = AppBreakpoints.isWide(context);
+    final destinations = isWide ? _desktopDestinations : _mobileDestinations;
+    final sections = isWide ? _desktopSections : _mobileSections;
+    final section = (_section != null && sections.contains(_section))
+        ? _section!
+        : sections.first;
+    final selectedIndex = sections.indexOf(section);
+
     return AppShell(
-      title: _destinations[_tabIndex].label,
-      destinations: _destinations,
-      selectedIndex: _tabIndex,
-      onDestinationSelected: _onDestinationSelected,
+      title: destinations[selectedIndex].label,
+      destinations: destinations,
+      selectedIndex: selectedIndex,
+      onDestinationSelected: (index) =>
+          _onDestinationSelected(index, sections),
       actions: [
         _sessionInfo(viewModel),
         IconButton(
@@ -285,14 +328,36 @@ class _HomePageState extends State<HomePage> {
           onPressed: _logOut,
         ),
       ],
+      // IndexedStack only builds the sections valid for the current
+      // breakpoint (via `sections`, not the full `_HomeSection.values`) —
+      // otherwise a mobile-width IndexedStack would still build (just not
+      // paint) the Home/Enquiry pages, and any widget test asserting they
+      // aren't present on mobile would find them anyway, since IndexedStack
+      // keeps every child mounted regardless of which index is showing.
       body: IndexedStack(
-        index: _tabIndex,
+        index: selectedIndex,
         children: [
-          _customerSearchSection(context, viewModel),
-          SalePage(viewModel: _saleCartViewModel),
+          for (final s in sections) _pageFor(s, context, viewModel),
         ],
       ),
     );
+  }
+
+  Widget _pageFor(
+    _HomeSection section,
+    BuildContext context,
+    HomeViewModel viewModel,
+  ) {
+    switch (section) {
+      case _HomeSection.home:
+        return const HomeDashboardPage();
+      case _HomeSection.customers:
+        return _customerSearchSection(context, viewModel);
+      case _HomeSection.sale:
+        return SalePage(viewModel: _saleCartViewModel);
+      case _HomeSection.enquiry:
+        return const EnquiryPage();
+    }
   }
 
   /// Signed-in user, module, and branch — shown in the header so the

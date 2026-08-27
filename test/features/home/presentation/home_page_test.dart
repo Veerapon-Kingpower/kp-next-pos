@@ -852,4 +852,88 @@ void main() {
     },
   );
 
+  testWidgets(
+    'at desktop width, shows Home/Sale/Enquiry/Customer/Setup and lands on Home',
+    (tester) async {
+      tester.view.physicalSize = const Size(1200, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(MaterialApp(home: buildPage()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Home dashboard — coming soon'), findsOneWidget);
+      expect(find.text('Home'), findsWidgets);
+      expect(find.text('Sale'), findsWidgets);
+      expect(find.text('Enquiry'), findsWidgets);
+      expect(find.text('Customer'), findsWidgets);
+      expect(find.text('Setup'), findsWidgets);
+      // Mobile-only labels must not appear.
+      expect(find.text('Customers'), findsNothing);
+      expect(find.text('Settings'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'at desktop width, tapping Enquiry shows the Enquiry placeholder',
+    (tester) async {
+      tester.view.physicalSize = const Size(1200, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(MaterialApp(home: buildPage()));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Enquiry').last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Enquiry — coming soon'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'at desktop width, tapping Customer shows customer search',
+    (tester) async {
+      tester.view.physicalSize = const Size(1200, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(MaterialApp(home: buildPage()));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Customer').last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Search customer'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'at desktop width, tapping Setup pushes the settings page',
+    (tester) async {
+      tester.view.physicalSize = const Size(1200, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(MaterialApp(home: buildPage()));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Setup').last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Device settings'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'below desktop width, still shows the original Customers/Sale/Settings nav landing on Customers',
+    (tester) async {
+      await tester.pumpWidget(MaterialApp(home: buildPage()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Search customer'), findsOneWidget);
+      expect(find.text('Home dashboard — coming soon'), findsNothing);
+      expect(find.text('Enquiry'), findsNothing);
+    },
+  );
 }

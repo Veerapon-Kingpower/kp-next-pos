@@ -1306,8 +1306,7 @@ Add this near the top of the file, above the `HomePage` class declaration (after
 /// The body sections `HomePage` can show, independent of which nav
 /// destinations are visible at the current breakpoint (mobile shows only
 /// `customers`/`sale`; desktop shows all four — see `_HomePageState`'s
-/// `_mobileSections`/`_desktopSections`). Declaration order is the
-/// canonical order used for the body `IndexedStack`.
+/// `_mobileSections`/`_desktopSections`).
 enum _HomeSection { home, customers, sale, enquiry }
 ```
 
@@ -1413,16 +1412,36 @@ with:
           onPressed: _logOut,
         ),
       ],
+      // IndexedStack only builds the sections valid for the current
+      // breakpoint (via `sections`, not the full `_HomeSection.values`) —
+      // otherwise a mobile-width IndexedStack would still build (just not
+      // paint) the Home/Enquiry pages, and any widget test asserting they
+      // aren't present on mobile would find them anyway, since IndexedStack
+      // keeps every child mounted regardless of which index is showing.
       body: IndexedStack(
-        index: _HomeSection.values.indexOf(section),
+        index: selectedIndex,
         children: [
-          const HomeDashboardPage(),
-          _customerSearchSection(context, viewModel),
-          SalePage(viewModel: _saleCartViewModel),
-          const EnquiryPage(),
+          for (final s in sections) _pageFor(s, context, viewModel),
         ],
       ),
     );
+  }
+
+  Widget _pageFor(
+    _HomeSection section,
+    BuildContext context,
+    HomeViewModel viewModel,
+  ) {
+    switch (section) {
+      case _HomeSection.home:
+        return const HomeDashboardPage();
+      case _HomeSection.customers:
+        return _customerSearchSection(context, viewModel);
+      case _HomeSection.sale:
+        return SalePage(viewModel: _saleCartViewModel);
+      case _HomeSection.enquiry:
+        return const EnquiryPage();
+    }
   }
 ```
 

@@ -51,6 +51,7 @@ const _session = UserSession(
   userCode: 'U001',
   userName: 'Somchai P.',
   authorizedActions: [],
+  machineNo: 'KPPOS05',
 );
 
 const _settings = DeviceSettings(
@@ -178,6 +179,22 @@ void main() {
     expect(find.textContaining('Somchai P.'), findsOneWidget);
     expect(find.textContaining('PosKpi'), findsOneWidget);
     expect(find.textContaining('03'), findsOneWidget);
+  });
+
+  testWidgets('desktop header Machine shows the login machine number', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(MaterialApp(home: buildPage()));
+    await tester.pumpAndSettle();
+
+    // One Text.rich per item: "Machine KPPOS05".
+    expect(find.text('Machine KPPOS05', findRichText: true), findsOneWidget);
+    // Store is no longer in the top bar.
+    expect(find.textContaining('Store ', findRichText: true), findsNothing);
   });
 
   testWidgets('tapping Sale shows the barcode scan field', (tester) async {

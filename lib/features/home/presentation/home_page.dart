@@ -408,10 +408,11 @@ class _HomePageState extends State<HomePage> {
           ? 'Sale · ${SaleOrderType.normal.label}'
           : destinations[selectedIndex].label,
       contextItems: [
-        DesktopContextItem(label: 'Store', value: orDash(settings.location)),
+        // The login's `MachineEnv.MachineNo` (legacy `home.html` shows
+        // `userInfo.MachineEnv.MachineNo`), not the device-settings number.
         DesktopContextItem(
           label: 'Machine',
-          value: settings.machine == 0 ? '—' : '${settings.machine}',
+          value: orDash(session?.machineNo ?? ''),
         ),
         DesktopContextItem(label: 'Module', value: orDash(settings.moduleKey)),
         DesktopContextItem(label: 'Branch', value: orDash(settings.branch)),

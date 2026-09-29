@@ -249,10 +249,19 @@ void main() {
   });
 
   group('action bar', () {
-    testWidgets('Checkout shows the net and is inert until H3', (tester) async {
-      final handle = tester.ensureSemantics();
+    testWidgets('Checkout shows the net and opens the Checkout page', (
+      tester,
+    ) async {
       await pump(tester);
       expect(find.text('Checkout · ฿21,500.00'), findsOneWidget);
+      await tester.tap(byTestId(SaleIds.checkoutButton));
+      await tester.pumpAndSettle();
+      expect(byTestId(CheckoutIds.page), findsOneWidget);
+    });
+
+    testWidgets('Checkout is disabled on an empty bill', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pump(tester, cart: null);
       expect(
         tester.getSemantics(byTestId(SaleIds.checkoutButton)),
         isSemantics(isButton: true, hasEnabledState: true, isEnabled: false),

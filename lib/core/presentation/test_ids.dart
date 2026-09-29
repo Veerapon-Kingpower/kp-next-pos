@@ -113,3 +113,78 @@ abstract class DiscountIds {
 
   static String preset(int percent) => 'discount.preset.$percent';
 }
+
+abstract class CheckoutIds {
+  static const page = 'checkout.page';
+  static const netPay = 'checkout.netPay';
+  static const summaryLine = 'checkout.summaryLine';
+  static const flagsNotice = 'checkout.flagsNotice';
+  static const customerCard = 'checkout.customerCard';
+  static const amountsCard = 'checkout.amountsCard';
+  static const totalAmount = 'checkout.amount.total';
+  static const grandAmount = 'checkout.amount.grand';
+  static const signatureRow = 'checkout.signatureRow';
+  static const takePaymentButton = 'checkout.takePaymentButton';
+  static const suspendButton = 'checkout.suspendButton';
+  static const printQuoteButton = 'checkout.printQuoteButton';
+}
+
+abstract class PaymentIds {
+  static const page = 'payment.page';
+  static const netPay = 'payment.netPay';
+  static const tendered = 'payment.tendered';
+  static const remaining = 'payment.remaining';
+  static const amountField = 'payment.amountField';
+  static const presetAllRemaining = 'payment.preset.allRemaining';
+  static const presetHalf = 'payment.preset.half';
+  static const preset10000 = 'payment.preset.10000';
+  static const preset20000 = 'payment.preset.20000';
+  static const ledger = 'payment.ledger';
+  static const ledgerEmpty = 'payment.ledgerEmpty';
+  static const chargeButton = 'payment.chargeButton';
+  static const completeSaleButton = 'payment.completeSaleButton';
+  static const chargeNotice = 'payment.chargeNotice';
+
+  static String method(String name) => 'payment.method.$name';
+  static String ledgerRow(int index) => 'payment.ledger.$index';
+}
+
+abstract class WalletIds {
+  static const scanPage = 'wallet.scanPage';
+  static const chargeAmount = 'wallet.chargeAmount';
+  static const codeField = 'wallet.codeField';
+  static const detectedCode = 'wallet.detectedCode';
+  static const unknownCode = 'wallet.unknownCode';
+  static const sendChargeButton = 'wallet.sendChargeButton';
+  static const cancelButton = 'wallet.cancelButton';
+  static const rescanButton = 'wallet.rescanButton';
+  static const showQrButton = 'wallet.showQrButton';
+
+  static String step(String name) => 'wallet.step.$name';
+
+  static const queryPage = 'wallet.queryPage';
+  static const queryButton = 'wallet.queryButton';
+  static const queryResult = 'wallet.queryResult';
+  static const voidButton = 'wallet.voidButton';
+  static const printButton = 'wallet.printButton';
+
+  static const voidPage = 'wallet.voidPage';
+  static const voidAmount = 'wallet.voidAmount';
+  static const voidReason = 'wallet.voidReason';
+  static const managerApproval = 'wallet.managerApproval';
+  static const confirmVoidButton = 'wallet.confirmVoidButton';
+}
+
+abstract class SignatureIds {
+  static const page = 'signature.page';
+  static const closeButton = 'signature.closeButton';
+  static const saveButton = 'signature.saveButton';
+  static const bottomSaveButton = 'signature.bottomSaveButton';
+  static const cancelButton = 'signature.cancelButton';
+  static const paidByPad = 'signature.paidBy.pad';
+  static const paidByClear = 'signature.paidBy.clear';
+  static const paidByStatus = 'signature.paidBy.status';
+  static const customerPad = 'signature.customer.pad';
+  static const customerClear = 'signature.customer.clear';
+  static const customerStatus = 'signature.customer.status';
+}

@@ -11,6 +11,7 @@ import '../../domain/entities/cart_item.dart';
 import '../sale_cart_view_model.dart';
 import 'discount_sheet.dart';
 import 'edit_line_page.dart';
+import 'payment/checkout_page.dart';
 import 'sale_order_type.dart';
 
 /// Handheld Sale screen (mockup screens 3 / 4 / 16 / 17): order-type
@@ -181,11 +182,13 @@ class _HandheldSaleViewState extends State<HandheldSaleView> {
         ],
       ),
       actionBar: HandheldActionBar(
-        // TODO(pos-handheld): H3 — open Checkout (screen 5).
         primary: HandheldPrimaryButton(
           id: SaleIds.checkoutButton,
           label: 'Checkout · ${formatBaht(total)}',
           icon: Icons.payments_outlined,
+          onPressed: lines.isEmpty
+              ? null
+              : () => openCheckoutPage(context, viewModel: viewModel),
         ),
         secondary: _showBasket
             ? HandheldSecondaryButton(

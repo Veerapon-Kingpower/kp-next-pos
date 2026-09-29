@@ -21,6 +21,23 @@ abstract class AppColors {
   static const goldDark = Color(0xFF654F1C);
   static const goldLight = Color(0xFFC0AC7E);
 
+  // Handheld layout (below AppBreakpoints.wide) — warm near-black chrome
+  // with a brighter gold, per the POS handheld mockup
+  // (docs/superpowers/specs/2026-09-29-pos-handheld-design.md). The desktop
+  // layout keeps navy. `gold` carries `ink` text, never white.
+  static const ink = Color(0xFF191712);
+  static const gold = Color(0xFFC8A04B);
+  static const goldMuted = Color(0xFF9F8957);
+  static const cream = Color(0xFFFBF8F1);
+  static const line = Color(0xFFE4E8EE);
+  static const mutedText = Color(
+    0xFF626B77,
+  ); // mockup #6B7480, darkened for AA on canvas
+  // Placeholder / decorative only — below AA for body text.
+  static const hintText = Color(0xFF9AA2AE);
+  static const online = Color(0xFF1DB87A); // status dot
+  static const onlineOnInk = Color(0xFF5BD9A4); // status text on ink
+
   // Neutrals.
   static const textPrimary = Color(0xFF1E293B);
   static const textSecondary = Color(0xFF5C5F61);

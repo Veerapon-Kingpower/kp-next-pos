@@ -45,6 +45,37 @@ void main() {
     },
   );
 
+  group('handheld pairs meet WCAG AA for normal text (>=4.5:1)', () {
+    const white = Color(0xFFFFFFFF);
+    final pairs = {
+      'white on ink (handheld header)': (white, AppColors.ink),
+      'ink on gold (handheld primary action)': (AppColors.ink, AppColors.gold),
+      'gold on ink (accent text on dark)': (AppColors.gold, AppColors.ink),
+      'mutedText on surface': (AppColors.mutedText, AppColors.surface),
+      'mutedText on canvas': (AppColors.mutedText, AppColors.surfaceAlt),
+      'goldDark on cream (selected nav / hint strip)': (
+        AppColors.goldDark,
+        AppColors.cream,
+      ),
+      'onlineOnInk on ink (status text)': (
+        AppColors.onlineOnInk,
+        AppColors.ink,
+      ),
+    };
+
+    for (final entry in pairs.entries) {
+      test(entry.key, () {
+        final (fg, bg) = entry.value;
+        final ratio = contrastRatio(fg, bg);
+        expect(
+          meetsAAForNormalText(fg, bg),
+          isTrue,
+          reason: '$ratio:1 (need >= 4.5:1)',
+        );
+      });
+    }
+  });
+
   test('white text on navy meets WCAG AA for normal text (header/nav use)', () {
     const white = Color(0xFFFFFFFF);
     final ratio = contrastRatio(white, AppColors.navy);

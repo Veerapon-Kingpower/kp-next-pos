@@ -43,8 +43,8 @@ abstract class HomeIds {
 }
 
 abstract class SettingsIds {
-  static const editButton = 'settings.editButton';
   static const saveButton = 'settings.saveButton';
+  static const cancelButton = 'settings.cancelButton';
   static const terminalSection = 'settings.terminalSection';
   static const saleModeSection = 'settings.saleModeSection';
   static const sellOnline = 'settings.saleMode.online';

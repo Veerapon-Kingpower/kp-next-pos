@@ -202,7 +202,7 @@ void main() {
 
       expect(find.text('Device settings'), findsOneWidget);
       expect(find.text('Loading device settings...'), findsNothing);
-      expect(find.widgetWithText(FilledButton, 'Save'), findsOneWidget);
+      expect(byTestId(SettingsIds.saveButton), findsOneWidget);
 
       Future<void> enterByLabel(String label, String value) async {
         final finder = find.byWidgetPredicate(

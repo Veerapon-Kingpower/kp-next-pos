@@ -8,11 +8,15 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../../core/app/router.dart';
 import '../../../core/app/session_state.dart';
 import '../../../core/config/device_settings.dart';
+import '../../../core/presentation/handheld/handheld.dart';
+import '../../../core/presentation/test_ids.dart';
 import '../../../core/presentation/widgets/app_buttons.dart';
 import '../../../core/presentation/widgets/app_shell.dart';
 import '../../../core/presentation/widgets/app_text_field.dart';
 import '../../../core/presentation/widgets/loading_view.dart';
 import '../../../core/presentation/widgets/retryable_error_view.dart';
+import '../../../core/presentation/widgets/test_id.dart';
+import '../../../core/theme/app_breakpoints.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_sizing.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -271,6 +275,10 @@ class _SettingsPageState extends State<SettingsPage> {
 
     final isSaving = viewModel.saveStatus == SettingsSaveStatus.saving;
 
+    if (!AppBreakpoints.isWide(context)) {
+      return _buildHandheld(context, viewModel, isSaving);
+    }
+
     return AppShell(
       title: 'Device settings',
       body: Form(
@@ -460,6 +468,238 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  /// Handheld layout (mockup screen 11): dark header, the same fields
+  /// grouped into Terminal / Sale mode / Endpoints / Device sections, and
+  /// a fixed Save / Cancel bar.
+  ///
+  /// The mockup's read-only-until-supervisor-scan mode is deliberately not
+  /// applied: this page is also first-run device setup (before any sign-in),
+  /// and supervisor-card verification has no API yet, so gating edits would
+  /// lock setup out entirely.
+  // TODO(pos-handheld): add the SupervisorLockGate read-only mode once
+  // supervisor-card verification exists, exempting first-run setup.
+  // Endpoint health ("5 of 5 up") and paired-device status are omitted
+  // until there is a real health check / device API to back them.
+  Widget _buildHandheld(
+    BuildContext context,
+    SettingsViewModel viewModel,
+    bool isSaving,
+  ) {
+    final canPop = Navigator.of(context).canPop();
+    final module = _moduleKey.text.isEmpty ? '—' : _moduleKey.text;
+
+    Widget fields(List<Widget> children) => Padding(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < children.length; i++) ...[
+            if (i > 0) const SizedBox(height: AppSpacing.sm),
+            children[i],
+          ],
+        ],
+      ),
+    );
+
+    return HandheldScaffold(
+      header: HandheldHeader(
+        title: 'Device settings',
+        subtitle: 'Smart POS Mobile · $module',
+        leading: canPop
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                color: Colors.white,
+                tooltip: 'Back',
+                onPressed: () => Navigator.of(context).maybePop(),
+              )
+            : null,
+      ),
+      body: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(HandheldMetrics.pagePadding),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              HandheldSection(
+                id: SettingsIds.terminalSection,
+                title: 'Terminal',
+                children: [
+                  fields([
+                    _moduleField(),
+                    _validatedField(_branch, 'Branch number'),
+                    _subBranchField(),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Airport MPOS device'),
+                      value: _isAirportMpos,
+                      onChanged: (value) =>
+                          setState(() => _isAirportMpos = value),
+                    ),
+                  ]),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+              HandheldSection(
+                id: SettingsIds.saleModeSection,
+                title: 'Sale mode',
+                children: [
+                  fields([
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _SaleModeOption(
+                            id: SettingsIds.sellOnline,
+                            icon: Icons.wifi,
+                            label: 'Sell online',
+                            selected: !_forceOfflineMode,
+                            onTap: () =>
+                                setState(() => _forceOfflineMode = false),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.xs),
+                        Expanded(
+                          child: _SaleModeOption(
+                            id: SettingsIds.sellOffline,
+                            icon: Icons.cloud_off_outlined,
+                            label: 'Sell offline',
+                            selected: _forceOfflineMode,
+                            onTap: () =>
+                                setState(() => _forceOfflineMode = true),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      _forceOfflineMode
+                          ? 'Selling offline: prices from the local cache '
+                                'and no server lookups. Switch back once the '
+                                'network or backend is restored.'
+                          : 'Selling online: articles and prices come from '
+                                'the sale engine.',
+                      style: HandheldText.bodySmall,
+                    ),
+                  ]),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+              HandheldSection(
+                id: SettingsIds.endpointsSection,
+                title: 'Endpoints',
+                children: [
+                  fields([
+                    _validatedField(
+                      _saleEngineEndpoint,
+                      'Sale Engine endpoint',
+                    ),
+                    _validatedField(
+                      _webServiceEndpoint,
+                      'Register endpoint',
+                      focusNode: _webServiceEndpointFocus,
+                    ),
+                    _validatedField(_flightApi, 'Flight API endpoint'),
+                    AppTextField(
+                      controller: _cashCardApi,
+                      label: 'Cash Card API endpoint',
+                    ),
+                    AppTextField(
+                      controller: _updateEndpoint,
+                      label: 'App update endpoint',
+                    ),
+                  ]),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+              HandheldSection(
+                id: SettingsIds.deviceSection,
+                title: 'Device',
+                children: [
+                  fields([
+                    AppTextField(controller: _location, label: 'Location'),
+                    AppTextField(
+                      controller: _machine,
+                      label: 'Machine number',
+                      keyboardType: TextInputType.number,
+                    ),
+                    AppTextField(controller: _company, label: 'Company'),
+                    AppTextField(controller: _serial, label: 'Serial'),
+                    AppTextField(controller: _macAddress, label: 'MAC address'),
+                    AppTextField(controller: _ipAddress, label: 'IP address'),
+                    AppTextField(
+                      controller: _printerName,
+                      label: 'Printer name',
+                    ),
+                    AppTextField(controller: _edcPort, label: 'EDC port'),
+                    _uuidRow(),
+                    ?_uuidQrCode(context),
+                  ]),
+                ],
+              ),
+              if (viewModel.saveStatus == SettingsSaveStatus.failure) ...[
+                const SizedBox(height: AppSpacing.md),
+                Text(
+                  viewModel.errorMessage ?? 'Could not save.',
+                  style: const TextStyle(color: AppColors.danger),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actionBar: HandheldActionBar(
+        primary: HandheldPrimaryButton(
+          id: SettingsIds.saveButton,
+          label: isSaving ? 'Saving...' : 'Save',
+          icon: Icons.check,
+          onPressed: isSaving ? null : _save,
+        ),
+        secondary: canPop
+            ? HandheldSecondaryButton(
+                id: SettingsIds.cancelButton,
+                label: 'Cancel',
+                onPressed: () => Navigator.of(context).maybePop(),
+              )
+            : null,
+      ),
+    );
+  }
+
+  Widget _uuidRow() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: AppTextField(controller: _uuid, label: 'Device UUID'),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        SizedBox(
+          width: 120,
+          child: AppSecondaryButton(
+            label: 'Generate',
+            onPressed: _generateUuid,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget? _uuidQrCode(BuildContext context) {
+    if (!_showUuidQrCode || _uuid.text.isEmpty) return null;
+    return Center(
+      child: Column(
+        children: [
+          QrImageView(
+            data: _uuid.text,
+            size: 160,
+            backgroundColor: Colors.white,
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(_uuid.text, style: Theme.of(context).textTheme.bodySmall),
+        ],
+      ),
+    );
+  }
+
   Widget _validatedField(
     TextEditingController controller,
     String label, {
@@ -520,6 +760,75 @@ class _SettingsPageState extends State<SettingsPage> {
           )
           .toList(growable: false),
       onChanged: (value) => setState(() => _subBranchCode.text = value ?? ''),
+    );
+  }
+}
+
+/// One of the two Sell online / Sell offline choices in the handheld
+/// Sale mode section.
+class _SaleModeOption extends StatelessWidget {
+  final String id;
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _SaleModeOption({
+    required this.id,
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? AppColors.goldDark : AppColors.mutedText;
+    return TestId(
+      id,
+      child: Semantics(
+        button: true,
+        selected: selected,
+        inMutuallyExclusiveGroup: true,
+        child: Material(
+          color: selected ? AppColors.cream : AppColors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(HandheldMetrics.radiusSm),
+            side: BorderSide(
+              color: selected ? AppColors.goldMuted : AppColors.line,
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(HandheldMetrics.radiusSm),
+            child: SizedBox(
+              height: HandheldMetrics.primaryActionHeight - 8,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, size: 16, color: color),
+                  const SizedBox(width: AppSpacing.xs),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        color: color,
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.w400,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

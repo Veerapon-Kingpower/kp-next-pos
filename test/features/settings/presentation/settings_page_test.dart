@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/app/session_state.dart';
 import 'package:kp_pos/core/config/device_settings.dart';
 import 'package:kp_pos/core/error/app_exception.dart';
+import 'package:kp_pos/core/presentation/test_ids.dart';
 import 'package:kp_pos/core/startup/startup_validator.dart';
 import 'package:kp_pos/features/settings/domain/entities/sub_branch.dart';
 import 'package:kp_pos/features/settings/domain/usecases/list_sub_branches_usecase.dart';
@@ -12,6 +13,7 @@ import 'package:kp_pos/features/settings/presentation/settings_page.dart';
 import 'package:kp_pos/features/settings/presentation/settings_view_model.dart';
 
 import '../../../core/storage/fakes.dart';
+import '../../../helpers/test_id_finders.dart';
 import '../fake_settings_repository.dart';
 
 void main() {
@@ -87,42 +89,41 @@ void main() {
     },
   );
 
-  testWidgets(
-    'toggling Offline mode and saving persists forceOfflineMode',
-    (tester) async {
-      final repo = FakeSettingsRepository();
-      final viewModel = buildViewModel(repo);
-      final sessionState = SessionState(
-        startupValidator: StartupValidator(
-          deviceSettingsStorage: FakeDeviceSettingsStorage(),
-          sessionStorage: FakeSessionStorage(),
-        ),
-      );
+  testWidgets('toggling Offline mode and saving persists forceOfflineMode', (
+    tester,
+  ) async {
+    final repo = FakeSettingsRepository();
+    final viewModel = buildViewModel(repo);
+    final sessionState = SessionState(
+      startupValidator: StartupValidator(
+        deviceSettingsStorage: FakeDeviceSettingsStorage(),
+        sessionStorage: FakeSessionStorage(),
+      ),
+    );
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: SettingsPage(viewModel: viewModel, sessionState: sessionState),
-        ),
-      );
-      await tester.pumpAndSettle();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SettingsPage(viewModel: viewModel, sessionState: sessionState),
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      await enterByLabel(tester, 'Branch number', '03');
-      await enterByLabel(tester, 'Sale Engine endpoint', 'https://sale-engine');
-      await enterByLabel(tester, 'Register endpoint', 'https://register');
-      await enterByLabel(tester, 'Flight API endpoint', 'https://flight');
+    await enterByLabel(tester, 'Branch number', '03');
+    await enterByLabel(tester, 'Sale Engine endpoint', 'https://sale-engine');
+    await enterByLabel(tester, 'Register endpoint', 'https://register');
+    await enterByLabel(tester, 'Flight API endpoint', 'https://flight');
 
-      expect(repo.settings.forceOfflineMode, isFalse);
-      await tester.tap(find.text('Offline mode'));
-      await tester.pumpAndSettle();
+    expect(repo.settings.forceOfflineMode, isFalse);
+    await tester.tap(byTestId(SettingsIds.sellOffline));
+    await tester.pumpAndSettle();
 
-      await tester.ensureVisible(find.text('Save'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Save'));
-      await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Save'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
 
-      expect(repo.settings.forceOfflineMode, isTrue);
-    },
-  );
+    expect(repo.settings.forceOfflineMode, isTrue);
+  });
 
   testWidgets(
     'tapping Save with a required field empty does not save and stays on the page',
@@ -343,6 +344,164 @@ void main() {
 
     expect(find.text('Could not save device settings.'), findsOneWidget);
     expect(sessionState.status, isNot(StartupStatus.needsLogin));
+  });
+
+  testWidgets('desktop width keeps the Offline mode switch and persists it', (
+    tester,
+  ) async {
+    setDeviceSize(tester, const Size(1200, 3200));
+    final repo = FakeSettingsRepository(
+      settings: const DeviceSettings(
+        branch: '03',
+        saleEngineEndpoint: 'https://sale-engine',
+        webServiceEndpoint: 'https://register',
+        flightApi: 'https://flight',
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(home: SettingsPage(viewModel: buildViewModel(repo))),
+    );
+    await tester.pumpAndSettle();
+
+    expect(byTestId(SettingsIds.sellOffline), findsNothing);
+    await tester.tap(find.text('Offline mode'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(repo.settings.forceOfflineMode, isTrue);
+  });
+
+  group('handheld settings (below desktop width)', () {
+    const configured = DeviceSettings(
+      moduleKey: 'MposKpi',
+      branch: '03',
+      saleEngineEndpoint: 'https://sale-engine',
+      webServiceEndpoint: 'https://register',
+      flightApi: 'https://flight',
+    );
+
+    Future<FakeSettingsRepository> pumpSettings(
+      WidgetTester tester, {
+      Size size = compactSize,
+      DeviceSettings settings = configured,
+      bool pushed = false,
+    }) async {
+      setDeviceSize(tester, size);
+      final repo = FakeSettingsRepository(settings: settings);
+      final page = SettingsPage(viewModel: buildViewModel(repo));
+      if (pushed) {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Builder(
+              builder: (context) => Scaffold(
+                body: TextButton(
+                  onPressed: () => Navigator.of(
+                    context,
+                  ).push(MaterialPageRoute<void>(builder: (_) => page)),
+                  child: const Text('open'),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.tap(find.text('open'));
+      } else {
+        await tester.pumpWidget(MaterialApp(home: page));
+      }
+      await tester.pumpAndSettle();
+      return repo;
+    }
+
+    testWidgets('dark header, grouped sections and automation ids', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pumpSettings(tester);
+
+      expect(find.text('Device settings'), findsOneWidget);
+      expect(find.text('Smart POS Mobile · MposKpi'), findsOneWidget);
+      for (final id in [
+        SettingsIds.terminalSection,
+        SettingsIds.saleModeSection,
+        SettingsIds.sellOnline,
+        SettingsIds.sellOffline,
+        SettingsIds.saveButton,
+      ]) {
+        expect(find.bySemanticsIdentifier(id), findsOneWidget, reason: id);
+      }
+      // Lower sections exist but may be scrolled off — check the tree.
+      expect(byTestId(SettingsIds.endpointsSection), findsOneWidget);
+      expect(byTestId(SettingsIds.deviceSection), findsOneWidget);
+      handle.dispose();
+    });
+
+    testWidgets('Save sits in the fixed bottom bar, reachable without scroll', (
+      tester,
+    ) async {
+      final repo = await pumpSettings(tester);
+      final save = tester.getRect(byTestId(SettingsIds.saveButton));
+      expect(save.bottom, lessThanOrEqualTo(compactSize.height));
+      expect(save.top, greaterThan(compactSize.height - 120));
+
+      await tester.tap(byTestId(SettingsIds.saveButton));
+      await tester.pumpAndSettle();
+      expect(repo.settings.moduleKey, 'MposKpi');
+    });
+
+    testWidgets('Sell online / Sell offline is a single-choice toggle', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      final repo = await pumpSettings(tester);
+
+      expect(
+        tester.getSemantics(byTestId(SettingsIds.sellOnline)),
+        isSemantics(isSelected: true),
+      );
+      await tester.tap(byTestId(SettingsIds.sellOffline));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getSemantics(byTestId(SettingsIds.sellOffline)),
+        isSemantics(isSelected: true),
+      );
+      expect(
+        find.textContaining('prices from the local cache'),
+        findsOneWidget,
+      );
+
+      await tester.tap(byTestId(SettingsIds.saveButton));
+      await tester.pumpAndSettle();
+      expect(repo.settings.forceOfflineMode, isTrue);
+      handle.dispose();
+    });
+
+    testWidgets('Cancel is offered when pushed, and pops without saving', (
+      tester,
+    ) async {
+      final repo = await pumpSettings(tester, pushed: true);
+      await tester.tap(find.text('Sell offline'));
+      await tester.pumpAndSettle();
+      await tester.tap(byTestId(SettingsIds.cancelButton));
+      await tester.pumpAndSettle();
+
+      expect(find.text('open'), findsOneWidget);
+      expect(repo.settings.forceOfflineMode, isFalse);
+    });
+
+    testWidgets('first-run setup (not pushed) has no Cancel', (tester) async {
+      await pumpSettings(tester);
+      expect(byTestId(SettingsIds.cancelButton), findsNothing);
+    });
+
+    testWidgets('iPad portrait: sections centred at the medium width', (
+      tester,
+    ) async {
+      await pumpSettings(tester, size: mediumSize);
+      final rect = tester.getRect(byTestId(SettingsIds.terminalSection));
+      expect(rect.width, lessThanOrEqualTo(720));
+      expect(rect.center.dx, closeTo(410, 0.5));
+    });
   });
 }
 

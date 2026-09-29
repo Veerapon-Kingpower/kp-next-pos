@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/presentation/test_ids.dart';
 import 'package:kp_pos/core/app/app.dart';
@@ -124,7 +123,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Device settings'), findsOneWidget);
-      expect(find.widgetWithText(FilledButton, 'Save'), findsOneWidget);
+      expect(byTestId(SettingsIds.saveButton), findsOneWidget);
     },
   );
 

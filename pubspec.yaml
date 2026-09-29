@@ -83,6 +83,7 @@ flutter:
     - assets/images/card_corner/
     - assets/images/card_icons/
     - assets/images/Login-sales_Branding_FINAL.jpg
+    - assets/images/kingpower_mobile_logo.png
 
   # King Power's approved typeface, carried forward from smart-pos-mobile
   # (see design.md's "King Power visual system" decision). Only

@@ -5,11 +5,13 @@ import '../../../core/app/session_state.dart';
 import '../../../core/presentation/widgets/app_buttons.dart';
 import '../../../core/presentation/widgets/app_text_field.dart';
 import '../../../core/presentation/widgets/retryable_error_view.dart';
+import '../../../core/theme/app_breakpoints.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_sizing.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../settings/presentation/settings_page.dart';
 import '../../settings/presentation/settings_view_model.dart';
+import 'handheld/handheld_login_form.dart';
 import 'login_view_model.dart';
 
 /// King Power brand photo used as the Login background. A shared top-level
@@ -71,6 +73,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _submit() {
+    FocusScope.of(context).unfocus();
     return widget.viewModel.submit(
       userCode: _userCodeController.text,
       userPassword: _passwordController.text,
@@ -103,6 +106,21 @@ class _LoginPageState extends State<LoginPage> {
 
   Widget _buildContent(BuildContext context, LoginViewModel viewModel) {
     final isSubmitting = viewModel.status == LoginStatus.submitting;
+
+    // Handheld layout (phones, Sunmi, tablets / iPads in portrait) — see
+    // docs/superpowers/specs/2026-09-29-pos-handheld-design.md, screen 1.
+    if (!AppBreakpoints.isWide(context)) {
+      return HandheldLoginForm(
+        userCodeController: _userCodeController,
+        passwordController: _passwordController,
+        isSubmitting: isSubmitting,
+        errorMessage: viewModel.status == LoginStatus.failure
+            ? viewModel.errorMessage ?? 'Sign-in failed.'
+            : null,
+        onSubmit: _submit,
+        onOpenSettings: _openSettings,
+      );
+    }
 
     return Scaffold(
       body: Stack(

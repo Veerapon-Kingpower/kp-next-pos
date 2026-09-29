@@ -9,6 +9,7 @@ import 'package:kp_pos/features/sale/domain/entities/cart.dart';
 import 'package:kp_pos/features/sale/domain/entities/cart_item.dart';
 import 'package:kp_pos/features/sale/domain/usecases/add_item_to_cart_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/lookup_article_by_barcode_usecase.dart';
+import 'package:kp_pos/features/sale/domain/usecases/cash_payment_usecases.dart';
 import 'package:kp_pos/features/sale/domain/usecases/change_order_currency_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/exchange_change_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/list_currencies_usecase.dart';
@@ -43,6 +44,8 @@ void main() {
       listCurrencies: ListCurrenciesUseCase(sale),
       changeOrderCurrency: ChangeOrderCurrencyUseCase(sale),
       exchangeChange: ExchangeChangeUseCase(sale),
+      addCashPayment: AddCashPaymentUseCase(sale),
+      saveChangeExchange: SaveChangeExchangeUseCase(sale),
     );
   }
 
@@ -275,6 +278,56 @@ void main() {
         button: true,
       ));
       expect(quote.currencyCode, 'USD');
+    });
+
+    test('payCash records baht cash against the order', () async {
+      final sale = FakeSaleRepository();
+      final viewModel = buildViewModel(saleRepository: sale)
+        ..cart = const Cart(guid: 'order-1', isCheckOut: false, items: []);
+
+      expect(await viewModel.payCash(1000), isTrue);
+      expect(sale.cashPayments.single, (
+        orderGuid: 'order-1',
+        currency: 'THB',
+        rate: 1.0,
+        amount: 1000.0,
+        base: 1000.0,
+      ));
+    });
+
+    test('payCash in a USD order converts the base amount at the order '
+        'rate', () async {
+      final sale = FakeSaleRepository();
+      final viewModel = buildViewModel(saleRepository: sale)..cart = usdCart;
+
+      await viewModel.payCash(10);
+
+      expect(sale.cashPayments.single.currency, 'USD');
+      expect(sale.cashPayments.single.base, 355);
+    });
+
+    test('payCash needs an order and an amount', () async {
+      final sale = FakeSaleRepository();
+      final viewModel = buildViewModel(saleRepository: sale);
+
+      expect(await viewModel.payCash(100), isFalse);
+      expect(viewModel.paymentError, 'There is no order to pay.');
+      viewModel.cart = const Cart(guid: 'o', isCheckOut: false, items: []);
+      expect(await viewModel.payCash(0), isFalse);
+      expect(viewModel.paymentError, 'Enter the cash received.');
+      expect(sale.cashPayments, isEmpty);
+    });
+
+    test('saveChangeExchange saves edit_exchange for the order', () async {
+      final sale = FakeSaleRepository();
+      final viewModel = buildViewModel(saleRepository: sale)
+        ..cart = const Cart(guid: 'order-1', isCheckOut: false, items: []);
+
+      expect(
+        await viewModel.saveChangeExchange(currencyCode: 'USD', amount: 2),
+        isTrue,
+      );
+      expect(sale.changeExchanges.single, (currency: 'USD', amount: 2.0));
     });
 
     test('a sale engine refusal is shown', () async {

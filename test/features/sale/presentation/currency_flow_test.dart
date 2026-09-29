@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/presentation/test_ids.dart';
+import 'package:kp_pos/features/sale/domain/entities/cart.dart';
 import 'package:kp_pos/features/sale/presentation/desktop/desktop_checkout_page.dart';
 import 'package:kp_pos/features/sale/presentation/desktop/desktop_payment_page.dart';
 import 'package:kp_pos/features/sale/presentation/handheld/handheld_sale_view.dart';
@@ -258,6 +259,111 @@ void main() {
       await tester.pumpAndSettle();
       expect(textIn(tester, PaymentIds.netPay), 'USD 166.20');
       expect(textIn(tester, PaymentIds.remaining), 'USD 166.20');
+    });
+  });
+
+  group('pay with cash (handheld Payment, legacy PaymentFormPage)', () {
+    // The sale engine's answer to ฿1,000 cash on a ฿900 bill.
+    Cart paid(double amount) => Cart(
+      guid: 'order-1',
+      isCheckOut: false,
+      items: sampleCart.items,
+      payments: [
+        CartPayment(
+          guid: 'p1',
+          code: '***',
+          short: 'CASH',
+          amount: amount,
+          status: 'SUCCESS',
+        ),
+      ],
+      remaining: 0,
+      change: amount - 900,
+    );
+
+    Future<SaleCartViewModel> pump(WidgetTester tester) async {
+      setDeviceSize(tester, compactSize);
+      repo = FakeSaleRepository(
+        cartResult: sampleCart,
+        currencies: branchCurrencies,
+        exchangeQuote: quoteAtBranchRates,
+        paymentCartResult: paid,
+      );
+      final vm = buildSaleViewModel(
+        repo,
+        cart: sampleCart,
+        session: currencySession,
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PaymentPage(
+            netPay: 900,
+            viewModel: vm,
+            loadCurrencies: vm.listCurrencies,
+            exchangeChange: vm.exchangeChange,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(byTestId(PaymentIds.method('cash')));
+      await tester.pump();
+      return vm;
+    }
+
+    Finder cashField() => find.descendant(
+      of: byTestId(PaymentIds.cashReceivedField),
+      matching: find.byType(TextField),
+    );
+
+    testWidgets('Take cash records the tender; ledger, remaining and change '
+        'come from the order', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pump(tester);
+      expect(byTestId(PaymentIds.chargeNotice), findsNothing);
+      expect(
+        tester.getSemantics(byTestId(PaymentIds.takeCashButton)),
+        isSemantics(isButton: true, hasEnabledState: true, isEnabled: false),
+      );
+
+      await tester.ensureVisible(cashField());
+      await tester.enterText(cashField(), '1000');
+      await tester.pump();
+      await tester.tap(byTestId(PaymentIds.takeCashButton));
+      await tester.pumpAndSettle();
+
+      expect(repo.cashPayments.single.orderGuid, 'order-1');
+      expect(repo.cashPayments.single.amount, 1000);
+      expect(textIn(tester, PaymentIds.remaining), '฿0.00');
+      expect(textIn(tester, PaymentIds.tendered), '฿1,000.00');
+      expect(byTestId(PaymentIds.ledgerRow(0)), findsOneWidget);
+      expect(textIn(tester, PaymentIds.recordedChange), '฿100.00');
+      expect(tester.widget<TextField>(cashField()).controller!.text, isEmpty);
+      handle.dispose();
+    });
+
+    testWidgets('after cash, change in USD is saved (edit_exchange)', (
+      tester,
+    ) async {
+      await pump(tester);
+      await tester.ensureVisible(cashField());
+      await tester.enterText(cashField(), '1000');
+      await tester.pump();
+      await tester.tap(byTestId(PaymentIds.takeCashButton));
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(byTestId(CurrencyIds.changeButton));
+      await tester.tap(byTestId(CurrencyIds.changeButton));
+      await tester.pumpAndSettle();
+      expect(repo.exchangeCalls.first.change, 100);
+      expect(find.textContaining('quote only'), findsNothing);
+
+      await tester.tap(byTestId(CurrencyIds.changeCurrency('USD')));
+      await tester.pumpAndSettle();
+      await tester.tap(byTestId(CurrencyIds.changeSaveButton));
+      await tester.pumpAndSettle();
+
+      expect(repo.changeExchanges.single.currency, 'USD');
+      expect(byTestId(CurrencyIds.changeScreen), findsNothing);
     });
   });
 

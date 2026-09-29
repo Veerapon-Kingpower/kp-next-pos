@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:get/get.dart';
 
 import '../../../../../core/presentation/handheld/handheld.dart';
 import '../../../../../core/presentation/test_ids.dart';
 import '../../../../../core/presentation/widgets/test_id.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../domain/entities/cart.dart';
 import '../../../domain/entities/currency.dart';
+import '../../sale_cart_view_model.dart';
 import '../../widgets/change_currency_screen.dart';
 import 'payment_models.dart';
 import 'payment_widgets.dart';
@@ -21,6 +24,7 @@ Future<void> openPaymentPage(
   double rateToBaht = 1,
   Future<List<Currency>> Function()? loadCurrencies,
   ExchangeChange? exchangeChange,
+  SaleCartViewModel? viewModel,
 }) {
   return Navigator.of(context).push(
     MaterialPageRoute<void>(
@@ -30,6 +34,7 @@ Future<void> openPaymentPage(
         rateToBaht: rateToBaht,
         loadCurrencies: loadCurrencies,
         exchangeChange: exchangeChange,
+        viewModel: viewModel,
       ),
     ),
   );
@@ -39,13 +44,16 @@ Future<void> openPaymentPage(
 /// remaining, method picker, amount to charge with presets, the tender
 /// ledger, and Charge.
 ///
-/// Method, amount and presets are local UI state, and remaining is
-/// computed from approved [tenders]. Charging has no API yet: Wallet hands
-/// off to the B-scan-C page (itself inert at "send charge"); card / cash /
-/// UnionPay / e-Purse / voucher Charge is inert. Nothing is ever added to
-/// the ledger without a real approval.
-// TODO(pos-handheld): charge via EDC / sale engine / 2C2P, append tenders
-// from real responses, and complete the sale when remaining hits zero.
+/// Method, amount and presets are local UI state. Cash is real when a
+/// [viewModel] is given: Take cash records the tender on the order (legacy
+/// `PaymentFormPage`, `SaleEngine/AddPaymentToOrder`), and the ledger,
+/// remaining and change due then come from the order the sale engine
+/// returns; change in another currency can be saved (`edit_exchange`).
+/// Other methods have no API yet: Wallet hands off to the B-scan-C page
+/// (itself inert at "send charge"); card / UnionPay / e-Purse / voucher
+/// Charge is inert. Nothing is added to the ledger without a real response.
+// TODO(pos-handheld): charge via EDC / sale engine / 2C2P, and complete the
+// sale when remaining hits zero.
 class PaymentPage extends StatefulWidget {
   final double netPay;
   final List<Tender> tenders;
@@ -61,6 +69,10 @@ class PaymentPage extends StatefulWidget {
   final Future<List<Currency>> Function()? loadCurrencies;
   final ExchangeChange? exchangeChange;
 
+  /// The sale's view model — makes Take cash real and feeds the ledger /
+  /// remaining / change from the order.
+  final SaleCartViewModel? viewModel;
+
   const PaymentPage({
     super.key,
     required this.netPay,
@@ -69,6 +81,7 @@ class PaymentPage extends StatefulWidget {
     this.rateToBaht = 1,
     this.loadCurrencies,
     this.exchangeChange,
+    this.viewModel,
   });
 
   @override
@@ -82,9 +95,49 @@ class _PaymentPageState extends State<PaymentPage> {
   String _money(double value) => formatMoney(value, widget.currencyCode);
   TenderMethod _method = TenderMethod.card;
 
+  /// Tenders passed in plus the order's own `OrderPayments`.
+  List<Tender> get _tenders => [
+    ...widget.tenders,
+    for (final p in widget.viewModel?.cart?.payments ?? const <CartPayment>[])
+      Tender(
+        method: p.isCash ? TenderMethod.cash : TenderMethod.card,
+        title: p.short.isEmpty ? 'Payment' : p.short,
+        amount: p.amount,
+        status: switch (p.status.toUpperCase()) {
+          'SUCCESS' => TenderStatus.approved,
+          'VOID' => TenderStatus.voided,
+          'FAIL' => TenderStatus.declined,
+          _ => TenderStatus.pending,
+        },
+      ),
+  ];
+
+  /// The sale engine's `RemainingAmount` once it reports one.
   double get _remaining {
-    final value = widget.netPay - tenderedTotal(widget.tenders);
+    final fromOrder = widget.viewModel?.cart?.remaining;
+    final value = fromOrder ?? widget.netPay - tenderedTotal(_tenders);
     return value < 0 ? 0 : value;
+  }
+
+  double get _cashAmount => double.tryParse(_cashReceived.text) ?? 0;
+
+  // Legacy `PaymentFormPage` Save for cash.
+  Future<void> _takeCash() async {
+    final viewModel = widget.viewModel;
+    if (viewModel == null) return;
+    if (await viewModel.payCash(_cashAmount)) _cashReceived.clear();
+  }
+
+  Future<String?> _saveExchange({
+    required String currencyCode,
+    required double amount,
+  }) async {
+    final viewModel = widget.viewModel!;
+    final saved = await viewModel.saveChangeExchange(
+      currencyCode: currencyCode,
+      amount: amount,
+    );
+    return saved ? null : viewModel.paymentError;
   }
 
   double get _chargeAmount => double.tryParse(_amount.text) ?? 0;
@@ -110,10 +163,18 @@ class _PaymentPageState extends State<PaymentPage> {
   List<Widget> _cashBlock() {
     final preview = previewCashTender(
       remaining: _remaining,
-      tendered: double.tryParse(_cashReceived.text) ?? 0,
+      tendered: _cashAmount,
     );
+    // Once cash is recorded the order's own change due (baht) is what the
+    // CHANGE screen works on, and its Save is real; before that it quotes
+    // the preview only.
+    final viewModel = widget.viewModel;
+    final recordedChange = viewModel?.cart?.change ?? 0;
+    final changeInBaht = recordedChange > 0
+        ? recordedChange
+        : preview.change * widget.rateToBaht;
     final canExchange =
-        preview.change > 0 &&
+        changeInBaht > 0 &&
         widget.loadCurrencies != null &&
         widget.exchangeChange != null;
     return [
@@ -139,9 +200,26 @@ class _PaymentPageState extends State<PaymentPage> {
               value: _money(preview.change),
               valueColor: preview.change > 0 ? AppColors.success : null,
             ),
+            if (recordedChange > 0)
+              PaymentValueRow(
+                id: PaymentIds.recordedChange,
+                label: 'Change to give (recorded)',
+                value: formatBaht(recordedChange),
+                valueColor: AppColors.success,
+              ),
           ],
         ),
       ),
+      if (viewModel?.paymentError != null) ...[
+        const SizedBox(height: 8),
+        TestId(
+          PaymentIds.paymentError,
+          child: Text(
+            viewModel!.paymentError!,
+            style: const TextStyle(color: AppColors.danger),
+          ),
+        ),
+      ],
       const SizedBox(height: 8),
       HandheldSecondaryButton(
         id: CurrencyIds.changeButton,
@@ -149,9 +227,10 @@ class _PaymentPageState extends State<PaymentPage> {
         onPressed: canExchange
             ? () => showChangeCurrencyScreen(
                 context,
-                changeInBaht: preview.change * widget.rateToBaht,
+                changeInBaht: changeInBaht,
                 loadCurrencies: widget.loadCurrencies!,
                 exchange: widget.exchangeChange!,
+                onSave: recordedChange > 0 ? _saveExchange : null,
               )
             : null,
       ),
@@ -174,19 +253,36 @@ class _PaymentPageState extends State<PaymentPage> {
   void _openTender(Tender tender) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => WalletQueryPage(tenders: widget.tenders, focus: tender),
+        builder: (_) => WalletQueryPage(tenders: _tenders, focus: tender),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final tenders = widget.tenders;
+    final viewModel = widget.viewModel;
+    if (viewModel == null) return _build(context);
+    return GetBuilder<SaleCartViewModel>(
+      init: viewModel,
+      global: false,
+      builder: (_) => _build(context),
+    );
+  }
+
+  Widget _build(BuildContext context) {
+    final tenders = _tenders;
     final approved = tenders.where((t) => t.isSettled).length;
     final canCharge =
         _method == TenderMethod.wallet &&
         _chargeAmount > 0 &&
         _chargeAmount <= _remaining;
+    // Cash is real with a view model (legacy PaymentFormPage Save).
+    final cashLive = _method == TenderMethod.cash && widget.viewModel != null;
+    final canTakeCash =
+        cashLive &&
+        _cashAmount > 0 &&
+        _remaining > 0 &&
+        !widget.viewModel!.isBusy;
 
     return TestId(
       PaymentIds.page,
@@ -290,7 +386,7 @@ class _PaymentPageState extends State<PaymentPage> {
                         ],
                       ),
               ),
-              if (_method != TenderMethod.wallet) ...[
+              if (_method != TenderMethod.wallet && !cashLive) ...[
                 const SizedBox(height: 12),
                 TestId(
                   PaymentIds.chargeNotice,
@@ -308,11 +404,18 @@ class _PaymentPageState extends State<PaymentPage> {
           primary: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              HandheldPrimaryButton(
-                id: PaymentIds.chargeButton,
-                label: 'Charge ${_money(_chargeAmount)}',
-                onPressed: canCharge ? _charge : null,
-              ),
+              cashLive
+                  ? HandheldPrimaryButton(
+                      id: PaymentIds.takeCashButton,
+                      label: 'Take cash ${_money(_cashAmount)}',
+                      icon: Icons.payments_outlined,
+                      onPressed: canTakeCash ? _takeCash : null,
+                    )
+                  : HandheldPrimaryButton(
+                      id: PaymentIds.chargeButton,
+                      label: 'Charge ${_money(_chargeAmount)}',
+                      onPressed: canCharge ? _charge : null,
+                    ),
               const SizedBox(height: 6),
               const Text(
                 'Complete sale unlocks when remaining hits ฿0.00',

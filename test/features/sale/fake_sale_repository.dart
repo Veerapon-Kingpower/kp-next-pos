@@ -28,7 +28,22 @@ class FakeSaleRepository implements SaleRepository {
   final List<({String code, double amount, double change, bool button})>
   exchangeCalls = [];
 
+  /// The order the sale engine returns after a cash tender of `amount`.
+  final Cart Function(double amount)? paymentCartResult;
+  final List<
+    ({
+      String orderGuid,
+      String currency,
+      double rate,
+      double amount,
+      double base,
+    })
+  >
+  cashPayments = [];
+  final List<({String currency, double amount})> changeExchanges = [];
+
   FakeSaleRepository({
+    this.paymentCartResult,
     this.exchangeQuote,
     this.lookupResult,
     this.lookupError,
@@ -94,6 +109,38 @@ class FakeSaleRepository implements SaleRepository {
     required String sessionKey,
     required String shoppingCard,
   }) async {
+    if (mutationError != null) throw mutationError!;
+    return cartResult;
+  }
+
+  @override
+  Future<Cart> addCashPayment({
+    required String sessionKey,
+    required String orderGuid,
+    required String currencyCode,
+    required double currencyRate,
+    required double amount,
+    required double baseAmount,
+  }) async {
+    cashPayments.add((
+      orderGuid: orderGuid,
+      currency: currencyCode,
+      rate: currencyRate,
+      amount: amount,
+      base: baseAmount,
+    ));
+    if (mutationError != null) throw mutationError!;
+    return paymentCartResult?.call(amount) ?? cartResult;
+  }
+
+  @override
+  Future<Cart> saveChangeExchange({
+    required String sessionKey,
+    required String orderGuid,
+    required String currencyCode,
+    required double amount,
+  }) async {
+    changeExchanges.add((currency: currencyCode, amount: amount));
     if (mutationError != null) throw mutationError!;
     return cartResult;
   }

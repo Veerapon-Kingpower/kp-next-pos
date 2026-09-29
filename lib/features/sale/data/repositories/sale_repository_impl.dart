@@ -152,6 +152,44 @@ class SaleRepositoryImpl implements SaleRepository {
   }
 
   @override
+  Future<Cart> addCashPayment({
+    required String sessionKey,
+    required String orderGuid,
+    required String currencyCode,
+    required double currencyRate,
+    required double amount,
+    required double baseAmount,
+  }) async {
+    final settings = await _deviceSettingsStorage.read();
+    return _remote.addCashPayment(
+      saleEngineEndpoint: settings.saleEngineEndpoint,
+      sessionKey: sessionKey,
+      orderGuid: orderGuid,
+      currencyCode: currencyCode,
+      currencyRate: currencyRate,
+      amount: amount,
+      baseAmount: baseAmount,
+    );
+  }
+
+  @override
+  Future<Cart> saveChangeExchange({
+    required String sessionKey,
+    required String orderGuid,
+    required String currencyCode,
+    required double amount,
+  }) async {
+    final settings = await _deviceSettingsStorage.read();
+    return _remote.saveChangeExchange(
+      saleEngineEndpoint: settings.saleEngineEndpoint,
+      sessionKey: sessionKey,
+      orderGuid: orderGuid,
+      currencyCode: currencyCode,
+      amount: amount,
+    );
+  }
+
+  @override
   Future<Cart> getCart({
     required String sessionKey,
     required String shoppingCard,

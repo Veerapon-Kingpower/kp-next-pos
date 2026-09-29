@@ -479,9 +479,7 @@ void main() {
       expect(byTestId(CurrencyIds.picker), findsOneWidget);
       expect(
         tester.getTopLeft(byTestId(CurrencyIds.option('THB'))).dy,
-        lessThan(
-          tester.getTopLeft(byTestId(CurrencyIds.option('USD'))).dy,
-        ),
+        lessThan(tester.getTopLeft(byTestId(CurrencyIds.option('USD'))).dy),
       );
       await tester.enterText(
         find.descendant(

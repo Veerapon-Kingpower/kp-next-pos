@@ -51,6 +51,27 @@ abstract class SaleRepository {
     required bool isChangeButton,
   });
 
+  /// `SaleEngine/AddPaymentToOrder` — a cash tender, as legacy
+  /// `PaymentFormPage` sends it. Returns the order with its payments,
+  /// remaining and change.
+  Future<Cart> addCashPayment({
+    required String sessionKey,
+    required String orderGuid,
+    required String currencyCode,
+    required double currencyRate,
+    required double amount,
+    required double baseAmount,
+  });
+
+  /// `SaleEngine/ActionOrderPayment` `edit_exchange` (legacy `ChangePage`
+  /// Save): [amount] of the change handed back in [currencyCode].
+  Future<Cart> saveChangeExchange({
+    required String sessionKey,
+    required String orderGuid,
+    required String currencyCode,
+    required double amount,
+  });
+
   /// `SaleEngine/GetOrder` (op 8).
   Future<Cart> getCart({
     required String sessionKey,

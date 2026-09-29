@@ -131,6 +131,117 @@ class SaleRemoteDataSource {
     return _firstOrder(response);
   }
 
+  /// Ports legacy `PaymentFormPage.addPaymentToOrder()` for cash
+  /// (`TrasactionGroupEnum.Cash`): the `OrderPayment` it builds, field for
+  /// field, posted to `SaleEngine/AddPaymentToOrder`.
+  Future<CartModel> addCashPayment({
+    required String saleEngineEndpoint,
+    required String sessionKey,
+    required String orderGuid,
+    required String currencyCode,
+    required double currencyRate,
+    required double amount,
+    required double baseAmount,
+  }) async {
+    final currency = {'Code': currencyCode, 'Desc': currencyCode};
+    const baht = {'Code': 'THB', 'Desc': 'THAI BAHT'};
+    final response = await _apiClient.post(
+      '$saleEngineEndpoint/SaleEngine/AddPaymentToOrder',
+      data: {
+        'OrderGuid': orderGuid,
+        'Payment': {
+          'Guid': '',
+          'LineNo': 0,
+          'PaymentCode': '***', // legacy PaymentType.CASH
+          'PaymentType': 'CASH',
+          'PaymentShort': 'CASH',
+          'PaymentIcon': '',
+          'RefNo': '',
+          'URLService': '',
+          'CardHolderName': '',
+          'ApproveCode': '',
+          'BankOfEDC': '',
+          'IssuerID': '',
+          'WalletBarcode': '',
+          'WalletMerchantID': '',
+          'WalletTransID': '',
+          'GatewayId': 0, // Gateway.OTHER
+          'isDCC': false,
+          'isCheckVoucher': false,
+          'isFixAmount': false,
+          'isNotAllowSMC': false,
+          'isComplete': false,
+          'PaymentAmounts': {
+            'CurrCode': currency,
+            'CurrRate': currencyRate,
+            'CurrAmt': amount,
+            'BaseCurrCode': baht,
+            'BaseCurrRate': currencyRate,
+            'BaseCurrAmt': baseAmount,
+            'curChange': 0,
+            'ExtendPoint': 0,
+          },
+          'ChangeAmounts': {
+            'CurrCode': currency,
+            'CurrRate': 0,
+            'CurrAmt': 0,
+            'BaseCurrCode': baht,
+            'BaseCurrRate': 0,
+            'BaseCurrAmt': 0,
+            'curChange': 0,
+          },
+          'Transaction': {
+            'TransactionId': 0,
+            'GatewaySessionKey': '',
+            'TransactionGroup': 1, // TrasactionGroupEnum.Cash
+            'TransactionType': 1, // TrantypeEnum.P
+            'PartnerId': 0,
+            'LastStatus': 1, // PaymentTransactionStatusEnum.RequestPay
+            'CurrentStatus': 1,
+            'Movements': [
+              {
+                'TransactionMovementType': 1, // TranMovementTypeEnum.Request
+                'Amount': amount,
+                'Currency': currency,
+                'Description': '',
+                'Status': 1,
+              },
+            ],
+            'PartnerType': '',
+          },
+          'status': 'SUCCESS', // OrderPaymentStatus.Success
+          'PartnerTransID': '',
+          'PaymentSessionKey': 0,
+        },
+        'SessionKey': sessionKey,
+      },
+    );
+    return _firstOrder(response);
+  }
+
+  /// Ports legacy `ChangePage.onSave()`: `ActionOrderPayment` with
+  /// `Action: "edit_exchange"` — hand [amount] of the change back in
+  /// [currencyCode].
+  Future<CartModel> saveChangeExchange({
+    required String saleEngineEndpoint,
+    required String sessionKey,
+    required String orderGuid,
+    required String currencyCode,
+    required double amount,
+  }) async {
+    final response = await _apiClient.post(
+      '$saleEngineEndpoint/SaleEngine/ActionOrderPayment',
+      data: {
+        'OrderGuid': orderGuid,
+        'Action': 'edit_exchange',
+        'Value': amount.toString(),
+        'currency': currencyCode,
+        'SessionKey': sessionKey,
+      },
+    );
+    return _firstOrder(response);
+  }
+
   Future<ExchangeQuoteModel> exchangeCurrency({
     required String saleEngineEndpoint,
     required String currencyCode,

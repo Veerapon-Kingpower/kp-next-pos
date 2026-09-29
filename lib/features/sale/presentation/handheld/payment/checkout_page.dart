@@ -314,6 +314,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     rateToBaht: orderRateToBaht(viewModel.cart),
                     loadCurrencies: viewModel.listCurrencies,
                     exchangeChange: viewModel.exchangeChange,
+                    viewModel: viewModel,
                   ),
           ),
           items: const [

@@ -7,16 +7,38 @@ class CartModel extends Cart {
     required super.isCheckOut,
     required super.items,
     super.billing,
+    super.payments,
+    super.remaining,
+    super.change,
   });
 
-  factory CartModel.fromJson(Map<String, dynamic> json) => CartModel(
-    guid: json['Guid'] as String? ?? '',
-    isCheckOut: json['isCheckOut'] as bool? ?? false,
-    items: (json['OrderDetails'] as List<dynamic>? ?? const [])
-        .map((d) => CartItemModel.fromJson(d as Map<String, dynamic>))
-        .toList(growable: false),
-    billing: _billing(json),
-  );
+  factory CartModel.fromJson(Map<String, dynamic> json) {
+    final remaining = _map(json['RemainingAmount'])['NetAmount'];
+    return CartModel(
+      guid: json['Guid'] as String? ?? '',
+      isCheckOut: json['isCheckOut'] as bool? ?? false,
+      items: (json['OrderDetails'] as List<dynamic>? ?? const [])
+          .map((d) => CartItemModel.fromJson(d as Map<String, dynamic>))
+          .toList(growable: false),
+      billing: _billing(json),
+      payments: (json['OrderPayments'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(
+            (p) => CartPayment(
+              guid: p['Guid'] as String? ?? '',
+              code: p['PaymentCode'] as String? ?? '',
+              short: p['PaymentShort'] as String? ?? '',
+              amount: _num(_map(p['PaymentAmounts'])['CurrAmt']),
+              status: p['status'] as String? ?? '',
+            ),
+          )
+          .toList(growable: false),
+      remaining: remaining is Map<String, dynamic>
+          ? _num(remaining['CurrAmt'])
+          : null,
+      change: _num(_map(json['ChangeAmount'])['BaseCurrAmt']),
+    );
+  }
 
   // Field names from legacy `OrderClass.ts` (`BillingAmount`,
   // `TotalBillingAmount`, `AmountModel`, `CodeAndDescription`).

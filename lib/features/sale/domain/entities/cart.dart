@@ -12,14 +12,54 @@ class Cart {
   final List<CartItem> items;
   final CartBilling? billing;
 
+  /// Tenders the sale engine holds on the order (`OrderPayments`).
+  final List<CartPayment> payments;
+
+  /// `RemainingAmount.NetAmount.CurrAmt` — still to pay, in the order's
+  /// currency; null until the sale engine reports it.
+  final double? remaining;
+
+  /// `ChangeAmount.BaseCurrAmt` — change due in baht after cash tenders.
+  final double change;
+
   const Cart({
     required this.guid,
     required this.isCheckOut,
     required this.items,
     this.billing,
+    this.payments = const [],
+    this.remaining,
+    this.change = 0,
   });
 
   int get itemCount => items.length;
+}
+
+/// One `OrderPayment` on the order (legacy `OrderClass.ts`).
+class CartPayment {
+  final String guid;
+
+  /// `PaymentCode` — `***` is cash (legacy `PaymentType.CASH`).
+  final String code;
+
+  /// `PaymentShort`, e.g. `CASH`.
+  final String short;
+
+  /// `PaymentAmounts.CurrAmt`.
+  final double amount;
+
+  /// `status` — `SUCCESS`, `FAIL`, `VOID`, `UNKNOWN` or empty.
+  final String status;
+
+  const CartPayment({
+    required this.guid,
+    required this.code,
+    required this.short,
+    required this.amount,
+    required this.status,
+  });
+
+  bool get isCash => code == '***';
 }
 
 /// Order amounts in the order's own currency, as legacy's Sale page shows

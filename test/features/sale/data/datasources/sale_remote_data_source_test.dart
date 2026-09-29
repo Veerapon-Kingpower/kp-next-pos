@@ -258,6 +258,100 @@ void main() {
     expect(quote.localChange, 290);
   });
 
+  test('addCashPayment posts legacy PaymentFormPage\'s cash OrderPayment '
+      'and reads payments / remaining / change back', () async {
+    apiClient.response = {
+      'isCompleted': true,
+      'Data': [
+        {
+          'Guid': 'g1',
+          'OrderDetails': [],
+          'OrderPayments': [
+            {
+              'Guid': 'p1',
+              'PaymentCode': '***',
+              'PaymentShort': 'CASH',
+              'PaymentAmounts': {'CurrAmt': 1000},
+              'status': 'SUCCESS',
+            },
+          ],
+          'RemainingAmount': {
+            'NetAmount': {'CurrAmt': 0, 'BaseCurrAmt': 0},
+          },
+          'ChangeAmount': {'CurrAmt': 100, 'BaseCurrAmt': 100},
+        },
+      ],
+      'Message': [],
+    };
+
+    final cart = await dataSource.addCashPayment(
+      saleEngineEndpoint: 'https://sale-engine',
+      sessionKey: 'abc123',
+      orderGuid: 'g1',
+      currencyCode: 'THB',
+      currencyRate: 1,
+      amount: 1000,
+      baseAmount: 1000,
+    );
+
+    expect(
+      apiClient.lastUrl,
+      'https://sale-engine/SaleEngine/AddPaymentToOrder',
+    );
+    final sent = apiClient.lastData as Map<String, dynamic>;
+    expect(sent['OrderGuid'], 'g1');
+    expect(sent['SessionKey'], 'abc123');
+    final payment = sent['Payment'] as Map<String, dynamic>;
+    expect(payment['PaymentCode'], '***');
+    expect(payment['PaymentShort'], 'CASH');
+    expect(payment['GatewayId'], 0);
+    expect(payment['status'], 'SUCCESS');
+    final amounts = payment['PaymentAmounts'] as Map<String, dynamic>;
+    expect(amounts['CurrAmt'], 1000);
+    expect(amounts['BaseCurrAmt'], 1000);
+    expect((amounts['CurrCode'] as Map)['Code'], 'THB');
+    final transaction = payment['Transaction'] as Map<String, dynamic>;
+    expect(transaction['TransactionGroup'], 1);
+    expect(transaction['TransactionType'], 1);
+    expect((transaction['Movements'] as List).single['Amount'], 1000);
+
+    expect(cart.payments.single.isCash, isTrue);
+    expect(cart.payments.single.amount, 1000);
+    expect(cart.remaining, 0);
+    expect(cart.change, 100);
+  });
+
+  test('saveChangeExchange posts ActionOrderPayment edit_exchange '
+      '(legacy ChangePage)', () async {
+    apiClient.response = {
+      'isCompleted': true,
+      'Data': [
+        {'Guid': 'g1', 'OrderDetails': []},
+      ],
+      'Message': [],
+    };
+
+    await dataSource.saveChangeExchange(
+      saleEngineEndpoint: 'https://sale-engine',
+      sessionKey: 'abc123',
+      orderGuid: 'g1',
+      currencyCode: 'USD',
+      amount: 2,
+    );
+
+    expect(
+      apiClient.lastUrl,
+      'https://sale-engine/SaleEngine/ActionOrderPayment',
+    );
+    expect(apiClient.lastData, {
+      'OrderGuid': 'g1',
+      'Action': 'edit_exchange',
+      'Value': '2.0',
+      'currency': 'USD',
+      'SessionKey': 'abc123',
+    });
+  });
+
   test('getCurrencies posts branch_no to SaleEngine/GetCurrency', () async {
     apiClient.response = {
       'isCompleted': true,

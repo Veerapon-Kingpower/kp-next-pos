@@ -8,6 +8,7 @@ import '../domain/entities/cart.dart';
 import '../domain/entities/currency.dart';
 import '../domain/entities/exchange_quote.dart';
 import '../domain/usecases/add_item_to_cart_usecase.dart';
+import '../domain/usecases/cash_payment_usecases.dart';
 import '../domain/usecases/change_order_currency_usecase.dart';
 import '../domain/usecases/exchange_change_usecase.dart';
 import '../domain/usecases/list_currencies_usecase.dart';
@@ -29,6 +30,8 @@ class SaleCartViewModel extends GetxController {
   final ListCurrenciesUseCase _listCurrencies;
   final ChangeOrderCurrencyUseCase _changeOrderCurrency;
   final ExchangeChangeUseCase _exchangeChange;
+  final AddCashPaymentUseCase _addCashPayment;
+  final SaveChangeExchangeUseCase _saveChangeExchange;
 
   SaleCartViewModel({
     required RestoreSessionUseCase restoreSession,
@@ -39,6 +42,8 @@ class SaleCartViewModel extends GetxController {
     required ListCurrenciesUseCase listCurrencies,
     required ChangeOrderCurrencyUseCase changeOrderCurrency,
     required ExchangeChangeUseCase exchangeChange,
+    required AddCashPaymentUseCase addCashPayment,
+    required SaveChangeExchangeUseCase saveChangeExchange,
   }) : _restoreSession = restoreSession,
        _lookupArticle = lookupArticle,
        _addItemToCart = addItemToCart,
@@ -46,7 +51,88 @@ class SaleCartViewModel extends GetxController {
        _removeCartItem = removeCartItem,
        _listCurrencies = listCurrencies,
        _changeOrderCurrency = changeOrderCurrency,
-       _exchangeChange = exchangeChange;
+       _exchangeChange = exchangeChange,
+       _addCashPayment = addCashPayment,
+       _saveChangeExchange = saveChangeExchange;
+
+  /// Why the last cash tender or change save failed, if it did.
+  String? paymentError;
+
+  /// Records [amount] of cash (in the order's currency) on the order —
+  /// legacy `PaymentFormPage` Save for cash. The returned order carries the
+  /// tender, the remaining balance and any change due.
+  Future<bool> payCash(double amount) async {
+    paymentError = null;
+    final order = cart;
+    if (order == null || order.guid.isEmpty) {
+      paymentError = 'There is no order to pay.';
+      update();
+      return false;
+    }
+    if (amount <= 0) {
+      paymentError = 'Enter the cash received.';
+      update();
+      return false;
+    }
+    final sessionKey = await _sessionKey();
+    if (sessionKey == null) {
+      paymentError = 'No active session.';
+      update();
+      return false;
+    }
+    final billing = order.billing;
+    final foreign =
+        billing != null && !billing.isBaht && billing.currencyRate > 0;
+    final rate = foreign ? billing.currencyRate : 1.0;
+    isBusy = true;
+    update();
+    try {
+      cart = await _addCashPayment(
+        sessionKey: sessionKey,
+        orderGuid: order.guid,
+        currencyCode: foreign ? billing.currencyCode : 'THB',
+        currencyRate: rate,
+        amount: amount,
+        baseAmount: amount * rate,
+      );
+    } on ApiException catch (e) {
+      paymentError = e.messageDesc;
+    }
+    isBusy = false;
+    update();
+    return paymentError == null;
+  }
+
+  /// Legacy `ChangePage.onSave()`: [amount] of the order's change handed
+  /// back in [currencyCode] (`edit_exchange`).
+  Future<bool> saveChangeExchange({
+    required String currencyCode,
+    required double amount,
+  }) async {
+    paymentError = null;
+    final order = cart;
+    final sessionKey = await _sessionKey();
+    if (order == null || order.guid.isEmpty || sessionKey == null) {
+      paymentError = 'There is no order to save the change on.';
+      update();
+      return false;
+    }
+    isBusy = true;
+    update();
+    try {
+      cart = await _saveChangeExchange(
+        sessionKey: sessionKey,
+        orderGuid: order.guid,
+        currencyCode: currencyCode,
+        amount: amount,
+      );
+    } on ApiException catch (e) {
+      paymentError = e.messageDesc;
+    }
+    isBusy = false;
+    update();
+    return paymentError == null;
+  }
 
   Cart? cart;
   bool isBusy = false;

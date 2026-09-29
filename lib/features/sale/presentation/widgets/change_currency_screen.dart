@@ -14,6 +14,13 @@ import '../../../../core/theme/app_colors.dart';
 import '../../domain/entities/currency.dart';
 import '../../domain/entities/exchange_quote.dart';
 
+/// Legacy `ChangePage.onSave()`; resolves to an error message, or null.
+typedef SaveChangeExchange =
+    Future<String?> Function({
+      required String currencyCode,
+      required double amount,
+    });
+
 typedef ExchangeChange =
     Future<ExchangeQuote> Function({
       required String currencyCode,
@@ -27,17 +34,17 @@ typedef ExchangeChange =
 /// sale engine (`SaleEngine/ExchangeCurrency`) how much of it covers the
 /// change; typing an amount re-quotes what baht is still owed.
 ///
-/// Save is inert: legacy saves with `ActionOrderPayment` `edit_exchange`
-/// against the order's recorded cash payment, and this app does not record
-/// cash tenders yet — the quote is real, nothing is written.
-// TODO(pos-desktop): Save via ActionOrderPayment `edit_exchange` once cash
-// tenders are recorded on the order (openspec 5.1).
+/// Save runs [onSave] (legacy `ActionOrderPayment` `edit_exchange`) with the
+/// picked currency and amount and closes on success. Without [onSave] — no
+/// cash tender recorded on the order yet — Save is inert and the screen is
+/// a quote only.
 Future<void> showChangeCurrencyScreen(
   BuildContext context, {
   required double changeInBaht,
   required Future<List<Currency>> Function() loadCurrencies,
   required ExchangeChange exchange,
   String initialCurrency = 'THB',
+  SaveChangeExchange? onSave,
 }) {
   // Handheld: a bottom sheet on phones, a dialog on tablets (legacy's
   // full-screen modal on the Sunmi).
@@ -50,6 +57,7 @@ Future<void> showChangeCurrencyScreen(
         loadCurrencies: loadCurrencies,
         exchange: exchange,
         initialCurrency: initialCurrency,
+        onSave: onSave,
         framed: false,
       ),
     );
@@ -67,6 +75,7 @@ Future<void> showChangeCurrencyScreen(
           loadCurrencies: loadCurrencies,
           exchange: exchange,
           initialCurrency: initialCurrency,
+          onSave: onSave,
           framed: true,
         ),
       ),
@@ -79,6 +88,7 @@ class _ChangeCurrencyScreen extends StatefulWidget {
   final Future<List<Currency>> Function() loadCurrencies;
   final ExchangeChange exchange;
   final String initialCurrency;
+  final SaveChangeExchange? onSave;
 
   /// Desktop dialog: own surface and id. Handheld sheet: bare content.
   final bool framed;
@@ -88,6 +98,7 @@ class _ChangeCurrencyScreen extends StatefulWidget {
     required this.loadCurrencies,
     required this.exchange,
     required this.initialCurrency,
+    required this.onSave,
     required this.framed,
   });
 
@@ -104,6 +115,7 @@ class _ChangeCurrencyScreenState extends State<_ChangeCurrencyScreen> {
   ExchangeQuote? _quote;
   String? _error;
   bool _loading = false;
+  bool _saving = false;
 
   @override
   void initState() {
@@ -184,6 +196,28 @@ class _ChangeCurrencyScreenState extends State<_ChangeCurrencyScreen> {
   }
 
   void _close() => Navigator.of(context).pop();
+
+  Future<void> _save() async {
+    final quote = _quote;
+    if (quote == null) return;
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    final error = await widget.onSave!(
+      currencyCode: _currency,
+      amount: quote.currencyAmount,
+    );
+    if (!mounted) return;
+    if (error == null) {
+      _close();
+      return;
+    }
+    setState(() {
+      _saving = false;
+      _error = error;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -336,21 +370,28 @@ class _ChangeCurrencyScreenState extends State<_ChangeCurrencyScreen> {
               ),
             ),
           const SizedBox(height: 16),
-          const Text(
-            'Saving the exchange needs a recorded cash tender — not '
-            'available yet on this station. Hand the change back as '
-            'quoted above.',
-            style: TextStyle(fontSize: 12.5, color: AppColors.mutedText),
-          ),
+          if (widget.onSave == null)
+            const Text(
+              'Saving the exchange needs a recorded cash tender — take the '
+              'cash first. Until then this is a quote only.',
+              style: TextStyle(fontSize: 12.5, color: AppColors.mutedText),
+            ),
           const SizedBox(height: 10),
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: DesktopButton(
                   id: CurrencyIds.changeSaveButton,
                   label: 'Save',
                   icon: Icons.check,
                   height: 52,
+                  onPressed:
+                      widget.onSave != null &&
+                          _quote != null &&
+                          !_loading &&
+                          !_saving
+                      ? _save
+                      : null,
                 ),
               ),
               const SizedBox(width: 10),

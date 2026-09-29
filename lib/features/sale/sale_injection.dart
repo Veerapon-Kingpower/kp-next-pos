@@ -8,6 +8,7 @@ import 'data/repositories/sale_repository_impl.dart';
 import 'domain/repositories/sale_repository.dart';
 import 'domain/usecases/add_item_to_cart_usecase.dart';
 import 'domain/usecases/get_cart_usecase.dart';
+import 'domain/usecases/cash_payment_usecases.dart';
 import 'domain/usecases/change_order_currency_usecase.dart';
 import 'domain/usecases/exchange_change_usecase.dart';
 import 'domain/usecases/list_currencies_usecase.dart';
@@ -54,6 +55,12 @@ void setupSaleServiceLocator() {
   sl.registerFactory<ExchangeChangeUseCase>(
     () => ExchangeChangeUseCase(sl<SaleRepository>()),
   );
+  sl.registerFactory<AddCashPaymentUseCase>(
+    () => AddCashPaymentUseCase(sl<SaleRepository>()),
+  );
+  sl.registerFactory<SaveChangeExchangeUseCase>(
+    () => SaveChangeExchangeUseCase(sl<SaleRepository>()),
+  );
   sl.registerFactory<SaleCartViewModel>(
     () => SaleCartViewModel(
       restoreSession: sl<RestoreSessionUseCase>(),
@@ -64,6 +71,8 @@ void setupSaleServiceLocator() {
       listCurrencies: sl<ListCurrenciesUseCase>(),
       changeOrderCurrency: sl<ChangeOrderCurrencyUseCase>(),
       exchangeChange: sl<ExchangeChangeUseCase>(),
+      addCashPayment: sl<AddCashPaymentUseCase>(),
+      saveChangeExchange: sl<SaveChangeExchangeUseCase>(),
     ),
   );
 }

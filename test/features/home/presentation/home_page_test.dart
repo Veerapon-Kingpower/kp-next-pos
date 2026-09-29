@@ -688,8 +688,89 @@ void main() {
       expect(find.text('SPEND YTD'), findsNothing);
       expect(find.text('VISITS'), findsNothing);
       expect(find.text('Attach to bill'), findsNothing);
-      expect(byTestId(ProfileIds.recentPurchases), findsOneWidget);
+      expect(find.text('Recent purchases'), findsNothing);
       expect(byTestId(ProfileIds.caratExpiring), findsNothing);
+    });
+
+    testWidgets('Go to Sale takes a registered customer, with the picked '
+        'privilege, to the Sale tab', (tester) async {
+      await pumpCustomerTab(tester, buildPage(searchResult: const [found]));
+      await search(tester, 'CPX0001');
+
+      await tester.ensureVisible(byTestId(ProfileIds.privilege(0)));
+      await tester.tap(byTestId(ProfileIds.privilege(0)));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(byTestId(ProfileIds.goToSaleButton));
+      await tester.tap(byTestId(ProfileIds.goToSaleButton));
+      await tester.pumpAndSettle();
+
+      // No second privilege prompt — the radio pick is used as-is.
+      expect(find.text('Select privilege'), findsNothing);
+      expect(byTestId(SaleIds.scanField), findsOneWidget);
+      expect(find.text('Elite 10%'), findsOneWidget);
+      expect(
+        tester.getSemantics(byTestId(NavIds.sale)),
+        isSemantics(isSelected: true),
+      );
+    });
+
+    testWidgets('an unregistered customer has no Go to Sale', (tester) async {
+      const unregistered = Customer(
+        action: 'REGISTER_ADD',
+        isFound: false,
+        person: CustomerPerson(
+          englishName: 'Jane Doe',
+          passportNo: 'P1234567',
+          nationality: 'THA',
+          contacts: [],
+          privileges: [],
+          walletMembers: [],
+          shoppingCard: 'CPX0001',
+        ),
+        tour: {},
+        agentCode: '',
+        isMember: false,
+      );
+      await pumpCustomerTab(
+        tester,
+        buildPage(searchResult: const [unregistered]),
+      );
+      await search(tester, 'CPX0001');
+
+      expect(byTestId(ProfileIds.goToSaleButton), findsNothing);
+    });
+
+    testWidgets('a fast-registered card is blocked with legacy "Oops !"', (
+      tester,
+    ) async {
+      const fast = Customer(
+        action: 'found',
+        isFound: true,
+        person: CustomerPerson(
+          englishName: 'Jane Doe',
+          passportNo: 'P1234567',
+          nationality: 'THA',
+          contacts: [],
+          privileges: [],
+          walletMembers: [],
+          shoppingCard: 'CPX0001',
+          isActivate: true,
+          fastRegister: true,
+        ),
+        tour: {},
+        agentCode: '',
+        isMember: true,
+      );
+      await pumpCustomerTab(tester, buildPage(searchResult: const [fast]));
+      await search(tester, 'CPX0001');
+
+      await tester.ensureVisible(byTestId(ProfileIds.goToSaleButton));
+      await tester.tap(byTestId(ProfileIds.goToSaleButton));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Oops !'), findsOneWidget);
+      expect(find.text('ShoppingCard is fast register'), findsOneWidget);
+      expect(byTestId(SaleIds.scanField), findsNothing);
     });
 
     testWidgets('the Carat tile notes the amount nearly expiring', (
@@ -1153,6 +1234,26 @@ void main() {
         ),
         findsOneWidget,
       );
+    });
+
+    testWidgets('Go to Sale on the profile opens the Sale screen', (
+      tester,
+    ) async {
+      await pumpHandheld(tester, buildPage(searchResult: const [jane]));
+      await scan(tester, 'CPX0001');
+      await tester.tap(byTestId(HomeIds.customerTile(0)));
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(byTestId(ProfileIds.privilege(0)));
+      await tester.tap(byTestId(ProfileIds.privilege(0)));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(byTestId(ProfileIds.goToSaleButton));
+      await tester.tap(byTestId(ProfileIds.goToSaleButton));
+      await tester.pumpAndSettle();
+
+      expect(byTestId(ProfileIds.page), findsNothing);
+      expect(byTestId(SaleIds.scanField), findsOneWidget);
+      expect(find.text('Gold Member'), findsOneWidget);
     });
 
     testWidgets('a scan that finds nothing shows the empty state', (

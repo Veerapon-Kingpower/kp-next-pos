@@ -262,7 +262,7 @@ abstract class ProfileIds {
   static const flightCard = 'profile.flightCard';
   static const privileges = 'profile.privileges';
   static const noPrivilege = 'profile.privilege.none';
-  static const recentPurchases = 'profile.recentPurchases';
+  static const goToSaleButton = 'profile.goToSaleButton';
   static const editButton = 'profile.editButton';
   static const travellerButton = 'profile.travellerButton';
 

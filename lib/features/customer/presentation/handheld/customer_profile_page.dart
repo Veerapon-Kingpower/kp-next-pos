@@ -14,18 +14,18 @@ import 'traveller_details_page.dart';
 ///
 /// Real: name, member badge, shopping card, nationality, registration
 /// status, Carat / e-Purse (the `CARAT` / `CASHW` wallet balances), linked
-/// flight, privileges (radio list), customer type / agent / guide. Recent
-/// purchases aren't on `GetCustomer` yet, so shown as a notice.
+/// flight, privileges (radio list), customer type / agent / guide.
 ///
 /// Every privilege pick is reported through [onPrivilegeChanged] straight
-/// away (as on desktop); [onEdit] opens the Update customer form.
-// TODO(pos-handheld): recent purchases once a member-profile API exists.
+/// away (as on desktop); [onEdit] opens the Update customer form. A
+/// registered (`isActivate`) customer also gets Go to Sale, [onGoToSale].
 class CustomerProfilePage extends StatefulWidget {
   final Customer customer;
   final Privilege? initialPrivilege;
   final Future<List<Flight>> Function(String query) searchFlights;
   final ValueChanged<Privilege?> onPrivilegeChanged;
   final VoidCallback onEdit;
+  final VoidCallback onGoToSale;
 
   const CustomerProfilePage({
     super.key,
@@ -33,6 +33,7 @@ class CustomerProfilePage extends StatefulWidget {
     required this.searchFlights,
     required this.onPrivilegeChanged,
     required this.onEdit,
+    required this.onGoToSale,
     this.initialPrivilege,
   });
 
@@ -141,20 +142,15 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
-              const HandheldSection(
-                id: ProfileIds.recentPurchases,
-                title: 'Recent purchases',
-                children: [
-                  Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Text(
-                      'Purchase history is not available yet on this device.',
-                      style: HandheldText.bodySmall,
-                    ),
-                  ),
-                ],
-              ),
+              if (person.isActivate) ...[
+                const SizedBox(height: 14),
+                HandheldPrimaryButton(
+                  id: ProfileIds.goToSaleButton,
+                  label: 'Go to Sale',
+                  icon: Icons.shopping_cart_outlined,
+                  onPressed: widget.onGoToSale,
+                ),
+              ],
             ],
           ),
         ),

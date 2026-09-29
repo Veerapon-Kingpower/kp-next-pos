@@ -65,10 +65,12 @@ const walkIn = Customer(
 void main() {
   late List<Privilege?> picked;
   late int edits;
+  late int sales;
 
   setUp(() {
     picked = [];
     edits = 0;
+    sales = 0;
   });
 
   Future<void> open(
@@ -91,6 +93,7 @@ void main() {
                     searchFlights: (_) async => const <Flight>[],
                     onPrivilegeChanged: picked.add,
                     onEdit: () => edits++,
+                    onGoToSale: () => sales++,
                   ),
                 ),
               ),
@@ -179,7 +182,9 @@ void main() {
     // The expiring line doesn't make the Carat tile taller than e-Purse.
     double tileHeight(String id) => tester
         .getSize(
-          find.ancestor(of: byTestId(id), matching: find.byType(Expanded)).first,
+          find
+              .ancestor(of: byTestId(id), matching: find.byType(Expanded))
+              .first,
         )
         .height;
     expect(tileHeight(ProfileIds.caratStat), tileHeight(ProfileIds.ePurseStat));
@@ -276,16 +281,20 @@ void main() {
     expect(find.text('None on this card'), findsOneWidget);
   });
 
-  testWidgets('recent purchases are marked unavailable', (tester) async {
+  testWidgets('a registered customer gets Go to Sale, not recent purchases', (
+    tester,
+  ) async {
     await open(tester);
-    await tester.ensureVisible(byTestId(ProfileIds.recentPurchases));
-    expect(
-      find.descendant(
-        of: byTestId(ProfileIds.recentPurchases),
-        matching: find.textContaining('not available yet'),
-      ),
-      findsOneWidget,
-    );
+    expect(find.text('Recent purchases'), findsNothing);
+    await tester.ensureVisible(byTestId(ProfileIds.goToSaleButton));
+    await tester.tap(byTestId(ProfileIds.goToSaleButton));
+    expect(sales, 1);
+  });
+
+  testWidgets('an unregistered customer has no Go to Sale', (tester) async {
+    await open(tester, customer: walkIn);
+    expect(byTestId(ProfileIds.goToSaleButton), findsNothing);
+    expect(find.text('Recent purchases'), findsNothing);
   });
 
   testWidgets('iPad portrait renders without overflow', (tester) async {

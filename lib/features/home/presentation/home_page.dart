@@ -14,7 +14,6 @@ import '../../../core/presentation/widgets/loading_view.dart';
 import '../../../core/presentation/widgets/retryable_error_view.dart';
 import '../../../core/theme/app_breakpoints.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_sizing.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../auth/domain/usecases/logout_usecase.dart';
 import '../../customer/domain/entities/customer.dart';
@@ -240,11 +239,9 @@ class _HomePageState extends State<HomePage> {
   // `SaleCartViewModel`), so this deliberately stops at switching to the
   // Sale tab rather than attempting to fabricate that machinery.
   //
-  // When the customer has any privileges, legacy prompts the cashier to
-  // pick one before proceeding (`presentPrivilegeSelection`) — ported here
-  // as a blocking dialog: cancelling it keeps the cashier on Customers,
-  // picking an option (including "No privilege") stores the choice on
-  // [_saleCartViewModel] and then switches tabs.
+  // Legacy prompts for a privilege here (`presentPrivilegeSelection`); the
+  // profile's radio list already asks that up front ("No privilege" by
+  // default), so its pick, [_selectedPrivilege], is carried over as-is.
   Future<void> _goToSale(Customer customer) async {
     final person = customer.person;
     if (person.fastRegister) {
@@ -255,15 +252,12 @@ class _HomePageState extends State<HomePage> {
       await _showSaleBlockedDialog('ShoppingCard is not register');
       return;
     }
-    _saleCartViewModel.attachShoppingCard(person.shoppingCard);
-    if (person.privileges.isEmpty) {
-      _saleCartViewModel.selectPrivilege(null);
-      setState(() => _section = _HomeSection.sale);
-      return;
-    }
-    final selection = await _choosePrivilege(person.privileges);
-    if (selection == null) return;
-    _saleCartViewModel.selectPrivilege(selection.privilege);
+    final selected = _selectedPrivilege;
+    _saleCartViewModel
+      ..attachShoppingCard(person.shoppingCard)
+      ..selectPrivilege(
+        person.privileges.any((p) => identical(p, selected)) ? selected : null,
+      );
     setState(() => _section = _HomeSection.sale);
   }
 
@@ -287,52 +281,11 @@ class _HomePageState extends State<HomePage> {
             _saleCartViewModel.selectPrivilege(privilege);
           },
           onEdit: () => _openRegistration(existingCustomer: customer),
+          onGoToSale: () async {
+            Navigator.of(context, rootNavigator: true).pop();
+            await _goToSale(customer);
+          },
         ),
-      ),
-    );
-  }
-
-  Future<_PrivilegeSelection?> _choosePrivilege(List<Privilege> privileges) {
-    return showDialog<_PrivilegeSelection>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Select privilege'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              for (var i = 0; i < privileges.length; i++)
-                ListTile(
-                  key: Key('privilegeOption_$i'),
-                  leading: const Icon(
-                    Icons.card_giftcard,
-                    color: AppColors.goldAccent,
-                  ),
-                  title: _PrivilegeRow(privilege: privileges[i]),
-                  onTap: () => Navigator.of(
-                    context,
-                  ).pop(_PrivilegeSelection(privileges[i])),
-                ),
-              ListTile(
-                key: const Key('noPrivilegeOption'),
-                leading: const Icon(
-                  Icons.block,
-                  color: AppColors.textSecondary,
-                ),
-                title: const Text('No privilege'),
-                onTap: () =>
-                    Navigator.of(context).pop(const _PrivilegeSelection(null)),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-        ],
       ),
     );
   }
@@ -935,18 +888,20 @@ class _HomePageState extends State<HomePage> {
         const SizedBox(height: 16),
         _CustomerResultCard(
           customer: customer,
-          onGoToSale: _goToSale,
           selectedPrivilege: _selectedPrivilege,
           onSelectPrivilege: _selectPrivilege,
         ),
-        const SizedBox(height: 16),
-        // TODO(pos-desktop): recent purchases once a member-history API
-        // exists.
-        const DesktopPanel(
-          id: ProfileIds.recentPurchases,
-          title: 'Recent purchases',
-          child: Text('Purchase history is not available yet.', style: muted),
-        ),
+        // Only a registered (`isActivate`) card can start a sale.
+        if (customer.person.isActivate) ...[
+          const SizedBox(height: 16),
+          DesktopButton(
+            id: ProfileIds.goToSaleButton,
+            label: 'Go to Sale',
+            icon: Icons.shopping_cart_outlined,
+            height: 58,
+            onPressed: () => _goToSale(customer),
+          ),
+        ],
       ],
     );
   }
@@ -1021,32 +976,19 @@ class _MenuRow extends StatelessWidget {
   }
 }
 
-/// Result of the "Select privilege" dialog — distinct from the dialog's
-/// `showDialog` future resolving to `null` on cancel (back/outside tap),
-/// since picking "No privilege" also carries a `null` [privilege].
-class _PrivilegeSelection {
-  final Privilege? privilege;
-
-  const _PrivilegeSelection(this.privilege);
-}
-
 /// Search-result card: the privilege radio list. It is the desktop Customer
 /// tab's profile body, beside the edit form, so the name, shopping card,
 /// passport, nationality, customer type, agent/guide, flight and register
 /// status are left to that form instead of being repeated here; the wallets
 /// are the Carat / e-Purse tiles above the card. The member-card face is
-/// left out for now. [onGoToSale] ports the two data-only guards from
-/// legacy's `checkConditionToSalePage()` — see `_HomePageState._goToSale`'s
-/// doc comment.
+/// left out for now.
 class _CustomerResultCard extends StatelessWidget {
   final Customer customer;
-  final Future<void> Function(Customer) onGoToSale;
   final Privilege? selectedPrivilege;
   final ValueChanged<Privilege?> onSelectPrivilege;
 
   const _CustomerResultCard({
     required this.customer,
-    required this.onGoToSale,
     required this.selectedPrivilege,
     required this.onSelectPrivilege,
   });
@@ -1062,65 +1004,6 @@ class _CustomerResultCard extends StatelessWidget {
         selected: selectedPrivilege,
         onChanged: onSelectPrivilege,
       ),
-    );
-  }
-}
-
-/// One privilege — `Name` prominent (the label legacy's own privilege
-/// *picker* shows, `presentPrivilegeSelection`'s action-sheet buttons),
-/// `[TypeCode]:PromoCode` as secondary detail (the format legacy's
-/// *settled-selection* display actually uses, `sale.html:138-141`). There's
-/// no native "list every privilege" screen in legacy to mirror beyond
-/// those two real display precedents — this combines both rather than
-/// inventing a third format.
-class _PrivilegeRow extends StatelessWidget {
-  final Privilege privilege;
-
-  const _PrivilegeRow({required this.privilege});
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    // `[TypeCode]:PromoCode` — legacy's actual persistent display of a
-    // privilege (`sale.html:138-141`'s `*ngIf="isMember && selectPrivilege
-    // != null"` row), not a generic dump. Legacy never displays
-    // `PrivilegeModel.Discount` directly anywhere — the amount shown at
-    // checkout is a computed order-level total (`TotalBillingAmount
-    // .DiscountAmount`), not this field — so it's left off here too.
-    final code = privilege.typeCode.isEmpty && privilege.promoCode.isEmpty
-        ? ''
-        : '[${privilege.typeCode}]:${privilege.promoCode}';
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Icon(
-          Icons.card_giftcard,
-          size: AppSizing.iconSize,
-          color: AppColors.goldAccent,
-        ),
-        const SizedBox(width: AppSpacing.xs),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                privilege.name.isEmpty ? 'Privilege' : privilege.name,
-                style: textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              if (code.isNotEmpty)
-                Text(
-                  code,
-                  style: textTheme.bodySmall?.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }

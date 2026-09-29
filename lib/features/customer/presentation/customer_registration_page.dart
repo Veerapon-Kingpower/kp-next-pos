@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
 import '../../../core/presentation/desktop/desktop.dart';
 import '../../../core/presentation/handheld/handheld.dart';
+import '../../../core/presentation/form_inputs.dart';
 import '../../../core/presentation/test_ids.dart';
 import '../../../core/presentation/widgets/app_text_field.dart';
 import '../../../core/presentation/widgets/autocomplete_field.dart';
@@ -224,10 +226,6 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
     super.dispose();
   }
 
-  static final _emailFormat = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
-  // Matches legacy's `englishName` format check in `validateRegister()`.
-  static final _englishNameFormat = RegExp(r'^[A-Za-z \-]*$');
-
   // Direct port of `customer-form.ts`'s `validateRegister()` — checked on
   // submit (not used to disable the button; legacy's Save/Update is never
   // disabled, it always validates on tap and shows an alert). Returns the
@@ -254,15 +252,26 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
       }
     }
     final englishName = _englishNameController.text.trim();
-    if (englishName.isNotEmpty && !_englishNameFormat.hasMatch(englishName)) {
+    // Legacy's `englishName` format check in `validateRegister()`.
+    if (englishName.isNotEmpty && !FormInputs.isEnglishName(englishName)) {
       return 'Invalid name format. Please enter the name in the format (a-z),(-)';
+    }
+    // Not in legacy: the passport field only accepts A–Z / 0–9, but a
+    // prefilled customer can still carry other characters.
+    final passport = _passportNoController.text.trim();
+    if (passport.isNotEmpty && !FormInputs.isPassport(passport)) {
+      return 'Invalid passport format. Please use (A-Z),(0-9) only.';
     }
     if (_customerTypeController.text.trim().isEmpty && !widget.isAirportMpos) {
       return 'Please input Customer Type.';
     }
     final email = _emailController.text.trim();
-    if (email.isNotEmpty && !_emailFormat.hasMatch(email)) {
+    if (email.isNotEmpty && !FormInputs.isEmail(email)) {
       return 'Email address in invalid format.';
+    }
+    final mobile = _mobileController.text.trim();
+    if (mobile.isNotEmpty && !FormInputs.isPhone(mobile)) {
+      return 'Mobile number in invalid format.';
     }
     if (_weChatController.text.trim().isEmpty &&
         (_nationality?.countryCode.toUpperCase() ?? '') == 'CHN' &&
@@ -275,7 +284,15 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
   String? get _emailError {
     final value = _emailController.text.trim();
     if (value.isEmpty) return null;
-    return _emailFormat.hasMatch(value) ? null : 'Invalid email address.';
+    return FormInputs.isEmail(value) ? null : 'Invalid email address.';
+  }
+
+  String? get _mobileError {
+    final value = _mobileController.text.trim();
+    if (value.isEmpty) return null;
+    return FormInputs.isPhone(value)
+        ? null
+        : 'Invalid mobile number (8–15 digits, may start with +).';
   }
 
   // Ports `customer-form.ts`'s `getFlightDate()` callback: the moment a
@@ -664,12 +681,14 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
               'Passport no.',
               _passportNoController,
               required: international,
+              inputFormatters: FormInputs.passport,
             ),
             _desktopTextField(
               DesktopCustomerIds.englishName,
               'English name',
               _englishNameController,
               required: international,
+              inputFormatters: FormInputs.englishName,
             ),
           ),
           pair(
@@ -692,12 +711,15 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
               _emailController,
               keyboardType: TextInputType.emailAddress,
               errorText: _emailError,
+              inputFormatters: FormInputs.email,
             ),
             _desktopTextField(
               DesktopCustomerIds.mobile,
               'Mobile',
               _mobileController,
               keyboardType: TextInputType.phone,
+              errorText: _mobileError,
+              inputFormatters: FormInputs.phone,
             ),
           ),
           pair(
@@ -847,6 +869,7 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
     bool required = false,
     TextInputType? keyboardType,
     String? errorText,
+    List<TextInputFormatter>? inputFormatters,
   }) => TestId(
     id,
     child: Column(
@@ -856,9 +879,18 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
         TextField(
           controller: controller,
           keyboardType: keyboardType,
+          inputFormatters: inputFormatters,
           onChanged: (_) => setState(() {}),
           style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-          decoration: _desktopDecoration(errorText: errorText),
+          decoration: _desktopDecoration(errorText: errorText).copyWith(
+            suffixIcon: controller.text.isEmpty
+                ? null
+                : ClearFieldButton(
+                    id: FieldIds.clear(id),
+                    controller: controller,
+                    onCleared: (_) => setState(() {}),
+                  ),
+          ),
         ),
       ],
     ),
@@ -1106,14 +1138,20 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
   }
 
   Widget _passportField() => AppTextField(
+    id: RegisterIds.passportField,
     controller: _passportNoController,
     label: 'Passport no.',
+    inputFormatters: FormInputs.passport,
+    textCapitalization: TextCapitalization.characters,
     onChanged: (_) => setState(() {}),
   );
 
   Widget _englishNameField() => AppTextField(
+    id: RegisterIds.englishNameField,
     controller: _englishNameController,
     label: 'English name',
+    inputFormatters: FormInputs.englishName,
+    textCapitalization: TextCapitalization.characters,
     onChanged: (_) => setState(() {}),
   );
 
@@ -1166,21 +1204,27 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
   );
 
   Widget _emailField() => AppTextField(
+    id: RegisterIds.emailField,
     controller: _emailController,
     label: 'Email',
     keyboardType: TextInputType.emailAddress,
     errorText: _emailError,
+    inputFormatters: FormInputs.email,
     onChanged: (_) => setState(() {}),
   );
 
   Widget _mobileField() => AppTextField(
+    id: RegisterIds.mobileField,
     controller: _mobileController,
     label: 'Mobile',
     keyboardType: TextInputType.phone,
+    errorText: _mobileError,
+    inputFormatters: FormInputs.phone,
     onChanged: (_) => setState(() {}),
   );
 
   Widget _weChatField() => AppTextField(
+    id: RegisterIds.weChatField,
     controller: _weChatController,
     label: 'WeChat',
     onChanged: (_) => setState(() {}),

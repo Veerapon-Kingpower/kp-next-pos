@@ -223,8 +223,18 @@ abstract class FlightPickerIds {
       '-${date.day.toString().padLeft(2, '0')}';
 }
 
+/// Parts of a text field, derived from the field's own id.
+abstract class FieldIds {
+  static String clear(String fieldId) => '$fieldId.clear';
+}
+
 abstract class RegisterIds {
   static const page = 'register.page';
+  static const passportField = 'register.passportField';
+  static const englishNameField = 'register.englishNameField';
+  static const emailField = 'register.emailField';
+  static const mobileField = 'register.mobileField';
+  static const weChatField = 'register.weChatField';
   static const scanPassportButton = 'register.scanPassportButton';
   static const travellerSection = 'register.travellerSection';
   static const contactSection = 'register.contactSection';

@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../core/presentation/desktop/desktop.dart';
+import '../../../../core/presentation/form_inputs.dart';
 import '../../../../core/presentation/test_ids.dart';
+import '../../../../core/presentation/widgets/app_text_field.dart'
+    show ClearFieldButton;
 import '../../../../core/presentation/widgets/test_id.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../flight/domain/entities/flight.dart';
@@ -291,12 +294,14 @@ class _TravellerOverlayState extends State<_TravellerOverlay> {
                 DesktopCustomerIds.travellerPassportNo,
                 'Passport no.',
                 _passportNo,
+                FormInputs.passport,
               ),
               const SizedBox(height: 14),
               _textField(
                 DesktopCustomerIds.travellerName,
                 'English name',
                 _englishName,
+                FormInputs.englishName,
               ),
               const SizedBox(height: 14),
               DesktopLookupField<Nationality>(
@@ -349,7 +354,12 @@ class _TravellerOverlayState extends State<_TravellerOverlay> {
     );
   }
 
-  Widget _textField(String id, String label, TextEditingController c) {
+  Widget _textField(
+    String id,
+    String label,
+    TextEditingController c,
+    List<TextInputFormatter> inputFormatters,
+  ) {
     OutlineInputBorder border(Color color, double width) => OutlineInputBorder(
       borderRadius: BorderRadius.circular(8),
       borderSide: BorderSide(color: color, width: width),
@@ -364,8 +374,17 @@ class _TravellerOverlayState extends State<_TravellerOverlay> {
           TextField(
             controller: c,
             textCapitalization: TextCapitalization.characters,
+            inputFormatters: inputFormatters,
+            onChanged: (_) => setState(() {}),
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
             decoration: InputDecoration(
+              suffixIcon: c.text.isEmpty
+                  ? null
+                  : ClearFieldButton(
+                      id: FieldIds.clear(id),
+                      controller: c,
+                      onCleared: (_) => setState(() {}),
+                    ),
               filled: true,
               fillColor: AppColors.surface,
               contentPadding: const EdgeInsets.symmetric(

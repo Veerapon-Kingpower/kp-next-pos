@@ -675,6 +675,89 @@ void main() {
     );
   });
 
+  group('input rules and clear buttons', () {
+    Finder field(String id) =>
+        find.descendant(of: byTestId(id), matching: find.byType(TextField));
+
+    String textOf(WidgetTester tester, String id) =>
+        tester.widget<TextField>(field(id)).controller!.text;
+
+    testWidgets('name / passport take upper-case English only; mobile and '
+        'email are validated inline', (tester) async {
+      await tester.pumpWidget(buildHarness());
+      await openPage(tester);
+
+      await tester.enterText(field(RegisterIds.englishNameField), 'Jane Doe1');
+      await tester.enterText(field(RegisterIds.passportField), 'ab-12 3');
+      await tester.enterText(field(RegisterIds.mobileField), '12ab3');
+      await tester.enterText(field(RegisterIds.emailField), 'jane@mail');
+      await tester.pump();
+
+      expect(textOf(tester, RegisterIds.englishNameField), 'JANE DOE');
+      expect(textOf(tester, RegisterIds.passportField), 'AB123');
+      expect(textOf(tester, RegisterIds.mobileField), '123');
+      expect(find.textContaining('Invalid mobile number'), findsOneWidget);
+      expect(find.text('Invalid email address.'), findsOneWidget);
+
+      await tester.enterText(field(RegisterIds.mobileField), '+66 812345678');
+      await tester.pump();
+      expect(find.textContaining('Invalid mobile number'), findsNothing);
+    });
+
+    testWidgets('Register rejects an invalid mobile number', (tester) async {
+      await tester.pumpWidget(buildHarness());
+      await openPage(tester);
+      await fillRequiredFields(tester);
+      await tester.enterText(field(RegisterIds.mobileField), '1234');
+      await tester.pump();
+
+      await tester.tap(byTestId(RegisterIds.submitButton));
+      await tester.pumpAndSettle();
+      expect(find.text('Mobile number in invalid format.'), findsOneWidget);
+    });
+
+    testWidgets('the clear button shows with text and empties the field', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildHarness());
+      await openPage(tester);
+      final clear = byTestId(FieldIds.clear(RegisterIds.weChatField));
+      expect(clear, findsNothing);
+
+      await tester.enterText(field(RegisterIds.weChatField), 'jane_wc');
+      await tester.pump();
+      await tester.tap(clear);
+      await tester.pump();
+
+      expect(textOf(tester, RegisterIds.weChatField), isEmpty);
+      expect(clear, findsNothing);
+    });
+
+    testWidgets('desktop fields follow the same rules and clear', (
+      tester,
+    ) async {
+      setDeviceSize(tester, const Size(1440, 1400));
+      await tester.pumpWidget(buildHarness());
+      await openPage(tester);
+
+      await tester.enterText(
+        field(DesktopCustomerIds.englishName),
+        'sofia almeida',
+      );
+      await tester.enterText(field(DesktopCustomerIds.passportNo), 'cb91-24');
+      await tester.enterText(field(DesktopCustomerIds.mobile), '99');
+      await tester.pump();
+
+      expect(textOf(tester, DesktopCustomerIds.englishName), 'SOFIA ALMEIDA');
+      expect(textOf(tester, DesktopCustomerIds.passportNo), 'CB9124');
+      expect(find.textContaining('Invalid mobile number'), findsOneWidget);
+
+      await tester.tap(byTestId(FieldIds.clear(DesktopCustomerIds.passportNo)));
+      await tester.pump();
+      expect(textOf(tester, DesktopCustomerIds.passportNo), isEmpty);
+    });
+  });
+
   group('handheld layout (below desktop width)', () {
     Future<void> openHandheld(
       WidgetTester tester, {

@@ -150,3 +150,31 @@ Each gets its own task-by-task TDD plan at execution time
 - Backend for: shift stats, suspended bills, enquiry search, discount ceilings,
   fulfilment/claim checks, payment/EDC/wallet (2C2P), signature upload, MRZ.
 - Staff-card / QR login needs an auth API variant.
+
+## Implementation status (2026-09-29)
+
+All four sub-phases are implemented on `feature/pos-desktop-design`
+(`50df9cd` … `2f76451`); every screen has widget tests at 400×860 and 820×1180
+with `TestId` automation ids. Deviations from the mockup, all deliberate:
+
+- **Settings** stays editable (no supervisor lock) because it is also
+  first-run setup and card verification has no API; endpoint health and
+  paired-device status are omitted.
+- **Sale** always runs the Shopping order type (Delivery / Pre-order themes
+  exist but switching is inert); Net pay is the sum of line totals (no
+  discount / VAT breakdown in the cart); Basket shows the same lines with a
+  notice instead of Collect / Take / cancelled grouping; the bottom nav is
+  hidden on Sale as in the mockup.
+- **Edit line** omits CITES / VAS (no data); serial / freeze / lock /
+  pickup are inert.
+- **Payment** never adds a tender without a real approval, so the ledger is
+  empty today; Wallet query (19) and void (20) are reachable from a ledger
+  row once real tenders exist.
+- **Checkout / Profile / Home stats** show "—" or a notice for data the APIs
+  don't return (flags, discount, VAT, subsidy, rate, points, spend, visits,
+  recent purchases, shift totals, suspended bills).
+- **Customer profile** is a separate page opened from a compact Home result
+  tile; "Attach to bill" runs the legacy fast-register / not-registered
+  guards and carries the privilege picked on the profile.
+- **Colour:** `mutedText` is `#626B77` (mockup `#6B7480` fails AA on canvas);
+  inactive nav labels use it instead of `#9AA2AE`.

@@ -66,11 +66,11 @@ class DioApiClient implements ApiClient {
     try {
       final response = await request();
       if (kDebugMode) {
-        debugPrint(
-          '[ApiClient] ${response.requestOptions.uri} -> HTTP ${response.statusCode}\n'
-          '  request: ${response.requestOptions.data}\n'
-          '  response: ${response.data}',
-        );
+        // debugPrint(
+        //   '[ApiClient] ${response.requestOptions.uri} -> HTTP ${response.statusCode}\n'
+        //   '  request: ${response.requestOptions.data}\n'
+        //   '  response: ${response.data}',
+        // );
       }
       final body = response.data;
       if (body is Map<String, dynamic>) return body;

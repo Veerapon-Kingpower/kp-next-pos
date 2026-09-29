@@ -31,6 +31,7 @@ import '../../sale/presentation/widgets/sale_page.dart';
 import '../../settings/presentation/settings_page.dart';
 import '../../settings/presentation/settings_view_model.dart';
 import 'handheld/handheld_home_view.dart';
+import 'home_customer_result.dart';
 import 'home_dashboard_page.dart';
 import 'home_view_model.dart';
 
@@ -152,6 +153,13 @@ class _HomePageState extends State<HomePage> {
   // and the embedded form's view model, recreated per shown customer (see
   // `_customerForm`).
   int _selectedResult = 0;
+  // Desktop Home lookup ("Find customer to start a sale"): shown in place
+  // of the dashboard while on, for the query typed there. The results are
+  // the same `customerSearchResults` the Customer tab shows, so Edit
+  // profile / Register just switch to that tab.
+  bool _homeLookup = false;
+  String _homeQuery = '';
+  DateTime _homeFoundAt = DateTime.now();
   int _formGeneration = 0;
   String? _formKey;
   CustomerRegistrationViewModel? _formViewModel;
@@ -184,7 +192,7 @@ class _HomePageState extends State<HomePage> {
     widget.sessionState.signedOut();
   }
 
-  void _searchCustomer() {
+  Future<void> _searchCustomer() {
     // A fresh search returns brand-new `Privilege` instances even for the
     // same customer, so a prior selection (matched by identity — see
     // `_selectPrivilege`) can never highlight correctly against them.
@@ -194,7 +202,56 @@ class _HomePageState extends State<HomePage> {
       _saleCartViewModel.selectPrivilege(null);
     }
     _selectedResult = 0;
-    widget.viewModel.searchCustomer(_customerSearchController.text);
+    // A search from elsewhere replaces what the Home lookup was showing.
+    _homeLookup = false;
+    return widget.viewModel.searchCustomer(_customerSearchController.text);
+  }
+
+  // Desktop Home scan / Search: found (registered or not) → the result on
+  // Home; not found → the Customer tab's register form.
+  Future<void> _lookUpFromHome(String value) async {
+    final query = value.trim();
+    if (query.isEmpty) return;
+    _customerSearchController.text = query;
+    final search = _searchCustomer();
+    setState(() {
+      _homeLookup = true;
+      _homeQuery = query;
+    });
+    await search;
+    if (!mounted || !_homeLookup) return;
+    final viewModel = widget.viewModel;
+    if (viewModel.customerSearchError == null &&
+        viewModel.customerSearchResults.isEmpty) {
+      _dashboardScanController.clear();
+      setState(() {
+        _homeLookup = false;
+        _section = _HomeSection.customers;
+      });
+      return;
+    }
+    setState(() => _homeFoundAt = DateTime.now());
+  }
+
+  // Clear (Esc): back to the dashboard with nothing looked up.
+  void _clearHomeLookup() {
+    _dashboardScanController.clear();
+    _newCustomer();
+    setState(() => _homeLookup = false);
+  }
+
+  // Handheld Home scan: one match opens its profile, none opens Register.
+  Future<void> _lookUpOnHandheld() async {
+    await _searchCustomer();
+    if (!mounted) return;
+    final viewModel = widget.viewModel;
+    if (viewModel.customerSearchError != null) return;
+    final results = viewModel.customerSearchResults;
+    if (results.isEmpty) {
+      _openRegistration();
+    } else if (results.length == 1) {
+      _openHandheldProfile(results.first, viewModel);
+    }
   }
 
   void _openSettings() {
@@ -477,7 +534,7 @@ class _HomePageState extends State<HomePage> {
     }
     return HandheldHomeView(
       searchController: _customerSearchController,
-      onSearch: (_) => _searchCustomer(),
+      onSearch: (_) => _lookUpOnHandheld(),
       searchResults: _customerSearchResults(context, viewModel),
       onRegister: () => _openRegistration(),
       onSale: () => setState(() => _section = _HomeSection.sale),
@@ -538,20 +595,13 @@ class _HomePageState extends State<HomePage> {
     switch (section) {
       case _HomeSection.home:
         return HomeDashboardPage(
-          userName: viewModel.session?.userName ?? '',
-          now: DateTime.now(),
           scanController: _dashboardScanController,
-          onScan: (value) {
-            // The dashboard scan is a customer lookup (shopping card /
-            // passport / member QR) — run it and show the Customer tab.
-            _customerSearchController.text = value;
-            _dashboardScanController.clear();
-            _searchCustomer();
-            setState(() => _section = _HomeSection.customers);
-          },
-          onNewSale: () => setState(() => _section = _HomeSection.sale),
+          // The Home scan is a customer lookup (shopping card / passport /
+          // ID card number).
+          onScan: _lookUpFromHome,
           onRegister: () => _openRegistration(),
           onEnquiry: () => setState(() => _section = _HomeSection.enquiry),
+          lookup: _homeLookup ? _homeLookupFor(viewModel) : null,
         );
       case _HomeSection.customers:
         return _customerSearchSection(context, viewModel);
@@ -560,6 +610,82 @@ class _HomePageState extends State<HomePage> {
       case _HomeSection.enquiry:
         return const EnquiryPage();
     }
+  }
+
+  HomeLookup _homeLookupFor(HomeViewModel viewModel) {
+    final results = viewModel.customerSearchResults;
+    final index = _selectedResult < results.length ? _selectedResult : 0;
+    final customer = results.isEmpty ? null : results[index];
+    void editProfile() => setState(() => _section = _HomeSection.customers);
+
+    final Widget body;
+    if (viewModel.isSearchingCustomer) {
+      body = const Padding(
+        padding: EdgeInsets.symmetric(vertical: 40),
+        child: LoadingView(),
+      );
+    } else if (viewModel.customerSearchError != null) {
+      body = RetryableErrorView(
+        message: viewModel.customerSearchError!,
+        onRetry: () => _lookUpFromHome(_homeQuery),
+      );
+    } else if (customer == null) {
+      body = const SizedBox.shrink();
+    } else {
+      body = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (results.length > 1) ...[
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (var i = 0; i < results.length; i++)
+                  TestId(
+                    DesktopIds.homeResult(i),
+                    child: ChoiceChip(
+                      label: Text(
+                        results[i].person.englishName.isNotEmpty
+                            ? results[i].person.englishName
+                            : results[i].person.shoppingCard,
+                      ),
+                      selected: i == index,
+                      onSelected: (_) => _showResult(i),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
+          HomeCustomerResult(
+            customer: customer,
+            query: _homeQuery,
+            foundAt: _homeFoundAt,
+            now: DateTime.now(),
+            selectedPrivilege: _selectedPrivilege,
+            onSelectPrivilege: _selectPrivilege,
+            onStartSale: () => _goToSale(customer),
+            onRegister: editProfile,
+            onEnquiry: () => setState(() => _section = _HomeSection.enquiry),
+            onEditProfile: editProfile,
+            onClear: _clearHomeLookup,
+          ),
+        ],
+      );
+    }
+
+    final registered = customer?.person.isActivate ?? false;
+    return HomeLookup(
+      step: customer == null
+          ? HomeLookupStep.search
+          : registered
+          ? HomeLookupStep.sale
+          : HomeLookupStep.register,
+      body: body,
+      onClear: _clearHomeLookup,
+      onStartSale: registered ? () => _goToSale(customer!) : null,
+      onRegister: customer != null && !registered ? editProfile : null,
+    );
   }
 
   /// Desktop Customer (POS Desktop mockup screen 8): one identifier
@@ -891,17 +1017,17 @@ class _HomePageState extends State<HomePage> {
           selectedPrivilege: _selectedPrivilege,
           onSelectPrivilege: _selectPrivilege,
         ),
-        // Only a registered (`isActivate`) card can start a sale.
-        if (customer.person.isActivate) ...[
-          const SizedBox(height: 16),
-          DesktopButton(
-            id: ProfileIds.goToSaleButton,
-            label: 'Go to Sale',
-            icon: Icons.shopping_cart_outlined,
-            height: 58,
-            onPressed: () => _goToSale(customer),
-          ),
-        ],
+        // Always shown; only a registered (`isActivate`) card can press it.
+        const SizedBox(height: 16),
+        DesktopButton(
+          id: ProfileIds.goToSaleButton,
+          label: 'Start sale',
+          icon: Icons.shopping_bag_outlined,
+          height: 58,
+          onPressed: customer.person.isActivate
+              ? () => _goToSale(customer)
+              : null,
+        ),
       ],
     );
   }

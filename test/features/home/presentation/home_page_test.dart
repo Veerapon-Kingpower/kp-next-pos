@@ -202,7 +202,7 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: buildPage()));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Sale').last);
+    await tester.tap(byTestId(NavIds.sale));
     await tester.pumpAndSettle();
 
     expect(byTestId(SaleIds.scanField), findsOneWidget);
@@ -478,7 +478,7 @@ void main() {
       await tester.tap(byTestId(ProfileIds.privilege(0)));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Sale').last);
+      await tester.tap(byTestId(NavIds.sale));
       await tester.pumpAndSettle();
 
       expect(find.text('Gold Member'), findsOneWidget);
@@ -714,7 +714,9 @@ void main() {
       );
     });
 
-    testWidgets('an unregistered customer has no Go to Sale', (tester) async {
+    testWidgets('an unregistered customer sees Start sale disabled', (
+      tester,
+    ) async {
       const unregistered = Customer(
         action: 'REGISTER_ADD',
         isFound: false,
@@ -737,7 +739,10 @@ void main() {
       );
       await search(tester, 'CPX0001');
 
-      expect(byTestId(ProfileIds.goToSaleButton), findsNothing);
+      expect(
+        tester.getSemantics(byTestId(ProfileIds.goToSaleButton)),
+        isSemantics(isButton: true, hasEnabledState: true, isEnabled: false),
+      );
     });
 
     testWidgets('a fast-registered card is blocked with legacy "Oops !"', (
@@ -991,7 +996,7 @@ void main() {
       await tester.pumpWidget(MaterialApp(home: buildPage()));
       await tester.pumpAndSettle();
 
-      expect(byTestId(DesktopIds.homeGreeting), findsOneWidget);
+      expect(byTestId(DesktopIds.homeIdle), findsOneWidget);
       expect(find.text('Home'), findsWidgets);
       expect(find.text('Sale'), findsWidgets);
       expect(find.text('Enquiry'), findsWidgets);
@@ -1052,47 +1057,219 @@ void main() {
     expect(find.text('Device settings'), findsOneWidget);
   });
 
-  testWidgets(
-    'at desktop width, scanning a card on the dashboard looks up the customer',
-    (tester) async {
-      const customer = Customer(
-        action: 'found',
-        isFound: true,
-        person: CustomerPerson(
-          englishName: 'Jane Doe',
-          passportNo: 'P1234567',
-          nationality: 'THA',
-          contacts: [],
-          privileges: [],
-          walletMembers: [],
-        ),
-        tour: {},
-        agentCode: '',
-        isMember: false,
-      );
-      await tester.pumpWidget(
-        MaterialApp(home: buildPage(searchResult: const [customer])),
-      );
-      await tester.pumpAndSettle();
+  group('desktop Home lookup (Find customer to start a sale)', () {
+    const sofia = Customer(
+      action: 'found',
+      isFound: true,
+      person: CustomerPerson(
+        englishName: 'Sofia Almeida',
+        passportNo: 'CB912447',
+        nationality: 'PRT',
+        contacts: [
+          {'contactType': 'MOBILE', 'contactValue': '+351 91 442 8830'},
+        ],
+        privileges: [
+          Privilege(
+            name: 'Elite 10%',
+            discount: 10,
+            typeCode: 'VIP',
+            promoCode: 'PROMO123',
+          ),
+        ],
+        walletMembers: [
+          {'Code': 'CARAT_WALLET', 'PaymentCode': 'CARAT', 'Balance': 18420.0},
+        ],
+        shoppingCard: '8823-4419-0027',
+        typeCardMember: 'KP Elite',
+        customerTypeCode: 'TOURIST',
+        gender: 'F',
+        flightCode: 'TG916',
+        flightDate: '2026-08-26',
+        flightTime: '23:45',
+        isActivate: true,
+      ),
+      tour: {},
+      agentCode: '',
+      isMember: true,
+    );
+    const unregistered = Customer(
+      action: 'REGISTER_ADD',
+      isFound: false,
+      person: CustomerPerson(
+        englishName: 'Jane Doe',
+        passportNo: 'P1234567',
+        nationality: 'THA',
+        contacts: [],
+        privileges: [],
+        walletMembers: [],
+        shoppingCard: 'CPX0001',
+      ),
+      tour: {},
+      agentCode: '',
+      isMember: false,
+    );
 
+    Future<void> lookUp(WidgetTester tester, HomePage page, String q) async {
+      tester.view.physicalSize = const Size(1440, 1000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(home: page));
+      await tester.pumpAndSettle();
       await tester.enterText(
         find.descendant(
           of: byTestId(DesktopIds.homeScanField),
           matching: find.byType(TextField),
         ),
-        'CPX0001',
+        q,
       );
       await tester.testTextInput.receiveAction(TextInputAction.search);
       await tester.pumpAndSettle();
+    }
 
-      expect(byTestId(DesktopCustomerIds.searchField), findsOneWidget);
-      expect(inProfile(byTestId(ProfileIds.privileges)), findsOneWidget);
+    Finder inLookup(Finder finder) =>
+        find.descendant(of: byTestId(DesktopIds.homeLookup), matching: finder);
+
+    testWidgets('a registered customer shows on Home, ready to start a sale', (
+      tester,
+    ) async {
+      await lookUp(tester, buildPage(searchResult: const [sofia]), 'CB912447');
+
+      expect(
+        tester.getSemantics(byTestId(NavIds.home)),
+        isSemantics(isSelected: true),
+      );
+      expect(byTestId(DesktopIds.homeIdle), findsNothing);
+      expect(inLookup(find.text('Registered customer')), findsOneWidget);
+      expect(
+        inLookup(find.textContaining('Found by passport CB912447')),
+        findsOneWidget,
+      );
+      expect(inLookup(find.text('Sofia Almeida')), findsOneWidget);
+      expect(inLookup(find.text('KP ELITE')), findsOneWidget);
+      expect(
+        inLookup(find.text('Female · PRT · TOURIST · +351 91 442 8830')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: byTestId(DesktopIds.homeFact('flight')),
+          matching: find.text('TG916 · 26 Aug 23:45'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: byTestId(DesktopIds.homeFact('carat')),
+          matching: find.text('18,420.00'),
+        ),
+        findsOneWidget,
+      );
+      // No API for these — never faked.
+      expect(inLookup(find.text('MEMBER ID')), findsNothing);
+      expect(inLookup(find.text('LAST PURCHASE')), findsNothing);
+      // Stepper: Register skipped, Sale current.
+      expect(
+        tester.getSemantics(byTestId(DesktopIds.homeStep(2))),
+        isSemantics(isSelected: true),
+      );
+      expect(byTestId(ProfileIds.check(3)), findsOneWidget);
+      expect(
+        tester.getSemantics(byTestId(ProfileIds.goToSaleButton)),
+        isSemantics(isButton: true, hasEnabledState: true, isEnabled: true),
+      );
+      expect(byTestId(DesktopIds.homeRegisterButton), findsNothing);
+    });
+
+    testWidgets('Start sale carries the picked privilege to the Sale tab', (
+      tester,
+    ) async {
+      await lookUp(tester, buildPage(searchResult: const [sofia]), 'CB912447');
+      await tester.ensureVisible(byTestId(ProfileIds.privilege(0)));
+      await tester.tap(byTestId(ProfileIds.privilege(0)));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(byTestId(ProfileIds.goToSaleButton));
+      await tester.tap(byTestId(ProfileIds.goToSaleButton));
+      await tester.pumpAndSettle();
+
+      expect(byTestId(SaleIds.scanField), findsOneWidget);
+      expect(find.text('Elite 10%'), findsOneWidget);
+    });
+
+    testWidgets('an unregistered customer shows on Home; Start sale is '
+        'disabled and Register opens the Customer form', (tester) async {
+      await lookUp(
+        tester,
+        buildPage(searchResult: const [unregistered]),
+        'CPX0001',
+      );
+
+      expect(inLookup(find.text('Not registered')), findsOneWidget);
+      expect(
+        tester.getSemantics(byTestId(DesktopIds.homeStep(1))),
+        isSemantics(isSelected: true),
+      );
+      expect(
+        tester.getSemantics(byTestId(ProfileIds.goToSaleButton)),
+        isSemantics(isButton: true, hasEnabledState: true, isEnabled: false),
+      );
+
+      await tester.ensureVisible(byTestId(DesktopIds.homeRegisterButton));
+      await tester.tap(byTestId(DesktopIds.homeRegisterButton));
+      await tester.pumpAndSettle();
       expect(
         tester.getSemantics(byTestId(NavIds.customer)),
         isSemantics(isSelected: true),
       );
-    },
-  );
+      expect(
+        find.descendant(
+          of: byTestId(RegisterIds.statusBanner),
+          matching: find.text('Not registered yet'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('iPad landscape (1024 wide) lays the result out cleanly', (
+      tester,
+    ) async {
+      await lookUp(tester, buildPage(searchResult: const [sofia]), 'CB912447');
+      tester.view.physicalSize = const Size(1024, 768);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(byTestId(ProfileIds.goToSaleButton), findsOneWidget);
+    });
+
+    testWidgets('nothing found goes to the Customer tab to register', (
+      tester,
+    ) async {
+      await lookUp(tester, buildPage(), 'CPX9999');
+
+      expect(
+        tester.getSemantics(byTestId(NavIds.customer)),
+        isSemantics(isSelected: true),
+      );
+      expect(inProfile(find.text('No customer found.')), findsOneWidget);
+      expect(find.text('NEW CUSTOMER'), findsOneWidget);
+    });
+
+    testWidgets('Clear returns to the dashboard; Edit profile opens the form', (
+      tester,
+    ) async {
+      await lookUp(tester, buildPage(searchResult: const [sofia]), 'CB912447');
+      await tester.ensureVisible(byTestId(DesktopIds.homeEditProfileButton));
+      await tester.tap(byTestId(DesktopIds.homeEditProfileButton));
+      await tester.pumpAndSettle();
+      expect(find.text('UPDATE CUSTOMER'), findsOneWidget);
+
+      await tester.tap(byTestId(NavIds.home));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(byTestId(DesktopIds.homeClearButton));
+      await tester.tap(byTestId(DesktopIds.homeClearButton));
+      await tester.pumpAndSettle();
+      expect(byTestId(DesktopIds.homeLookup), findsNothing);
+      expect(byTestId(DesktopIds.homeIdle), findsOneWidget);
+    });
+  });
 
   testWidgets('at desktop width, the rail shows the station context', (
     tester,
@@ -1205,26 +1382,11 @@ void main() {
       expect(find.text('PosKpi · Branch 03 · Somchai P.'), findsOneWidget);
     });
 
-    testWidgets('scanning a shopping card lists the customer as a tile', (
+    testWidgets('a scan with one match opens that customer\'s profile', (
       tester,
     ) async {
       await pumpHandheld(tester, buildPage(searchResult: const [jane]));
       await scan(tester, 'CPX0001');
-
-      expect(
-        find.descendant(
-          of: byTestId(HomeIds.customerTile(0)),
-          matching: find.text('Jane Doe'),
-        ),
-        findsOneWidget,
-      );
-    });
-
-    testWidgets('tapping the tile opens the customer profile', (tester) async {
-      await pumpHandheld(tester, buildPage(searchResult: const [jane]));
-      await scan(tester, 'CPX0001');
-      await tester.tap(byTestId(HomeIds.customerTile(0)));
-      await tester.pumpAndSettle();
 
       expect(byTestId(ProfileIds.page), findsOneWidget);
       expect(
@@ -1234,20 +1396,53 @@ void main() {
         ),
         findsOneWidget,
       );
+      await tester.ensureVisible(byTestId(ProfileIds.registrationChecks));
+      expect(byTestId(ProfileIds.check(0)), findsOneWidget);
     });
 
-    testWidgets('Go to Sale on the profile opens the Sale screen', (
+    testWidgets('several matches list as tiles; tapping one opens it', (
+      tester,
+    ) async {
+      const john = Customer(
+        action: 'found',
+        isFound: true,
+        person: CustomerPerson(
+          englishName: 'John Smith',
+          passportNo: 'P7654321',
+          nationality: 'GBR',
+          contacts: [],
+          privileges: [],
+          walletMembers: [],
+        ),
+        tour: {},
+        agentCode: '',
+        isMember: false,
+      );
+      await pumpHandheld(tester, buildPage(searchResult: const [jane, john]));
+      await scan(tester, 'P');
+
+      expect(byTestId(ProfileIds.page), findsNothing);
+      expect(
+        find.descendant(
+          of: byTestId(HomeIds.customerTile(1)),
+          matching: find.text('John Smith'),
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(byTestId(HomeIds.customerTile(1)));
+      await tester.pumpAndSettle();
+      expect(byTestId(ProfileIds.page), findsOneWidget);
+    });
+
+    testWidgets('Start sale on the profile opens the Sale screen', (
       tester,
     ) async {
       await pumpHandheld(tester, buildPage(searchResult: const [jane]));
       await scan(tester, 'CPX0001');
-      await tester.tap(byTestId(HomeIds.customerTile(0)));
-      await tester.pumpAndSettle();
 
       await tester.ensureVisible(byTestId(ProfileIds.privilege(0)));
       await tester.tap(byTestId(ProfileIds.privilege(0)));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(byTestId(ProfileIds.goToSaleButton));
       await tester.tap(byTestId(ProfileIds.goToSaleButton));
       await tester.pumpAndSettle();
 
@@ -1256,12 +1451,10 @@ void main() {
       expect(find.text('Gold Member'), findsOneWidget);
     });
 
-    testWidgets('a scan that finds nothing shows the empty state', (
-      tester,
-    ) async {
+    testWidgets('a scan that finds nothing opens Register', (tester) async {
       await pumpHandheld(tester, buildPage());
       await scan(tester, 'CPX9999');
-      expect(find.text('No customer found.'), findsOneWidget);
+      expect(byTestId(RegisterIds.page), findsOneWidget);
     });
 
     testWidgets('Update customer opens the form with the registered status', (
@@ -1269,8 +1462,6 @@ void main() {
     ) async {
       await pumpHandheld(tester, buildPage(searchResult: const [jane]));
       await scan(tester, 'CPX0001');
-      await tester.tap(byTestId(HomeIds.customerTile(0)));
-      await tester.pumpAndSettle();
       expect(find.text('Attach to bill'), findsNothing);
 
       await tester.tap(byTestId(ProfileIds.editButton));

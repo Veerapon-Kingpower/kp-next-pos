@@ -8,6 +8,7 @@ import '../../../flight/domain/entities/flight.dart';
 import '../../domain/entities/customer.dart';
 import '../../domain/entities/privilege.dart';
 import '../widgets/privilege_radio_list.dart';
+import '../widgets/registration_checks_list.dart';
 import 'traveller_details_page.dart';
 
 /// Customer profile (mockup screen 8), opened from a Home lookup result.
@@ -17,8 +18,8 @@ import 'traveller_details_page.dart';
 /// flight, privileges (radio list), customer type / agent / guide.
 ///
 /// Every privilege pick is reported through [onPrivilegeChanged] straight
-/// away (as on desktop); [onEdit] opens the Update customer form. A
-/// registered (`isActivate`) customer also gets Go to Sale, [onGoToSale].
+/// away (as on desktop); [onEdit] opens the Update customer form. Start
+/// sale ([onGoToSale]) is enabled only for a registered (`isActivate`) card.
 class CustomerProfilePage extends StatefulWidget {
   final Customer customer;
   final Privilege? initialPrivilege;
@@ -142,23 +143,31 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                   ),
                 ],
               ),
-              if (person.isActivate) ...[
-                const SizedBox(height: 14),
-                HandheldPrimaryButton(
-                  id: ProfileIds.goToSaleButton,
-                  label: 'Go to Sale',
-                  icon: Icons.shopping_cart_outlined,
-                  onPressed: widget.onGoToSale,
-                ),
-              ],
+              const SizedBox(height: 14),
+              HandheldSection(
+                title: 'Registration checks',
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: RegistrationChecksList(person: person),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
+        // Start sale is always there but only a registered (`isActivate`)
+        // card can press it; Update customer is how the rest register.
         actionBar: HandheldActionBar(
           primary: HandheldPrimaryButton(
+            id: ProfileIds.goToSaleButton,
+            label: 'Start sale',
+            icon: Icons.shopping_bag_outlined,
+            onPressed: person.isActivate ? widget.onGoToSale : null,
+          ),
+          secondary: HandheldSecondaryButton(
             id: ProfileIds.editButton,
-            label: 'Update customer',
-            icon: Icons.edit_outlined,
+            label: person.isActivate ? 'Update customer' : 'Register',
             onPressed: widget.onEdit,
           ),
         ),

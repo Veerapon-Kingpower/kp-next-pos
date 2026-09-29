@@ -281,20 +281,50 @@ void main() {
     expect(find.text('None on this card'), findsOneWidget);
   });
 
-  testWidgets('a registered customer gets Go to Sale, not recent purchases', (
-    tester,
-  ) async {
+  testWidgets('a registered customer can Start sale; registration checks '
+      'pass', (tester) async {
     await open(tester);
     expect(find.text('Recent purchases'), findsNothing);
-    await tester.ensureVisible(byTestId(ProfileIds.goToSaleButton));
+    await tester.ensureVisible(byTestId(ProfileIds.registrationChecks));
+    for (var i = 0; i < 4; i++) {
+      expect(
+        find.descendant(
+          of: byTestId(ProfileIds.check(i)),
+          matching: find.byIcon(Icons.check),
+        ),
+        findsOneWidget,
+        reason: 'check $i',
+      );
+    }
     await tester.tap(byTestId(ProfileIds.goToSaleButton));
     expect(sales, 1);
   });
 
-  testWidgets('an unregistered customer has no Go to Sale', (tester) async {
+  testWidgets('an unregistered customer sees Start sale disabled and '
+      'Register', (tester) async {
+    final handle = tester.ensureSemantics();
     await open(tester, customer: walkIn);
-    expect(byTestId(ProfileIds.goToSaleButton), findsNothing);
-    expect(find.text('Recent purchases'), findsNothing);
+    expect(
+      tester.getSemantics(byTestId(ProfileIds.goToSaleButton)),
+      isSemantics(isButton: true, hasEnabledState: true, isEnabled: false),
+    );
+    await tester.tap(byTestId(ProfileIds.goToSaleButton));
+    expect(sales, 0);
+    expect(
+      find.descendant(
+        of: byTestId(ProfileIds.editButton),
+        matching: find.text('Register'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: byTestId(ProfileIds.check(0)),
+        matching: find.byIcon(Icons.close),
+      ),
+      findsOneWidget,
+    );
+    handle.dispose();
   });
 
   testWidgets('iPad portrait renders without overflow', (tester) async {

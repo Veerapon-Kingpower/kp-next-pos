@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:kp_pos/core/presentation/desktop/desktop.dart';
 import 'package:kp_pos/core/presentation/test_ids.dart';
 import 'package:kp_pos/features/home/presentation/home_dashboard_page.dart';
 
@@ -20,19 +19,18 @@ void main() {
   Future<void> pump(
     WidgetTester tester, {
     Size size = const Size(1440, 900),
+    HomeLookup? lookup,
   }) async {
     setDeviceSize(tester, size);
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           body: HomeDashboardPage(
-            userName: 'Somchai P.',
-            now: DateTime(2026, 8, 26, 14, 26),
             scanController: controller,
             onScan: (v) => events.add('scan $v'),
-            onNewSale: () => events.add('sale'),
             onRegister: () => events.add('register'),
             onEnquiry: () => events.add('enquiry'),
+            lookup: lookup,
           ),
         ),
       ),
@@ -40,85 +38,98 @@ void main() {
     await tester.pump();
   }
 
-  String textIn(WidgetTester tester, String id) => tester
-      .widget<Text>(
-        find.descendant(of: byTestId(id), matching: find.byType(Text)).last,
-      )
-      .data!;
+  HomeLookup lookup(HomeLookupStep step) => HomeLookup(
+    step: step,
+    body: const Text('RESULT'),
+    onClear: () => events.add('clear'),
+    onStartSale: step == HomeLookupStep.sale ? () => events.add('start') : null,
+    onRegister: step == HomeLookupStep.register
+        ? () => events.add('register customer')
+        : null,
+  );
 
-  testWidgets('greets by first name and time of day', (tester) async {
+  testWidgets('idle: "Who is the customer?" with the identifiers, checks '
+      'after search, Start sale locked', (tester) async {
     await pump(tester);
-    expect(textIn(tester, DesktopIds.homeGreeting), 'Good afternoon, Somchai');
+    expect(find.text('Find customer to start a sale'), findsOneWidget);
+    expect(byTestId(DesktopIds.homeIdle), findsOneWidget);
+    expect(find.text('Who is the customer?'), findsOneWidget);
+    for (final label in ['Shopping card', 'Passport', 'ID card']) {
+      expect(find.text(label), findsOneWidget, reason: label);
+    }
+    expect(find.text('Shown after search.'), findsOneWidget);
+    expect(
+      tester.getSemantics(byTestId(ProfileIds.goToSaleButton)),
+      isSemantics(isButton: true, hasEnabledState: true, isEnabled: false),
+    );
+    expect(
+      tester.getSemantics(byTestId(DesktopIds.homeStep(0))),
+      isSemantics(isSelected: true),
+    );
   });
 
-  testWidgets('shift and KPI figures are unavailable, not invented', (
+  testWidgets('Enter and Search both submit the scan field', (tester) async {
+    await pump(tester);
+    final field = find.descendant(
+      of: byTestId(DesktopIds.homeScanField),
+      matching: find.byType(TextField),
+    );
+    await tester.enterText(field, 'CB912447');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.tap(byTestId(DesktopIds.homeSearchButton));
+    expect(events, ['scan CB912447', 'scan CB912447']);
+  });
+
+  testWidgets('idle hotkeys: F2 does nothing, F3 registers, F4 enquiry', (
     tester,
   ) async {
-    await pump(tester);
-    expect(textIn(tester, DesktopIds.homeBillsKpi), '—');
-    expect(textIn(tester, DesktopIds.homeNetSalesKpi), '—');
-    expect(textIn(tester, DesktopIds.homeAvgBillKpi), '—');
-    expect(
-      find.descendant(
-        of: byTestId(DesktopIds.homeShiftLine),
-        matching: find.textContaining('not available yet'),
-      ),
-      findsOneWidget,
-    );
-    for (final id in [
-      DesktopIds.homeSuspendedBills,
-      DesktopIds.homePromotions,
-    ]) {
-      expect(
-        find.descendant(
-          of: byTestId(id),
-          matching: find.textContaining('not available yet'),
-        ),
-        findsOneWidget,
-        reason: id,
-      );
-    }
-  });
-
-  testWidgets('scanning a card submits it for customer lookup', (tester) async {
-    await pump(tester);
-    await tester.enterText(
-      find.descendant(
-        of: byTestId(DesktopIds.homeScanField),
-        matching: find.byType(TextField),
-      ),
-      'CPX0001',
-    );
-    await tester.testTextInput.receiveAction(TextInputAction.search);
-    expect(events, ['scan CPX0001']);
-  });
-
-  testWidgets('tiles and New sale route to their destinations', (tester) async {
-    await pump(tester);
-    await tester.tap(byTestId(DesktopIds.homeNewSaleButton));
-    await tester.tap(byTestId(DesktopIds.homeTileSale));
-    await tester.tap(byTestId(DesktopIds.homeTileRegistration));
-    await tester.tap(byTestId(DesktopIds.homeTileEnquiry));
-    expect(events, ['sale', 'sale', 'register', 'enquiry']);
-  });
-
-  testWidgets('F2 / F3 / F4 hotkeys work', (tester) async {
     await pump(tester);
     await tester.sendKeyEvent(LogicalKeyboardKey.f2);
     await tester.sendKeyEvent(LogicalKeyboardKey.f3);
     await tester.sendKeyEvent(LogicalKeyboardKey.f4);
-    expect(events, ['sale', 'register', 'enquiry']);
+    expect(events, ['register', 'enquiry']);
+    await tester.tap(byTestId(DesktopIds.homeEnquiryButton));
+    expect(events.last, 'enquiry');
   });
 
-  testWidgets('all interactive elements expose semantics ids', (tester) async {
+  testWidgets('a lookup replaces the idle panel; F2 starts, Esc clears', (
+    tester,
+  ) async {
+    await pump(tester, lookup: lookup(HomeLookupStep.sale));
+    expect(byTestId(DesktopIds.homeIdle), findsNothing);
+    expect(
+      find.descendant(
+        of: byTestId(DesktopIds.homeLookup),
+        matching: find.text('RESULT'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      tester.getSemantics(byTestId(DesktopIds.homeStep(2))),
+      isSemantics(isSelected: true),
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.f2);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    expect(events, ['start', 'clear']);
+  });
+
+  testWidgets('an unregistered lookup: F3 registers that customer', (
+    tester,
+  ) async {
+    await pump(tester, lookup: lookup(HomeLookupStep.register));
+    await tester.sendKeyEvent(LogicalKeyboardKey.f2);
+    await tester.sendKeyEvent(LogicalKeyboardKey.f3);
+    expect(events, ['register customer']);
+  });
+
+  testWidgets('interactive elements expose semantics ids', (tester) async {
     final handle = tester.ensureSemantics();
     await pump(tester);
     for (final id in [
       DesktopIds.homeScanField,
-      DesktopIds.homeNewSaleButton,
-      DesktopIds.homeTileSale,
-      DesktopIds.homeTileRegistration,
-      DesktopIds.homeTileEnquiry,
+      DesktopIds.homeSearchButton,
+      DesktopIds.homeEnquiryButton,
+      ProfileIds.goToSaleButton,
     ]) {
       expect(find.bySemanticsIdentifier(id), findsOneWidget, reason: id);
     }
@@ -132,21 +143,5 @@ void main() {
       await pump(tester, size: size);
       expect(tester.takeException(), isNull);
     });
-
-    testWidgets('Sale / Registration / Enquiry tiles are the same size at '
-        '${size.width.toInt()} dp', (tester) async {
-      await pump(tester, size: size);
-      final sale = tester.getSize(byTestId(DesktopIds.homeTileSale));
-      expect(tester.getSize(byTestId(DesktopIds.homeTileRegistration)), sale);
-      expect(tester.getSize(byTestId(DesktopIds.homeTileEnquiry)), sale);
-    });
   }
-
-  testWidgets('the scan field is standard field height', (tester) async {
-    await pump(tester);
-    expect(
-      tester.getSize(byTestId(DesktopIds.homeScanField)).height,
-      DesktopMetrics.fieldHeight,
-    );
-  });
 }

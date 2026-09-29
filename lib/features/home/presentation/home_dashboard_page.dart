@@ -6,54 +6,68 @@ import '../../../core/presentation/test_ids.dart';
 import '../../../core/presentation/widgets/test_id.dart';
 import '../../../core/theme/app_colors.dart';
 
-/// Desktop Home (POS Desktop mockup screen 2): greeting + shift line with
-/// KPIs, "Start a sale" scan field, Sale / Registration / Enquiry tiles
-/// (F2 / F3 / F4), suspended bills and today's promotions.
-///
-/// Real: the scan field submits a shopping card / passport / member QR for
-/// customer lookup (the mockup's hint), and every tile / hotkey routes to
-/// an existing destination. Shift figures, KPIs, suspended bills and
-/// promotions have no API yet, so they show "—" or a notice — never
-/// placeholder numbers that could be mistaken for real ones.
-// TODO(pos-desktop): shift summary, KPIs, suspended bills and promotions
-// once their APIs exist.
+/// Where a Home customer lookup stands: Search → Register → Sale.
+enum HomeLookupStep { search, register, sale }
+
+/// Desktop Home in lookup mode ("Find customer to start a sale"): the scan
+/// panel gains a Search → Register → Sale stepper and [body] (the result,
+/// or its loading / error state) replaces the dashboard below it. F2 /
+/// F3 / Esc act on the result.
+class HomeLookup {
+  final HomeLookupStep step;
+  final Widget body;
+  final VoidCallback onClear;
+
+  /// F2 — only once the customer can start a sale (registered).
+  final VoidCallback? onStartSale;
+
+  /// F3 — register the found (unregistered) customer.
+  final VoidCallback? onRegister;
+
+  const HomeLookup({
+    required this.step,
+    required this.body,
+    required this.onClear,
+    this.onStartSale,
+    this.onRegister,
+  });
+}
+
+/// Desktop Home ("Find customer to start a sale"): the scan panel with its
+/// Search → Register → Sale stepper, and below it either the idle "Who is
+/// the customer?" panel or — once a lookup runs — [lookup]'s body (the
+/// result, or its loading / error state). F2 starts the sale for a
+/// registered result, F3 registers, F4 opens Enquiry, Esc clears.
 class HomeDashboardPage extends StatelessWidget {
-  final String userName;
-  final DateTime now;
   final TextEditingController scanController;
   final ValueChanged<String> onScan;
-  final VoidCallback onNewSale;
   final VoidCallback onRegister;
   final VoidCallback onEnquiry;
 
+  /// Non-null while a customer lookup is shown in place of the idle panel.
+  final HomeLookup? lookup;
+
   const HomeDashboardPage({
     super.key,
-    required this.userName,
-    required this.now,
     required this.scanController,
     required this.onScan,
-    required this.onNewSale,
     required this.onRegister,
     required this.onEnquiry,
+    this.lookup,
   });
-
-  static String greeting(DateTime time, String name) {
-    final part = time.hour < 12
-        ? 'Good morning'
-        : time.hour < 18
-        ? 'Good afternoon'
-        : 'Good evening';
-    final first = name.trim().split(RegExp(r'\s+')).first;
-    return first.isEmpty ? part : '$part, $first';
-  }
 
   @override
   Widget build(BuildContext context) {
+    final lookup = this.lookup;
     return CallbackShortcuts(
       bindings: {
-        const SingleActivator(LogicalKeyboardKey.f2): onNewSale,
-        const SingleActivator(LogicalKeyboardKey.f3): onRegister,
+        if (lookup?.onStartSale != null)
+          const SingleActivator(LogicalKeyboardKey.f2): lookup!.onStartSale!,
+        const SingleActivator(LogicalKeyboardKey.f3):
+            lookup?.onRegister ?? onRegister,
         const SingleActivator(LogicalKeyboardKey.f4): onEnquiry,
+        const SingleActivator(LogicalKeyboardKey.escape):
+            lookup?.onClear ?? scanController.clear,
       },
       child: Focus(
         autofocus: true,
@@ -62,107 +76,17 @@ class HomeDashboardPage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _HeroPanel(greeting: greeting(now, userName), userName: userName),
-              const SizedBox(height: 20),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final sideWidth = constraints.maxWidth >= 1300
-                      ? 440.0
-                      : 340.0;
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _StartSalePanel(
-                              controller: scanController,
-                              onScan: onScan,
-                              onNewSale: onNewSale,
-                            ),
-                            const SizedBox(height: 20),
-                            // Equal heights too, whichever subtitle wraps.
-                            IntrinsicHeight(
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Expanded(
-                                    child: DesktopActionTile(
-                                      id: DesktopIds.homeTileSale,
-                                      icon: Icons.shopping_bag_outlined,
-                                      title: 'Sale',
-                                      subtitle: 'Walk-in, take or collect',
-                                      hotkey: 'F2',
-                                      onTap: onNewSale,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: DesktopActionTile(
-                                      id: DesktopIds.homeTileRegistration,
-                                      icon: Icons.badge_outlined,
-                                      title: 'Registration',
-                                      subtitle: 'New member or shopping card',
-                                      hotkey: 'F3',
-                                      onTap: onRegister,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: DesktopActionTile(
-                                      id: DesktopIds.homeTileEnquiry,
-                                      icon: Icons.search,
-                                      title: 'Enquiry',
-                                      subtitle: 'Find or reprint a bill',
-                                      hotkey: 'F4',
-                                      onTap: onEnquiry,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 20),
-                      SizedBox(
-                        width: sideWidth,
-                        child: const Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            DesktopPanel(
-                              id: DesktopIds.homeSuspendedBills,
-                              title: 'Suspended bills',
-                              child: Text(
-                                'Suspended bills are not available yet on '
-                                'this station.',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: AppColors.mutedText,
-                                ),
-                              ),
-                            ),
-                            SizedBox(height: 20),
-                            DesktopPanel(
-                              id: DesktopIds.homePromotions,
-                              title: "Today's promotions",
-                              child: Text(
-                                'Promotion listing is not available yet — '
-                                'promotions still apply at the sale engine.',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: AppColors.mutedText,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                },
+              _FindCustomerPanel(
+                controller: scanController,
+                step: lookup?.step ?? HomeLookupStep.search,
+                onScan: onScan,
+                onClear: lookup?.onClear ?? scanController.clear,
               ),
+              const SizedBox(height: 20),
+              if (lookup != null)
+                TestId(DesktopIds.homeLookup, child: lookup.body)
+              else
+                _IdlePanel(onEnquiry: onEnquiry),
             ],
           ),
         ),
@@ -171,81 +95,190 @@ class HomeDashboardPage extends StatelessWidget {
   }
 }
 
-class _HeroPanel extends StatelessWidget {
-  final String greeting;
-  final String userName;
+/// Before any search: "Who is the customer?" with the identifiers the
+/// lookup takes, and the result's right column in its empty state —
+/// checks "shown after search", Start sale locked, Enquiry available.
+class _IdlePanel extends StatelessWidget {
+  final VoidCallback onEnquiry;
 
-  const _HeroPanel({required this.greeting, required this.userName});
+  const _IdlePanel({required this.onEnquiry});
 
   @override
   Widget build(BuildContext context) {
-    final parts = userName.split(RegExp(r'\s+')).where((p) => p.isNotEmpty);
-    final initials = parts.isEmpty
-        ? '?'
-        : (parts.first[0] + (parts.length > 1 ? parts.last[0] : ''))
-              .toUpperCase();
-    return DesktopPanel(
-      child: Row(
-        children: [
-          Container(
-            width: 72,
-            height: 72,
-            alignment: Alignment.center,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [AppColors.goldMuted, AppColors.goldDark],
-              ),
-            ),
-            child: Text(
-              initials,
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-              ),
-            ),
-          ),
-          const SizedBox(width: 20),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return TestId(
+      DesktopIds.homeIdle,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(DesktopMetrics.panelRadius),
+          border: Border.all(color: AppColors.line),
+        ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 520),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                TestId(
-                  DesktopIds.homeGreeting,
-                  child: Text(greeting, style: DesktopText.heroTitle),
+                const Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.all(30),
+                    child: _WhoIsTheCustomer(),
+                  ),
                 ),
-                const SizedBox(height: 6),
-                const TestId(
-                  DesktopIds.homeShiftLine,
-                  child: Text(
-                    'Shift details (opening time, counted float) are not '
-                    'available yet.',
-                    style: TextStyle(fontSize: 14, color: AppColors.mutedText),
+                Container(
+                  width: 300,
+                  padding: const EdgeInsets.all(20),
+                  decoration: const BoxDecoration(
+                    border: Border(left: BorderSide(color: AppColors.line)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Text(
+                        'REGISTRATION CHECKS',
+                        style: DesktopText.fieldLabel,
+                      ),
+                      const SizedBox(height: 10),
+                      const Text(
+                        'Shown after search.',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: AppColors.mutedText,
+                        ),
+                      ),
+                      const Spacer(),
+                      const SizedBox(height: 24),
+                      const DesktopButton(
+                        id: ProfileIds.goToSaleButton,
+                        label: 'Start sale',
+                        icon: Icons.lock_outline,
+                        height: 58,
+                      ),
+                      const SizedBox(height: 10),
+                      DesktopButton(
+                        id: DesktopIds.homeEnquiryButton,
+                        label: 'Enquiry',
+                        icon: Icons.search,
+                        hotkey: 'F4',
+                        secondary: true,
+                        onPressed: onEnquiry,
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 20),
-          const DesktopKpi(
-            id: DesktopIds.homeBillsKpi,
-            label: 'Bills',
-            value: '—',
+        ),
+      ),
+    );
+  }
+}
+
+class _WhoIsTheCustomer extends StatelessWidget {
+  const _WhoIsTheCustomer();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 72,
+          height: 72,
+          decoration: const BoxDecoration(
+            color: AppColors.cream,
+            shape: BoxShape.circle,
           ),
-          const SizedBox(width: 40),
-          const DesktopKpi(
-            id: DesktopIds.homeNetSalesKpi,
-            label: 'Net sales',
-            value: '—',
+          child: const Icon(
+            Icons.qr_code_scanner,
+            size: 30,
+            color: AppColors.goldDark,
           ),
-          const SizedBox(width: 40),
-          const DesktopKpi(
-            id: DesktopIds.homeAvgBillKpi,
-            label: 'Avg bill',
-            value: '—',
+        ),
+        const SizedBox(height: 24),
+        const Text('Who is the customer?', style: DesktopText.heroTitle),
+        const SizedBox(height: 10),
+        const Text(
+          'Scan or type any one of these. The system checks registration '
+          'before a sale can start.',
+          style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: 20),
+        // `Register/GetCustomer` takes the value as-is: a shopping card or
+        // passport (legacy's own search) or an ID card number.
+        const IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _IdentifierCard(
+                  icon: Icons.credit_card,
+                  label: 'Shopping card',
+                  example: 'e.g. 8823-4419-0027',
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: _IdentifierCard(
+                  icon: Icons.menu_book_outlined,
+                  label: 'Passport',
+                  example: 'e.g. CB912447',
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: _IdentifierCard(
+                  icon: Icons.badge_outlined,
+                  label: 'ID card',
+                  example: 'e.g. 1101700000000',
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _IdentifierCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String example;
+
+  const _IdentifierCard({
+    required this.icon,
+    required this.label,
+    required this.example,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 22, color: AppColors.goldDark),
+          const SizedBox(height: 14),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            example,
+            style: const TextStyle(fontSize: 12, color: AppColors.mutedText),
           ),
         ],
       ),
@@ -253,72 +286,209 @@ class _HeroPanel extends StatelessWidget {
   }
 }
 
-class _StartSalePanel extends StatelessWidget {
+/// "Find customer to start a sale": the lookup's scan field (kept filled
+/// with the query, × clears the lookup), Search, and the stepper.
+class _FindCustomerPanel extends StatelessWidget {
   final TextEditingController controller;
+  final HomeLookupStep step;
   final ValueChanged<String> onScan;
-  final VoidCallback onNewSale;
+  final VoidCallback onClear;
 
-  const _StartSalePanel({
+  const _FindCustomerPanel({
     required this.controller,
+    required this.step,
     required this.onScan,
-    required this.onNewSale,
+    required this.onClear,
   });
 
   @override
   Widget build(BuildContext context) {
     return DesktopPanel(
-      title: 'Start a sale',
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: TestId(
-              DesktopIds.homeScanField,
-              child: Container(
-                height: DesktopMetrics.fieldHeight,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  color: AppColors.cream,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.goldMuted, width: 2),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.qr_code_scanner,
-                      size: 20,
-                      color: AppColors.goldDark,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextField(
-                        controller: controller,
-                        textInputAction: TextInputAction.search,
-                        onSubmitted: onScan,
-                        style: const TextStyle(fontSize: 16),
-                        decoration: const InputDecoration.collapsed(
-                          hintText: 'Scan shopping card, passport or member QR',
-                          hintStyle: TextStyle(
-                            fontSize: 16,
-                            color: AppColors.hintText,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Find customer to start a sale',
+                  style: DesktopText.sectionTitle,
                 ),
               ),
-            ),
+              _LookupStepper(step: step),
+            ],
           ),
-          const SizedBox(width: 14),
-          DesktopButton(
-            id: DesktopIds.homeNewSaleButton,
-            label: 'New sale',
-            hotkey: 'F2',
-            height: DesktopMetrics.fieldHeight,
-            onPressed: onNewSale,
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Expanded(
+                child: TestId(
+                  DesktopIds.homeScanField,
+                  child: Container(
+                    height: DesktopMetrics.fieldHeight + 4,
+                    padding: const EdgeInsets.only(left: 16),
+                    decoration: BoxDecoration(
+                      color: AppColors.cream,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.goldMuted, width: 2),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.qr_code_scanner,
+                          size: 20,
+                          color: AppColors.goldDark,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextField(
+                            controller: controller,
+                            textInputAction: TextInputAction.search,
+                            onSubmitted: onScan,
+                            style: const TextStyle(fontSize: 20),
+                            decoration: const InputDecoration.collapsed(
+                              hintText:
+                                  'Scan or type shopping card, passport or ID card number',
+                              hintStyle: TextStyle(
+                                fontSize: 16,
+                                color: AppColors.hintText,
+                              ),
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Clear',
+                          icon: const Icon(
+                            Icons.close,
+                            size: 18,
+                            color: AppColors.mutedText,
+                          ),
+                          onPressed: onClear,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              IntrinsicWidth(
+                child: DesktopButton(
+                  id: DesktopIds.homeSearchButton,
+                  label: 'Search',
+                  icon: Icons.search,
+                  hotkey: 'ENTER',
+                  height: DesktopMetrics.fieldHeight + 4,
+                  onPressed: () => onScan(controller.text),
+                ),
+              ),
+            ],
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Search → Register → Sale. A registered customer skips Register (struck
+/// through) and lands on Sale; an unregistered one stops at Register.
+class _LookupStepper extends StatelessWidget {
+  final HomeLookupStep step;
+
+  const _LookupStepper({required this.step});
+
+  @override
+  Widget build(BuildContext context) {
+    const labels = ['Search', 'Register', 'Sale'];
+    final current = step.index;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < labels.length; i++) ...[
+          if (i > 0)
+            Container(
+              width: 36,
+              height: 1,
+              margin: const EdgeInsets.symmetric(horizontal: 10),
+              color: AppColors.line,
+            ),
+          TestId(
+            DesktopIds.homeStep(i),
+            child: Semantics(
+              selected: i == current,
+              child: _Step(
+                number: i + 1,
+                label: labels[i],
+                done: i < current && !(i == 1 && step == HomeLookupStep.sale),
+                skipped: i == 1 && step == HomeLookupStep.sale,
+                current: i == current,
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _Step extends StatelessWidget {
+  final int number;
+  final String label;
+  final bool done;
+  final bool skipped;
+  final bool current;
+
+  const _Step({
+    required this.number,
+    required this.label,
+    required this.done,
+    required this.skipped,
+    required this.current,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget dot;
+    if (done) {
+      dot = const CircleAvatar(
+        radius: 11,
+        backgroundColor: AppColors.online,
+        child: Icon(Icons.check, size: 14, color: Colors.white),
+      );
+    } else {
+      dot = Container(
+        width: 22,
+        height: 22,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: current ? AppColors.goldDark : AppColors.surface,
+          border: current ? null : Border.all(color: AppColors.hintText),
+        ),
+        child: Text(
+          '$number',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: current ? Colors.white : AppColors.mutedText,
+          ),
+        ),
+      );
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        dot,
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: current ? FontWeight.w700 : FontWeight.w400,
+            color: skipped ? AppColors.hintText : AppColors.textPrimary,
+            decoration: skipped ? TextDecoration.lineThrough : null,
+          ),
+        ),
+      ],
     );
   }
 }

@@ -267,6 +267,11 @@ abstract class ProfileIds {
   static const travellerButton = 'profile.travellerButton';
 
   static String privilege(int index) => 'profile.privilege.$index';
+
+  /// Registration checks — shared by the desktop Home result and the
+  /// handheld profile.
+  static const registrationChecks = 'profile.registrationChecks';
+  static String check(int index) => 'profile.check.$index';
 }
 
 abstract class TravellerIds {
@@ -303,18 +308,22 @@ abstract class DesktopIds {
   static const loginIdentityPanel = 'desktop.login.identityPanel';
 
   // Home dashboard (S2)
-  static const homeGreeting = 'desktop.home.greeting';
-  static const homeShiftLine = 'desktop.home.shiftLine';
-  static const homeBillsKpi = 'desktop.home.kpi.bills';
-  static const homeNetSalesKpi = 'desktop.home.kpi.netSales';
-  static const homeAvgBillKpi = 'desktop.home.kpi.avgBill';
   static const homeScanField = 'desktop.home.scanField';
-  static const homeNewSaleButton = 'desktop.home.newSaleButton';
-  static const homeTileSale = 'desktop.home.tile.sale';
-  static const homeTileRegistration = 'desktop.home.tile.registration';
-  static const homeTileEnquiry = 'desktop.home.tile.enquiry';
-  static const homeSuspendedBills = 'desktop.home.suspendedBills';
-  static const homePromotions = 'desktop.home.promotions';
+  // Home: Find customer to start a sale (idle panel, then the result)
+  static const homeIdle = 'desktop.home.idle';
+  static const homeLookup = 'desktop.home.lookup';
+  static const homeSearchButton = 'desktop.home.searchButton';
+  static const homeStatus = 'desktop.home.lookup.status';
+  static const homeFoundBy = 'desktop.home.lookup.foundBy';
+  static const homeCustomerName = 'desktop.home.lookup.name';
+  static const homeCustomerLine = 'desktop.home.lookup.line';
+  static const homeRegisterButton = 'desktop.home.lookup.registerButton';
+  static const homeEnquiryButton = 'desktop.home.lookup.enquiryButton';
+  static const homeEditProfileButton = 'desktop.home.lookup.editButton';
+  static const homeClearButton = 'desktop.home.lookup.clearButton';
+  static String homeStep(int index) => 'desktop.home.lookup.step.$index';
+  static String homeFact(String key) => 'desktop.home.lookup.fact.$key';
+  static String homeResult(int index) => 'desktop.home.lookup.result.$index';
 
   // Enquiry (S10)
   static const enquiryDateRange = 'desktop.enquiry.dateRange';

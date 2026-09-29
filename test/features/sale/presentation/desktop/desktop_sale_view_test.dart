@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kp_pos/core/presentation/desktop/desktop.dart';
 import 'package:kp_pos/core/presentation/test_ids.dart';
 import 'package:kp_pos/features/customer/domain/entities/privilege.dart';
 import 'package:kp_pos/features/sale/domain/entities/cart.dart';
@@ -329,4 +330,47 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  for (final size in [
+    const Size(1366 - 84, 768 - 64),
+    const Size(1280 - 84, 720 - 64),
+  ]) {
+    testWidgets('short ${size.height.toInt()} dp screen with a privilege: '
+        'no overflow, bill summary scrolls to Take payment', (tester) async {
+      final viewModel = await pump(tester, size: size);
+      viewModel.selectPrivilege(
+        const Privilege(
+          name: 'Gold Member',
+          discount: 10,
+          typeCode: 'VIP',
+          promoCode: 'PROMO123',
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+
+      await tester.ensureVisible(byTestId(SaleIds.checkoutButton));
+      await tester.pumpAndSettle();
+      final summary = tester.getRect(byTestId(DesktopSaleIds.summary));
+      final button = tester.getRect(byTestId(SaleIds.checkoutButton));
+      expect(button.bottom, lessThanOrEqualTo(summary.bottom));
+    });
+  }
+
+  testWidgets('scan field, Lookup and Qty × are standard field height', (
+    tester,
+  ) async {
+    await pump(tester);
+    for (final id in [
+      SaleIds.scanField,
+      DesktopSaleIds.lookupButton,
+      DesktopSaleIds.qtyButton,
+    ]) {
+      expect(
+        tester.getSize(byTestId(id)).height,
+        DesktopMetrics.fieldHeight,
+        reason: id,
+      );
+    }
+  });
 }

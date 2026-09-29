@@ -218,8 +218,8 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
           child: TestId(
             SaleIds.scanField,
             child: Container(
-              height: 66,
-              padding: const EdgeInsets.symmetric(horizontal: 18),
+              height: DesktopMetrics.fieldHeight,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
                 color: AppColors.surface,
                 borderRadius: BorderRadius.circular(10),
@@ -229,10 +229,10 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
                 children: [
                   const Icon(
                     Icons.qr_code_scanner,
-                    size: 24,
+                    size: 20,
                     color: AppColors.goldDark,
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: TextField(
                       controller: _scan,
@@ -241,11 +241,11 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
                       enabled: !viewModel.isBusy,
                       textInputAction: TextInputAction.search,
                       onSubmitted: _submitScan,
-                      style: const TextStyle(fontSize: 20),
+                      style: const TextStyle(fontSize: 16),
                       decoration: const InputDecoration.collapsed(
                         hintText: 'Scan or type item code (qty*code)',
                         hintStyle: TextStyle(
-                          fontSize: 20,
+                          fontSize: 16,
                           color: AppColors.hintText,
                         ),
                       ),
@@ -269,7 +269,7 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
           icon: Icons.search,
           hotkey: 'F9',
           secondary: true,
-          height: 66,
+          height: DesktopMetrics.fieldHeight,
         ),
         const SizedBox(width: 12),
         DesktopButton(
@@ -278,7 +278,7 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
           icon: Icons.calculate_outlined,
           hotkey: 'F7',
           secondary: true,
-          height: 66,
+          height: DesktopMetrics.fieldHeight,
           onPressed: _qtyPrefix,
         ),
       ],
@@ -629,7 +629,12 @@ class _LineRow extends StatelessWidget {
                   ),
                   Expanded(
                     flex: compact ? _compactFlex[2] : _colFlex[2],
-                    child: Row(
+                    // Shrinks slightly instead of overflowing when the
+                    // table is narrow (e.g. 1280 wide next to the summary).
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         TestId(
@@ -660,6 +665,7 @@ class _LineRow extends StatelessWidget {
                           ),
                         ),
                       ],
+                      ),
                     ),
                   ),
                   Expanded(
@@ -743,11 +749,11 @@ class _Summary extends StatelessWidget {
     Widget tile(String label, String value, Color bg, {String? id}) {
       final text = Text(
         value,
-        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
+        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w500),
       );
       return Expanded(
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             color: bg,
             borderRadius: BorderRadius.circular(8),
@@ -768,21 +774,21 @@ class _Summary extends StatelessWidget {
       final text = Text(
         value,
         style: TextStyle(
-          fontSize: 20,
+          fontSize: 17,
           fontWeight: FontWeight.w500,
           color: color,
           fontFeatures: const [FontFeature.tabularFigures()],
         ),
       );
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
+        padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(
           children: [
             Expanded(
               child: Text(
                 label,
                 style: const TextStyle(
-                  fontSize: 14,
+                  fontSize: 13.5,
                   color: AppColors.mutedText,
                 ),
               ),
@@ -801,158 +807,175 @@ class _Summary extends StatelessWidget {
           borderRadius: BorderRadius.circular(DesktopMetrics.panelRadius),
           border: Border.all(color: AppColors.line),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
+        // Scrolls on short screens (e.g. 1366×768 with a privilege);
+        // otherwise the Spacer keeps Take payment at the bottom.
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: (constraints.maxHeight - 32).clamp(
+                  0,
+                  double.infinity,
+                ),
+              ),
+              child: IntrinsicHeight(
+                child: _content(units, code, tile, amount),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _content(
+    int units,
+    String? code,
+    Widget Function(String, String, Color, {String? id}) tile,
+    Widget Function(String, String, {String? id, Color? color}) amount,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Row(
+          children: [
+            Expanded(
+              child: Text('Bill summary', style: DesktopText.sectionTitle),
+            ),
+            Text(
+              'THB',
+              style: TextStyle(fontSize: 12.5, color: AppColors.mutedText),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            tile(
+              'Qty total',
+              '$units',
+              const Color(0xFFF3EBD9),
+              id: DesktopSaleIds.qtyTotal,
+            ),
+            const SizedBox(width: 8),
+            tile(
+              'Lines',
+              '${lines.length}',
+              const Color(0xFFF2F4F7),
+              id: DesktopSaleIds.lineCount,
+            ),
+            const SizedBox(width: 8),
+            tile('Mode', 'Shopping', const Color(0xFFEAF1FA)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        amount('Total', formatAmount(total)),
+        amount('Discount', '—'),
+        amount('Grand', formatAmount(total), id: DesktopSaleIds.grand),
+        amount('Cash-D subsidy', '—'),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.ink,
+            borderRadius: BorderRadius.circular(10),
+          ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Bill summary',
-                      style: DesktopText.sectionTitle,
-                    ),
-                  ),
-                  Text(
-                    'THB',
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      color: AppColors.mutedText,
-                    ),
-                  ),
-                ],
+              const Text(
+                'Net pay',
+                style: TextStyle(fontSize: 14, color: AppColors.gold),
               ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  tile(
-                    'Qty total',
-                    '$units',
-                    const Color(0xFFF3EBD9),
-                    id: DesktopSaleIds.qtyTotal,
-                  ),
-                  const SizedBox(width: 8),
-                  tile(
-                    'Lines',
-                    '${lines.length}',
-                    const Color(0xFFF2F4F7),
-                    id: DesktopSaleIds.lineCount,
-                  ),
-                  const SizedBox(width: 8),
-                  tile('Mode', 'Shopping', const Color(0xFFEAF1FA)),
-                ],
-              ),
-              const SizedBox(height: 10),
-              amount('Total', formatAmount(total)),
-              amount('Discount', '—'),
-              amount('Grand', formatAmount(total), id: DesktopSaleIds.grand),
-              amount('Cash-D subsidy', '—'),
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: AppColors.ink,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Net pay',
-                      style: TextStyle(fontSize: 14, color: AppColors.gold),
-                    ),
-                    const SizedBox(height: 4),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: TestId(
-                        SaleIds.netPay,
-                        child: Text(
-                          formatBaht(total),
-                          style: const TextStyle(
-                            fontFamily: 'KingPowerHeadline',
-                            fontSize: 44,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                            fontFeatures: [FontFeature.tabularFigures()],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (privilege != null) ...[
-                const SizedBox(height: 14),
-                const Text('APPLIED PRIVILEGE', style: DesktopText.fieldLabel),
-                const SizedBox(height: 6),
-                TestId(
-                  SaleIds.privilege,
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppColors.cream,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFF0E8D8)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.card_giftcard,
-                          size: 18,
-                          color: AppColors.goldDark,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                privilege!.name.isEmpty
-                                    ? 'Privilege'
-                                    : privilege!.name,
-                                style: const TextStyle(
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              if (code != null)
-                                Text(
-                                  code,
-                                  style: const TextStyle(
-                                    fontSize: 12.5,
-                                    color: AppColors.goldDark,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ],
+              const SizedBox(height: 4),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: TestId(
+                  SaleIds.netPay,
+                  child: Text(
+                    formatBaht(total),
+                    style: const TextStyle(
+                      fontFamily: 'KingPowerHeadline',
+                      fontSize: 36,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      fontFeatures: [FontFeature.tabularFigures()],
                     ),
                   ),
                 ),
-              ],
-              const Spacer(),
-              DesktopButton(
-                id: SaleIds.checkoutButton,
-                label: 'Take payment',
-                icon: Icons.payments_outlined,
-                hotkey: 'F12',
-                height: 70,
-                onPressed: onTakePayment,
-              ),
-              const SizedBox(height: 10),
-              const DesktopButton(
-                id: DesktopSaleIds.suspendButton,
-                label: 'Suspend bill',
-                icon: Icons.assignment_turned_in_outlined,
-                secondary: true,
               ),
             ],
           ),
         ),
-      ),
+        if (privilege != null) ...[
+          const SizedBox(height: 12),
+          const Text('APPLIED PRIVILEGE', style: DesktopText.fieldLabel),
+          const SizedBox(height: 6),
+          TestId(
+            SaleIds.privilege,
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.cream,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFF0E8D8)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.card_giftcard,
+                    size: 18,
+                    color: AppColors.goldDark,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          privilege!.name.isEmpty
+                              ? 'Privilege'
+                              : privilege!.name,
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (code != null)
+                          Text(
+                            code,
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              color: AppColors.goldDark,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+        const Spacer(),
+        DesktopButton(
+          id: SaleIds.checkoutButton,
+          label: 'Take payment',
+          icon: Icons.payments_outlined,
+          hotkey: 'F12',
+          height: 56,
+          onPressed: onTakePayment,
+        ),
+        const SizedBox(height: 10),
+        const DesktopButton(
+          id: DesktopSaleIds.suspendButton,
+          label: 'Suspend bill',
+          icon: Icons.assignment_turned_in_outlined,
+          secondary: true,
+        ),
+      ],
     );
   }
 }

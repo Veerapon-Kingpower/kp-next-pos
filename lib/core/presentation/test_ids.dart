@@ -327,15 +327,6 @@ abstract class DesktopSaleIds {
   static const suspendButton = 'desktop.sale.suspendButton';
   static const printBasketButton = 'desktop.sale.printBasketButton';
   static const claimCheckButton = 'desktop.sale.claimCheckButton';
-  static const currencyButton = 'desktop.sale.currencyButton';
-  static const currencyRate = 'desktop.sale.currencyRate';
-  static const netPayBase = 'desktop.sale.netPayBase';
-  static const currencyPicker = 'desktop.sale.currencyPicker';
-  static const currencySearch = 'desktop.sale.currencySearch';
-  static const currencyError = 'desktop.sale.currencyError';
-
-  static String currencyOption(String code) =>
-      'desktop.sale.currencyOption.$code';
 
   static String qtyDecrease(String row) => 'desktop.sale.line.$row.qtyDecrease';
   static String qtyIncrease(String row) => 'desktop.sale.line.$row.qtyIncrease';
@@ -392,6 +383,34 @@ abstract class DesktopLookupIds {
   static String open(String fieldId) => '$fieldId.open';
   static String list(String fieldId) => '$fieldId.list';
   static String option(String fieldId, int index) => '$fieldId.option.$index';
+}
+
+/// Order currency (legacy Sale / Checkout currency button and
+/// `CurrencyPickerPage`) and the CHANGE screen (legacy `ChangePage`) —
+/// shared by the desktop and handheld layouts.
+abstract class CurrencyIds {
+  static const orderButton = 'currency.orderButton';
+  static const rate = 'currency.rate';
+  static const netPayBase = 'currency.netPayBase';
+  static const error = 'currency.error';
+  static const picker = 'currency.picker';
+  static const search = 'currency.search';
+
+  static String option(String code) => 'currency.option.$code';
+
+  // CHANGE screen
+  static const changeButton = 'currency.change.openButton';
+  static const changeScreen = 'currency.change.screen';
+  static const changeRate = 'currency.change.rate';
+  static const changeAmountThb = 'currency.change.amountThb';
+  static const changeCurrencyField = 'currency.change.currencyField';
+  static const changeCurrencyThb = 'currency.change.currencyThb';
+  static const changeLocal = 'currency.change.local';
+  static const changeError = 'currency.change.error';
+  static const changeSaveButton = 'currency.change.saveButton';
+  static const changeCancelButton = 'currency.change.cancelButton';
+
+  static String changeCurrency(String code) => 'currency.change.option.$code';
 }
 
 /// Desktop Checkout (S5) / Payment (S6) elements not shared with handheld.

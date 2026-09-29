@@ -10,11 +10,18 @@ import 'payment_widgets.dart';
 import 'wallet_query_page.dart';
 import 'wallet_scan_page.dart';
 
-/// Pushes the Payment page for [netPay].
-Future<void> openPaymentPage(BuildContext context, {required double netPay}) {
-  return Navigator.of(
-    context,
-  ).push(MaterialPageRoute<void>(builder: (_) => PaymentPage(netPay: netPay)));
+/// Pushes the Payment page for [netPay], in the order's [currencyCode]
+/// (legacy `CurrencyPay`).
+Future<void> openPaymentPage(
+  BuildContext context, {
+  required double netPay,
+  String currencyCode = 'THB',
+}) {
+  return Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => PaymentPage(netPay: netPay, currencyCode: currencyCode),
+    ),
+  );
 }
 
 /// Payment · split tender (mockup screen 6): net pay / tendered /
@@ -32,7 +39,15 @@ class PaymentPage extends StatefulWidget {
   final double netPay;
   final List<Tender> tenders;
 
-  const PaymentPage({super.key, required this.netPay, this.tenders = const []});
+  /// The order's currency; amounts here are in it.
+  final String currencyCode;
+
+  const PaymentPage({
+    super.key,
+    required this.netPay,
+    this.tenders = const [],
+    this.currencyCode = 'THB',
+  });
 
   @override
   State<PaymentPage> createState() => _PaymentPageState();
@@ -40,6 +55,8 @@ class PaymentPage extends StatefulWidget {
 
 class _PaymentPageState extends State<PaymentPage> {
   final _amount = TextEditingController();
+
+  String _money(double value) => formatMoney(value, widget.currencyCode);
   TenderMethod _method = TenderMethod.card;
 
   double get _remaining {
@@ -106,17 +123,17 @@ class _PaymentPageState extends State<PaymentPage> {
             HandheldStat(
               id: PaymentIds.netPay,
               label: 'Net pay',
-              value: formatBaht(widget.netPay),
+              value: _money(widget.netPay),
             ),
             HandheldStat(
               id: PaymentIds.tendered,
               label: 'Tendered',
-              value: formatBaht(tenderedTotal(tenders)),
+              value: _money(tenderedTotal(tenders)),
             ),
             HandheldStat(
               id: PaymentIds.remaining,
               label: 'Remaining',
-              value: formatBaht(_remaining),
+              value: _money(_remaining),
               flex: 3,
             ),
           ],
@@ -133,7 +150,10 @@ class _PaymentPageState extends State<PaymentPage> {
               ),
               const SizedBox(height: 18),
               const PaymentBlockLabel('Amount to charge'),
-              _AmountField(controller: _amount),
+              _AmountField(
+                controller: _amount,
+                currencyCode: widget.currencyCode,
+              ),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
@@ -151,12 +171,12 @@ class _PaymentPageState extends State<PaymentPage> {
                   ),
                   _Preset(
                     id: PaymentIds.preset10000,
-                    label: '฿10,000',
+                    label: _money(10000),
                     onTap: () => _setAmount(10000),
                   ),
                   _Preset(
                     id: PaymentIds.preset20000,
-                    label: '฿20,000',
+                    label: _money(20000),
                     onTap: () => _setAmount(20000),
                   ),
                 ],
@@ -210,7 +230,7 @@ class _PaymentPageState extends State<PaymentPage> {
             children: [
               HandheldPrimaryButton(
                 id: PaymentIds.chargeButton,
-                label: 'Charge ${formatBaht(_chargeAmount)}',
+                label: 'Charge ${_money(_chargeAmount)}',
                 onPressed: canCharge ? _charge : null,
               ),
               const SizedBox(height: 6),
@@ -312,8 +332,9 @@ class _MethodGrid extends StatelessWidget {
 
 class _AmountField extends StatelessWidget {
   final TextEditingController controller;
+  final String currencyCode;
 
-  const _AmountField({required this.controller});
+  const _AmountField({required this.controller, required this.currencyCode});
 
   @override
   Widget build(BuildContext context) {
@@ -329,9 +350,9 @@ class _AmountField extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Text(
-              '฿',
-              style: TextStyle(fontSize: 16, color: AppColors.goldDark),
+            Text(
+              currencyCode == 'THB' ? '฿' : currencyCode,
+              style: const TextStyle(fontSize: 16, color: AppColors.goldDark),
             ),
             const SizedBox(width: 8),
             Expanded(

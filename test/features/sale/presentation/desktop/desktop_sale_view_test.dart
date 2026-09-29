@@ -454,7 +454,7 @@ void main() {
       final handle = tester.ensureSemantics();
       await open(tester, shoppingCard: '');
       expect(
-        tester.getSemantics(byTestId(DesktopSaleIds.currencyButton)),
+        tester.getSemantics(byTestId(CurrencyIds.orderButton)),
         isSemantics(isButton: true, hasEnabledState: true, isEnabled: false),
       );
       handle.dispose();
@@ -464,35 +464,35 @@ void main() {
       tester,
     ) async {
       await open(tester, session: testSession);
-      await tester.tap(byTestId(DesktopSaleIds.currencyButton));
+      await tester.tap(byTestId(CurrencyIds.orderButton));
       await tester.pumpAndSettle();
       expect(find.text("Sorry, you don't have permission."), findsOneWidget);
-      expect(byTestId(DesktopSaleIds.currencyPicker), findsNothing);
+      expect(byTestId(CurrencyIds.picker), findsNothing);
     });
 
     testWidgets('picker lists the branch currencies, THB first, and filters '
         'by code or name', (tester) async {
       await open(tester);
-      await tester.tap(byTestId(DesktopSaleIds.currencyButton));
+      await tester.tap(byTestId(CurrencyIds.orderButton));
       await tester.pumpAndSettle();
 
-      expect(byTestId(DesktopSaleIds.currencyPicker), findsOneWidget);
+      expect(byTestId(CurrencyIds.picker), findsOneWidget);
       expect(
-        tester.getTopLeft(byTestId(DesktopSaleIds.currencyOption('THB'))).dy,
+        tester.getTopLeft(byTestId(CurrencyIds.option('THB'))).dy,
         lessThan(
-          tester.getTopLeft(byTestId(DesktopSaleIds.currencyOption('USD'))).dy,
+          tester.getTopLeft(byTestId(CurrencyIds.option('USD'))).dy,
         ),
       );
       await tester.enterText(
         find.descendant(
-          of: byTestId(DesktopSaleIds.currencySearch),
+          of: byTestId(CurrencyIds.search),
           matching: find.byType(TextField),
         ),
         'euro',
       );
       await tester.pump();
-      expect(byTestId(DesktopSaleIds.currencyOption('EUR')), findsOneWidget);
-      expect(byTestId(DesktopSaleIds.currencyOption('USD')), findsNothing);
+      expect(byTestId(CurrencyIds.option('EUR')), findsOneWidget);
+      expect(byTestId(CurrencyIds.option('USD')), findsNothing);
     });
 
     testWidgets('picking USD reprices the order through the sale engine and '
@@ -500,20 +500,20 @@ void main() {
       final (_, repo) = await open(tester);
       expect(textIn(tester, SaleIds.netPay), '฿21,500.00');
 
-      await tester.tap(byTestId(DesktopSaleIds.currencyButton));
+      await tester.tap(byTestId(CurrencyIds.orderButton));
       await tester.pumpAndSettle();
-      await tester.tap(byTestId(DesktopSaleIds.currencyOption('USD')));
+      await tester.tap(byTestId(CurrencyIds.option('USD')));
       await tester.pumpAndSettle();
 
       expect(repo.lastCurrencyShoppingCard, 'CPX0001');
       expect(repo.lastCurrencyCode, 'USD');
       expect(textIn(tester, SaleIds.netPay), 'USD 166.20');
-      expect(textIn(tester, DesktopSaleIds.netPayBase), '= ฿5,900.00');
-      expect(textIn(tester, DesktopSaleIds.currencyRate), '35.50000');
+      expect(textIn(tester, CurrencyIds.netPayBase), '= ฿5,900.00');
+      expect(textIn(tester, CurrencyIds.rate), '35.50000');
       expect(find.text('Net (USD)'), findsOneWidget);
       expect(
         find.descendant(
-          of: byTestId(DesktopSaleIds.currencyButton),
+          of: byTestId(CurrencyIds.orderButton),
           matching: find.text('USD'),
         ),
         findsOneWidget,

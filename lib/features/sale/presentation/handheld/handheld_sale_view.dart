@@ -9,6 +9,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../customer/domain/entities/privilege.dart';
 import '../../domain/entities/cart_item.dart';
 import '../sale_cart_view_model.dart';
+import '../sale_currency.dart';
 import 'discount_sheet.dart';
 import 'edit_line_page.dart';
 import 'payment/checkout_page.dart';
@@ -141,7 +142,11 @@ class _HandheldSaleViewState extends State<HandheldSaleView> {
 
   Widget _build(BuildContext context, SaleCartViewModel viewModel) {
     final lines = viewModel.cart?.items ?? const <CartItem>[];
-    final total = lines.fold<double>(0, (sum, l) => sum + l.lineTotal);
+    final billing = viewModel.cart?.billing;
+    final total =
+        billing?.total ?? lines.fold<double>(0, (sum, l) => sum + l.lineTotal);
+    final netPay = orderNetPay(viewModel.cart);
+    final currency = orderCurrency(viewModel.cart);
     final units = lines.fold<int>(0, (sum, l) => sum + l.quantity);
 
     return HandheldScaffold(
@@ -157,7 +162,17 @@ class _HandheldSaleViewState extends State<HandheldSaleView> {
             onScan: _scan,
             onExit: widget.onExit,
             total: total,
+            netPay: netPay,
+            currency: currency,
             units: units,
+            // Legacy Sale header's currency button.
+            currencyButton: OrderCurrencyButton(
+              billing: billing,
+              onDark: true,
+              onTap: viewModel.shoppingCard.isEmpty || viewModel.isBusy
+                  ? null
+                  : () => changeOrderCurrency(context, viewModel),
+            ),
           ),
           _Tabs(
             lineCount: lines.length,
@@ -165,6 +180,15 @@ class _HandheldSaleViewState extends State<HandheldSaleView> {
             onSelect: (basket) => setState(() => _showBasket = basket),
           ),
           if (viewModel.isBusy) const LinearProgressIndicator(minHeight: 2),
+          if (viewModel.currencyError != null)
+            TestId(
+              CurrencyIds.error,
+              child: _Banner(
+                icon: Icons.error_outline,
+                color: AppColors.danger,
+                text: viewModel.currencyError!,
+              ),
+            ),
           Expanded(
             child: HandheldContentWidth(
               child: _LineList(
@@ -184,7 +208,7 @@ class _HandheldSaleViewState extends State<HandheldSaleView> {
       actionBar: HandheldActionBar(
         primary: HandheldPrimaryButton(
           id: SaleIds.checkoutButton,
-          label: 'Checkout · ${formatBaht(total)}',
+          label: 'Checkout · ${formatMoney(netPay, currency)}',
           icon: Icons.payments_outlined,
           onPressed: lines.isEmpty
               ? null
@@ -240,7 +264,10 @@ class _SaleHeader extends StatelessWidget {
   final ValueChanged<String> onScan;
   final VoidCallback onExit;
   final double total;
+  final double netPay;
+  final String currency;
   final int units;
+  final Widget currencyButton;
 
   const _SaleHeader({
     required this.orderType,
@@ -250,7 +277,10 @@ class _SaleHeader extends StatelessWidget {
     required this.onScan,
     required this.onExit,
     required this.total,
+    required this.netPay,
+    required this.currency,
     required this.units,
+    required this.currencyButton,
   });
 
   @override
@@ -304,6 +334,7 @@ class _SaleHeader extends StatelessWidget {
                               ],
                             ),
                           ),
+                          currencyButton,
                         ],
                       ),
                       const SizedBox(height: 8),
@@ -338,7 +369,8 @@ class _SaleHeader extends StatelessWidget {
                     TestId(
                       SaleIds.totalLine,
                       child: Text(
-                        'Total ${formatAmount(total)} · $units unit${units == 1 ? '' : 's'}',
+                        'Total ${currency == 'THB' ? formatAmount(total) : formatMoney(total, currency)} · '
+                        '$units unit${units == 1 ? '' : 's'}',
                         style: TextStyle(
                           fontSize: 12,
                           color: muted,
@@ -361,7 +393,7 @@ class _SaleHeader extends StatelessWidget {
                           child: TestId(
                             SaleIds.netPay,
                             child: Text(
-                              formatBaht(total),
+                              formatMoney(netPay, currency),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: HandheldText.statValue.copyWith(

@@ -3,20 +3,33 @@ import 'package:flutter/services.dart';
 
 import '../../../../core/error/app_exception.dart';
 import '../../../../core/presentation/desktop/desktop.dart';
+import '../../../../core/presentation/handheld/handheld.dart';
 import '../../../../core/presentation/test_ids.dart';
 import '../../../../core/presentation/widgets/test_id.dart';
+import '../../../../core/theme/app_breakpoints.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../domain/entities/currency.dart';
 
-/// Currency picker over the desktop Sale — ports legacy
-/// `CurrencyPickerPage`: the branch list from `SaleEngine/GetCurrency`,
-/// filtered by code or name, with the order's [current] currency first.
-/// Resolves to the picked code, or null on Esc / close.
-Future<String?> showDesktopCurrencyPicker(
+/// Currency picker — ports legacy `CurrencyPickerPage`: the branch list
+/// from `SaleEngine/GetCurrency`, filtered by code or name, with the
+/// order's [current] currency first. A dialog on desktop, a handheld sheet
+/// below it. Resolves to the picked code, or null when dismissed.
+Future<String?> showCurrencyPicker(
   BuildContext context, {
   required Future<List<Currency>> Function() load,
   required String current,
 }) {
+  final picker = CurrencyPicker(load: load, current: current);
+  if (!AppBreakpoints.isWide(context)) {
+    return showHandheldSheet<String>(
+      context,
+      id: CurrencyIds.picker,
+      builder: (sheetContext) => SizedBox(
+        height: MediaQuery.sizeOf(sheetContext).height * 0.7,
+        child: picker,
+      ),
+    );
+  }
   return showDialog<String>(
     context: context,
     barrierColor: AppColors.ink.withValues(alpha: 0.55),
@@ -25,23 +38,34 @@ Future<String?> showDesktopCurrencyPicker(
       backgroundColor: Colors.transparent,
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 560, maxHeight: 640),
-        child: _CurrencyPicker(load: load, current: current),
+        child: TestId(
+          CurrencyIds.picker,
+          child: Material(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(14),
+            clipBehavior: Clip.antiAlias,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 18, 12, 0),
+              child: picker,
+            ),
+          ),
+        ),
       ),
     ),
   );
 }
 
-class _CurrencyPicker extends StatefulWidget {
+class CurrencyPicker extends StatefulWidget {
   final Future<List<Currency>> Function() load;
   final String current;
 
-  const _CurrencyPicker({required this.load, required this.current});
+  const CurrencyPicker({super.key, required this.load, required this.current});
 
   @override
-  State<_CurrencyPicker> createState() => _CurrencyPickerState();
+  State<CurrencyPicker> createState() => _CurrencyPickerState();
 }
 
-class _CurrencyPickerState extends State<_CurrencyPicker> {
+class _CurrencyPickerState extends State<CurrencyPicker> {
   final _query = TextEditingController();
   List<Currency>? _all;
   String? _error;
@@ -93,67 +117,50 @@ class _CurrencyPickerState extends State<_CurrencyPicker> {
   @override
   Widget build(BuildContext context) {
     final visible = _visible;
-    return TestId(
-      DesktopSaleIds.currencyPicker,
-      child: CallbackShortcuts(
-        bindings: {
-          const SingleActivator(LogicalKeyboardKey.escape): _close,
-          const SingleActivator(LogicalKeyboardKey.enter): () {
-            if (visible.isNotEmpty) _close(visible.first.code);
-          },
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): _close,
+        const SingleActivator(LogicalKeyboardKey.enter): () {
+          if (visible.isNotEmpty) _close(visible.first.code);
         },
-        child: Material(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(14),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
+      },
+      child: Column(
+        children: [
+          Row(
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 18, 12, 12),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.currency_exchange,
-                      color: AppColors.goldDark,
-                    ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Text(
-                        'Change currency',
-                        style: DesktopText.sectionTitle,
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Close',
-                      onPressed: _close,
-                      icon: const Icon(Icons.close, size: 18),
-                    ),
-                  ],
-                ),
+              const Icon(Icons.currency_exchange, color: AppColors.goldDark),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text('Change currency', style: DesktopText.sectionTitle),
               ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: TestId(
-                  DesktopSaleIds.currencySearch,
-                  child: TextField(
-                    controller: _query,
-                    autofocus: true,
-                    onChanged: (_) => setState(() {}),
-                    decoration: InputDecoration(
-                      prefixIcon: const Icon(Icons.search, size: 18),
-                      hintText: 'Search code or name',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
+              IconButton(
+                tooltip: 'Close',
+                onPressed: _close,
+                icon: const Icon(Icons.close, size: 18),
+              ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: 12, top: 4),
+            child: TestId(
+              CurrencyIds.search,
+              child: TextField(
+                controller: _query,
+                autofocus: AppBreakpoints.isWide(context),
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.search, size: 18),
+                  hintText: 'Search code or name',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
-              Expanded(child: _list(visible)),
-            ],
+            ),
           ),
-        ),
+          const SizedBox(height: 10),
+          Expanded(child: _list(visible)),
+        ],
       ),
     );
   }
@@ -185,18 +192,16 @@ class _CurrencyPickerState extends State<_CurrencyPicker> {
         final c = visible[i];
         final selected = c.code == widget.current;
         return TestId(
-          DesktopSaleIds.currencyOption(c.code),
+          CurrencyIds.option(c.code),
           child: Semantics(
             button: true,
             selected: selected,
             child: InkWell(
               onTap: () => _close(c.code),
               child: Container(
+                constraints: const BoxConstraints(minHeight: 48),
                 color: selected ? const Color(0xFFFBF8F1) : null,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
-                ),
+                padding: const EdgeInsets.fromLTRB(4, 10, 16, 10),
                 child: Row(
                   children: [
                     SizedBox(

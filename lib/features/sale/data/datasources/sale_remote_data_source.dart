@@ -4,6 +4,7 @@ import '../../../../core/network/return_object.dart';
 import '../models/article_model.dart';
 import '../models/cart_model.dart';
 import '../models/currency_model.dart';
+import '../models/exchange_quote_model.dart';
 
 /// Sale Engine (`{saleEngineEndpoint}`) cart calls (`api-contracts.md`
 /// section 5b, ops 8-11 and 47).
@@ -128,6 +129,32 @@ class SaleRemoteDataSource {
       },
     );
     return _firstOrder(response);
+  }
+
+  Future<ExchangeQuoteModel> exchangeCurrency({
+    required String saleEngineEndpoint,
+    required String currencyCode,
+    required double currencyAmount,
+    required double baseAmount,
+    required bool isChangeButton,
+  }) async {
+    final response = await _apiClient.post(
+      '$saleEngineEndpoint/SaleEngine/ExchangeCurrency',
+      data: {
+        'currCode': currencyCode,
+        'currAmount': currencyAmount,
+        'basecurrAmount': baseAmount,
+        'isPaid': false,
+        'isChangeButton': isChangeButton,
+      },
+    );
+    final result = ReturnObject<ExchangeQuoteModel>.fromJson(
+      response,
+      (data) => ExchangeQuoteModel.fromJson(
+        data as Map<String, dynamic>? ?? const {},
+      ),
+    );
+    return result.unwrap();
   }
 
   Future<List<CurrencyModel>> getCurrencies({

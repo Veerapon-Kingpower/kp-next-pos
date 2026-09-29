@@ -7,6 +7,7 @@ import '../../../../../core/presentation/widgets/test_id.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../domain/entities/cart_item.dart';
 import '../../sale_cart_view_model.dart';
+import '../../sale_currency.dart';
 import 'payment_page.dart';
 import 'payment_widgets.dart';
 import 'signature_page.dart';
@@ -59,7 +60,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   Widget _build(BuildContext context, SaleCartViewModel viewModel) {
     final lines = viewModel.cart?.items ?? const <CartItem>[];
-    final total = lines.fold<double>(0, (sum, l) => sum + l.lineTotal);
+    final billing = viewModel.cart?.billing;
+    final total =
+        billing?.total ?? lines.fold<double>(0, (sum, l) => sum + l.lineTotal);
+    final netPay = orderNetPay(viewModel.cart);
+    final currency = orderCurrency(viewModel.cart);
     final units = lines.fold<int>(0, (sum, l) => sum + l.quantity);
     final privilege = viewModel.selectedPrivilege;
     final privilegeCode =
@@ -82,7 +87,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
             HandheldStat(
               id: CheckoutIds.netPay,
               label: 'Net pay',
-              value: formatBaht(total),
+              value: formatMoney(netPay, currency),
             ),
           ],
         ),
@@ -177,20 +182,62 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const PaymentBlockLabel('Amounts'),
+                    Row(
+                      children: [
+                        const Expanded(child: PaymentBlockLabel('Amounts')),
+                        // Legacy CheckoutPage.changeCurrency().
+                        OrderCurrencyButton(
+                          billing: billing,
+                          onTap:
+                              viewModel.shoppingCard.isEmpty || viewModel.isBusy
+                              ? null
+                              : () => changeOrderCurrency(context, viewModel),
+                        ),
+                      ],
+                    ),
                     PaymentValueRow(
                       id: CheckoutIds.totalAmount,
                       label: 'Total',
                       value: formatAmount(total),
                     ),
-                    const PaymentValueRow(label: 'Discount', value: '—'),
+                    PaymentValueRow(
+                      label: 'Discount',
+                      value: billing == null
+                          ? '—'
+                          : formatAmount(billing.discount),
+                    ),
                     PaymentValueRow(
                       id: CheckoutIds.grandAmount,
                       label: 'Grand',
-                      value: formatAmount(total),
+                      value: formatAmount(billing?.grand ?? total),
                     ),
-                    const PaymentValueRow(label: 'Cash-D subsidy', value: '—'),
+                    PaymentValueRow(
+                      label: 'Cash-D subsidy',
+                      value: billing == null
+                          ? '—'
+                          : formatAmount(billing.cashD),
+                    ),
                     const PaymentValueRow(label: 'VAT (included)', value: '—'),
+                    if (billing != null)
+                      PaymentValueRow(
+                        id: CurrencyIds.rate,
+                        label: 'Rate',
+                        value: billing.currencyRate.toStringAsFixed(5),
+                      ),
+                    if (billing != null && !billing.isBaht)
+                      PaymentValueRow(
+                        id: CurrencyIds.netPayBase,
+                        label: 'Net pay in THB',
+                        value: formatBaht(billing.netPayBase),
+                      ),
+                    if (viewModel.currencyError != null)
+                      TestId(
+                        CurrencyIds.error,
+                        child: Text(
+                          viewModel.currencyError!,
+                          style: const TextStyle(color: AppColors.danger),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -204,7 +251,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     side: const BorderSide(color: AppColors.line),
                   ),
                   child: InkWell(
-                    onTap: () => _captureSignature(total),
+                    onTap: () => _captureSignature(netPay),
                     borderRadius: BorderRadius.circular(HandheldMetrics.radius),
                     child: Padding(
                       padding: const EdgeInsets.all(14),
@@ -260,7 +307,11 @@ class _CheckoutPageState extends State<CheckoutPage> {
             icon: Icons.payments_outlined,
             onPressed: lines.isEmpty
                 ? null
-                : () => openPaymentPage(context, netPay: total),
+                : () => openPaymentPage(
+                    context,
+                    netPay: netPay,
+                    currencyCode: currency,
+                  ),
           ),
           items: const [
             HandheldBarItem(

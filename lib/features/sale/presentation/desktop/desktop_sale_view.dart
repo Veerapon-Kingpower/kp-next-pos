@@ -4,7 +4,7 @@ import 'package:get/get.dart';
 
 import '../../../../core/presentation/desktop/desktop.dart';
 import '../../../../core/presentation/handheld/handheld.dart'
-    show formatAmount, formatBaht;
+    show formatAmount, formatBaht, formatMoney;
 import '../../../../core/presentation/test_ids.dart';
 import '../../../../core/presentation/widgets/app_dialogs.dart';
 import '../../../../core/presentation/widgets/test_id.dart';
@@ -14,7 +14,7 @@ import '../../domain/entities/cart.dart';
 import '../../domain/entities/cart_item.dart';
 import '../sale_cart_view_model.dart';
 import 'desktop_checkout_page.dart';
-import 'desktop_currency_picker.dart';
+import '../sale_currency.dart';
 import 'desktop_discount_overlay.dart';
 
 /// Desktop Sale (POS Desktop mockup screens 3 + 4): scan row, Buying /
@@ -101,37 +101,8 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
     if (mounted) _scanFocus.requestFocus();
   }
 
-  // Legacy `SalePage.changeCurrency()`: permission first, then the picker;
-  // the pick goes to the sale engine, which reprices the whole order.
   Future<void> _changeCurrency() async {
-    final viewModel = widget.viewModel;
-    if (!await viewModel.canChangeCurrency()) {
-      if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Oops !'),
-          content: const Text(SaleCartViewModel.noCurrencyPermission),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-      return;
-    }
-    if (!mounted) return;
-    final current = viewModel.cart?.billing?.currencyCode ?? '';
-    final picked = await showDesktopCurrencyPicker(
-      context,
-      load: viewModel.listCurrencies,
-      current: current.isEmpty ? 'THB' : current,
-    );
-    if (picked != null && picked != current && mounted) {
-      await viewModel.changeCurrency(picked);
-    }
+    await changeOrderCurrency(context, widget.viewModel);
     if (mounted) _scanFocus.requestFocus();
   }
 
@@ -208,7 +179,7 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
                       ),
                     if (viewModel.currencyError != null)
                       _Notice(
-                        id: DesktopSaleIds.currencyError,
+                        id: CurrencyIds.error,
                         icon: Icons.error_outline,
                         color: AppColors.danger,
                         text: viewModel.currencyError!,
@@ -800,14 +771,8 @@ class _Summary extends StatelessWidget {
     required this.onCurrency,
   });
 
-  String get _currencyCode {
-    final code = billing?.currencyCode ?? '';
-    return code.isEmpty ? 'THB' : code;
-  }
-
-  String _money(double value) => billing == null || billing!.isBaht
-      ? formatBaht(value)
-      : '$_currencyCode ${formatAmount(value)}';
+  String _money(double value) =>
+      formatMoney(value, billing?.currencyCode ?? '');
 
   @override
   Widget build(BuildContext context) {
@@ -915,66 +880,8 @@ class _Summary extends StatelessWidget {
             const Expanded(
               child: Text('Bill summary', style: DesktopText.sectionTitle),
             ),
-            // Legacy Sale's header currency button: order currency + rate,
-            // tap to change (sale engine `change_currency`).
-            Tooltip(
-              message: onCurrency == null
-                  ? 'Attach a customer to change the currency'
-                  : 'Change currency',
-              child: TestId(
-                DesktopSaleIds.currencyButton,
-                child: Semantics(
-                  button: true,
-                  enabled: onCurrency != null,
-                  child: Material(
-                    color: AppColors.cream,
-                    borderRadius: BorderRadius.circular(8),
-                    child: InkWell(
-                      onTap: onCurrency,
-                      borderRadius: BorderRadius.circular(8),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              _currencyCode,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.goldDark,
-                              ),
-                            ),
-                            if (billing != null) ...[
-                              const SizedBox(width: 6),
-                              Text(
-                                billing!.currencyRate.toStringAsFixed(5),
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.mutedText,
-                                  fontFeatures: [FontFeature.tabularFigures()],
-                                ),
-                              ),
-                            ],
-                            const SizedBox(width: 4),
-                            Icon(
-                              Icons.currency_exchange,
-                              size: 14,
-                              color: onCurrency == null
-                                  ? AppColors.hintText
-                                  : AppColors.goldDark,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
+            // Legacy Sale header: order currency + rate, tap to change.
+            OrderCurrencyButton(billing: billing, onTap: onCurrency),
           ],
         ),
         const SizedBox(height: 12),
@@ -1017,7 +924,7 @@ class _Summary extends StatelessWidget {
                 amount(
                   'Rate',
                   billing!.currencyRate.toStringAsFixed(5),
-                  id: DesktopSaleIds.currencyRate,
+                  id: CurrencyIds.rate,
                 ),
               ],
         const SizedBox(height: 8),
@@ -1055,7 +962,7 @@ class _Summary extends StatelessWidget {
               if (billing != null && !billing!.isBaht) ...[
                 const SizedBox(height: 4),
                 TestId(
-                  DesktopSaleIds.netPayBase,
+                  CurrencyIds.netPayBase,
                   child: Text(
                     '= ${formatBaht(billing!.netPayBase)}',
                     style: TextStyle(

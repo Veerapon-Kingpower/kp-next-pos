@@ -1,6 +1,7 @@
 import '../entities/article.dart';
 import '../entities/cart.dart';
 import '../entities/currency.dart';
+import '../entities/exchange_quote.dart';
 
 abstract class SaleRepository {
   /// `SaleEngine/GetMasterByBarcodeDLL` (`api-contracts.md` op 47).
@@ -37,6 +38,17 @@ abstract class SaleRepository {
     required String sessionKey,
     required String shoppingCard,
     required String currencyCode,
+  });
+
+  /// `SaleEngine/ExchangeCurrency` (op 29) as legacy `ChangePage` calls
+  /// it: [changeInBaht] is `basecurrAmount`, [currencyAmount] is
+  /// `currAmount`, `isPaid` is always false. [isChangeButton] is true when
+  /// a currency was picked, false when the cashier typed an amount.
+  Future<ExchangeQuote> exchangeChange({
+    required String currencyCode,
+    required double currencyAmount,
+    required double changeInBaht,
+    required bool isChangeButton,
   });
 
   /// `SaleEngine/GetOrder` (op 8).

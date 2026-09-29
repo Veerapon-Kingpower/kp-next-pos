@@ -5,6 +5,7 @@ import '../../../../core/storage/device_settings_storage.dart';
 import '../../domain/entities/article.dart';
 import '../../domain/entities/cart.dart';
 import '../../domain/entities/currency.dart';
+import '../../domain/entities/exchange_quote.dart';
 import '../../domain/repositories/sale_repository.dart';
 import '../datasources/sale_remote_data_source.dart';
 import '../local/article_local_data_source.dart';
@@ -130,6 +131,23 @@ class SaleRepositoryImpl implements SaleRepository {
       sessionKey: sessionKey,
       shoppingCard: shoppingCard,
       currencyCode: currencyCode,
+    );
+  }
+
+  @override
+  Future<ExchangeQuote> exchangeChange({
+    required String currencyCode,
+    required double currencyAmount,
+    required double changeInBaht,
+    required bool isChangeButton,
+  }) async {
+    final settings = await _deviceSettingsStorage.read();
+    return _remote.exchangeCurrency(
+      saleEngineEndpoint: settings.saleEngineEndpoint,
+      currencyCode: currencyCode,
+      currencyAmount: currencyAmount,
+      baseAmount: changeInBaht,
+      isChangeButton: isChangeButton,
     );
   }
 

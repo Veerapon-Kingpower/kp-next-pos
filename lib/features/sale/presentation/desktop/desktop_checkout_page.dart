@@ -4,14 +4,16 @@ import 'package:get/get.dart';
 
 import '../../../../core/presentation/desktop/desktop.dart';
 import '../../../../core/presentation/handheld/handheld.dart'
-    show formatAmount, formatBaht;
+    show formatAmount, formatBaht, formatMoney;
 import '../../../../core/presentation/test_ids.dart';
 import '../../../../core/presentation/widgets/desktop_data_table.dart';
 import '../../../../core/presentation/widgets/test_id.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../domain/entities/cart_item.dart';
 import '../handheld/payment/signature_page.dart';
+import '../../domain/entities/cart.dart';
 import '../sale_cart_view_model.dart';
+import '../sale_currency.dart';
 import 'desktop_payment_page.dart';
 
 /// Pushes the desktop Checkout step for the current cart.
@@ -68,11 +70,19 @@ class _DesktopCheckoutPageState extends State<DesktopCheckoutPage> {
     final lines = viewModel.cart?.items ?? const <CartItem>[];
     final total = lines.fold<double>(0, (s, l) => s + l.lineTotal);
     final units = lines.fold<int>(0, (s, l) => s + l.quantity);
+    final netPay = orderNetPay(viewModel.cart);
+    final currency = orderCurrency(viewModel.cart);
     void takePayment() {
       if (lines.isEmpty) return;
       Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) => DesktopPaymentPage(netPay: total),
+          builder: (_) => DesktopPaymentPage(
+            netPay: netPay,
+            currencyCode: currency,
+            rateToBaht: orderRateToBaht(viewModel.cart),
+            loadCurrencies: viewModel.listCurrencies,
+            exchangeChange: viewModel.exchangeChange,
+          ),
         ),
       );
     }
@@ -112,9 +122,16 @@ class _DesktopCheckoutPageState extends State<DesktopCheckoutPage> {
                       width: sideWidth,
                       child: _AmountColumn(
                         total: total,
+                        billing: viewModel.cart?.billing,
+                        currencyError: viewModel.currencyError,
+                        // Legacy CheckoutPage.changeCurrency().
+                        onCurrency:
+                            viewModel.shoppingCard.isEmpty || viewModel.isBusy
+                            ? null
+                            : () => changeOrderCurrency(context, viewModel),
                         hasLines: lines.isNotEmpty,
                         signatureCaptured: _signature != null,
-                        onSignature: () => _captureSignature(total),
+                        onSignature: () => _captureSignature(netPay),
                         onTakePayment: takePayment,
                       ),
                     ),
@@ -296,6 +313,11 @@ class _ReviewColumn extends StatelessWidget {
 
 class _AmountColumn extends StatelessWidget {
   final double total;
+
+  /// The sale engine's amounts in the order currency, when it sent them.
+  final CartBilling? billing;
+  final String? currencyError;
+  final VoidCallback? onCurrency;
   final bool hasLines;
   final bool signatureCaptured;
   final VoidCallback onSignature;
@@ -303,6 +325,9 @@ class _AmountColumn extends StatelessWidget {
 
   const _AmountColumn({
     required this.total,
+    required this.billing,
+    required this.currencyError,
+    required this.onCurrency,
     required this.hasLines,
     required this.signatureCaptured,
     required this.onSignature,
@@ -346,16 +371,57 @@ class _AmountColumn extends StatelessWidget {
           DesktopPanel(
             id: CheckoutIds.amountsCard,
             title: 'Amount due',
+            trailing: OrderCurrencyButton(billing: billing, onTap: onCurrency),
             child: Column(
-              children: [
-                row('Total', formatAmount(total), id: CheckoutIds.totalAmount),
-                row('Line discounts', '—'),
-                row('Grand', formatAmount(total), id: CheckoutIds.grandAmount),
-                row('Cash-D subsidy', '—'),
-                row('VAT (included)', '—'),
-              ],
+              children: billing == null
+                  ? [
+                      row(
+                        'Total',
+                        formatAmount(total),
+                        id: CheckoutIds.totalAmount,
+                      ),
+                      row('Line discounts', '—'),
+                      row(
+                        'Grand',
+                        formatAmount(total),
+                        id: CheckoutIds.grandAmount,
+                      ),
+                      row('Cash-D subsidy', '—'),
+                      row('VAT (included)', '—'),
+                    ]
+                  : [
+                      row(
+                        'Total',
+                        formatAmount(billing!.total),
+                        id: CheckoutIds.totalAmount,
+                      ),
+                      row('Line discounts', formatAmount(billing!.discount)),
+                      row(
+                        'Grand',
+                        formatAmount(billing!.grand),
+                        id: CheckoutIds.grandAmount,
+                      ),
+                      row('Cash-D subsidy', formatAmount(billing!.cashD)),
+                      row('VAT (included)', '—'),
+                      row(
+                        'Rate',
+                        billing!.currencyRate.toStringAsFixed(5),
+                        id: CurrencyIds.rate,
+                      ),
+                    ],
             ),
           ),
+          if (currencyError != null)
+            TestId(
+              CurrencyIds.error,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  currencyError!,
+                  style: const TextStyle(color: AppColors.danger),
+                ),
+              ),
+            ),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(20),
@@ -374,7 +440,10 @@ class _AmountColumn extends StatelessWidget {
                   child: TestId(
                     CheckoutIds.netPay,
                     child: Text(
-                      formatBaht(total),
+                      formatMoney(
+                        billing?.netPay ?? total,
+                        billing?.currencyCode ?? '',
+                      ),
                       style: const TextStyle(
                         fontFamily: 'KingPowerHeadline',
                         fontSize: 56,
@@ -385,6 +454,17 @@ class _AmountColumn extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (billing != null && !billing!.isBaht)
+                  TestId(
+                    CurrencyIds.netPayBase,
+                    child: Text(
+                      '= ${formatBaht(billing!.netPayBase)}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.white.withValues(alpha: 0.7),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),

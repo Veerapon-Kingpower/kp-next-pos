@@ -10,6 +10,7 @@ import 'package:kp_pos/features/sale/domain/entities/cart_item.dart';
 import 'package:kp_pos/features/sale/domain/usecases/add_item_to_cart_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/lookup_article_by_barcode_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/change_order_currency_usecase.dart';
+import 'package:kp_pos/features/sale/domain/usecases/exchange_change_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/list_currencies_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/remove_cart_item_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/update_cart_item_quantity_usecase.dart';
@@ -41,6 +42,7 @@ void main() {
       removeCartItem: RemoveCartItemUseCase(sale),
       listCurrencies: ListCurrenciesUseCase(sale),
       changeOrderCurrency: ChangeOrderCurrencyUseCase(sale),
+      exchangeChange: ExchangeChangeUseCase(sale),
     );
   }
 
@@ -254,6 +256,26 @@ void main() {
         expect(viewModel.currencyError, isNull);
       },
     );
+
+    test('exchangeChange asks the sale engine for a change quote', () async {
+      final sale = FakeSaleRepository();
+      final viewModel = buildViewModel(saleRepository: sale);
+
+      final quote = await viewModel.exchangeChange(
+        currencyCode: 'USD',
+        currencyAmount: 10,
+        changeInBaht: 500,
+        isChangeButton: true,
+      );
+
+      expect(sale.exchangeCalls.single, (
+        code: 'USD',
+        amount: 10.0,
+        change: 500.0,
+        button: true,
+      ));
+      expect(quote.currencyCode, 'USD');
+    });
 
     test('a sale engine refusal is shown', () async {
       final sale = FakeSaleRepository(

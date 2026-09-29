@@ -1,6 +1,7 @@
 import 'package:kp_pos/features/sale/domain/entities/article.dart';
 import 'package:kp_pos/features/sale/domain/entities/cart.dart';
 import 'package:kp_pos/features/sale/domain/entities/currency.dart';
+import 'package:kp_pos/features/sale/domain/entities/exchange_quote.dart';
 import 'package:kp_pos/features/sale/domain/repositories/sale_repository.dart';
 
 /// Shared test double for [SaleRepository] — used wherever a test needs a
@@ -22,8 +23,13 @@ class FakeSaleRepository implements SaleRepository {
   final Cart? currencyCartResult;
   String? lastCurrencyShoppingCard;
   String? lastCurrencyCode;
+  final ExchangeQuote Function(String code, double amount, double change)?
+  exchangeQuote;
+  final List<({String code, double amount, double change, bool button})>
+  exchangeCalls = [];
 
   FakeSaleRepository({
+    this.exchangeQuote,
     this.lookupResult,
     this.lookupError,
     this.cartResult = const Cart(guid: '', isCheckOut: false, items: []),
@@ -90,6 +96,31 @@ class FakeSaleRepository implements SaleRepository {
   }) async {
     if (mutationError != null) throw mutationError!;
     return cartResult;
+  }
+
+  @override
+  Future<ExchangeQuote> exchangeChange({
+    required String currencyCode,
+    required double currencyAmount,
+    required double changeInBaht,
+    required bool isChangeButton,
+  }) async {
+    exchangeCalls.add((
+      code: currencyCode,
+      amount: currencyAmount,
+      change: changeInBaht,
+      button: isChangeButton,
+    ));
+    if (currenciesError != null) throw currenciesError!;
+    final quote = exchangeQuote;
+    if (quote != null) return quote(currencyCode, currencyAmount, changeInBaht);
+    return ExchangeQuote(
+      currencyCode: currencyCode,
+      rate: 1,
+      currencyAmount: currencyAmount,
+      currencyAmountInBaht: currencyAmount,
+      localChange: changeInBaht - currencyAmount,
+    );
   }
 
   @override

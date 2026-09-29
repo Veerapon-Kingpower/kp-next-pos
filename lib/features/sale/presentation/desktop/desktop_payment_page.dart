@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../core/presentation/desktop/desktop.dart';
-import '../../../../core/presentation/handheld/handheld.dart' show formatBaht;
+import '../../../../core/presentation/handheld/handheld.dart' show formatMoney;
 import '../../../../core/presentation/test_ids.dart';
 import '../../../../core/presentation/widgets/test_id.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../domain/entities/currency.dart';
 import '../handheld/payment/payment_models.dart';
 import '../handheld/payment/payment_widgets.dart' show TenderRow;
+import '../widgets/change_currency_screen.dart';
 
 class _Method {
   final String id;
@@ -111,10 +113,26 @@ class DesktopPaymentPage extends StatefulWidget {
   final double netPay;
   final List<Tender> tenders;
 
+  /// The order's currency — amounts here are in it (legacy `CurrencyPay`).
+  final String currencyCode;
+
+  /// Baht per one unit of [currencyCode], to hand change to the CHANGE
+  /// screen in baht (legacy "Change Amount (THB)").
+  final double rateToBaht;
+
+  /// Feed the CHANGE screen (legacy `ChangePage`); without them the "Change
+  /// in another currency" button is inert.
+  final Future<List<Currency>> Function()? loadCurrencies;
+  final ExchangeChange? exchangeChange;
+
   const DesktopPaymentPage({
     super.key,
     required this.netPay,
     this.tenders = const [],
+    this.currencyCode = 'THB',
+    this.rateToBaht = 1,
+    this.loadCurrencies,
+    this.exchangeChange,
   });
 
   @override
@@ -124,6 +142,8 @@ class DesktopPaymentPage extends StatefulWidget {
 class _DesktopPaymentPageState extends State<DesktopPaymentPage> {
   final _tendered = TextEditingController();
   String _method = 'cash';
+
+  String _money(double value) => formatMoney(value, widget.currencyCode);
 
   double get _remaining {
     final v = widget.netPay - tenderedTotal(widget.tenders);
@@ -465,7 +485,7 @@ class _DesktopPaymentPageState extends State<DesktopPaymentPage> {
                       child: _PreviewBox(
                         id: DesktopPaymentIds.appliedToBill,
                         label: 'Applied to bill',
-                        value: formatBaht(preview.applied),
+                        value: _money(preview.applied),
                         note: 'capped at remaining balance',
                       ),
                     ),
@@ -474,12 +494,32 @@ class _DesktopPaymentPageState extends State<DesktopPaymentPage> {
                       child: _PreviewBox(
                         id: DesktopPaymentIds.changeDue,
                         label: 'Change due',
-                        value: formatBaht(preview.change),
+                        value: _money(preview.change),
                         note: 'given in THB from drawer',
                         positive: true,
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 10),
+                // Legacy ChangePage: hand the change back in another
+                // currency, quoted by the sale engine.
+                DesktopButton(
+                  id: CurrencyIds.changeButton,
+                  label: 'Change in another currency',
+                  icon: Icons.currency_exchange,
+                  secondary: true,
+                  onPressed:
+                      preview.change > 0 &&
+                          widget.loadCurrencies != null &&
+                          widget.exchangeChange != null
+                      ? () => showChangeCurrencyScreen(
+                          context,
+                          changeInBaht: preview.change * widget.rateToBaht,
+                          loadCurrencies: widget.loadCurrencies!,
+                          exchange: widget.exchangeChange!,
+                        )
+                      : null,
                 ),
                 const SizedBox(height: 14),
                 const Text(
@@ -562,17 +602,17 @@ class _DesktopPaymentPageState extends State<DesktopPaymentPage> {
           ),
           child: Column(
             children: [
-              amount('Net pay', formatBaht(widget.netPay), PaymentIds.netPay),
+              amount('Net pay', _money(widget.netPay), PaymentIds.netPay),
               amount(
                 'Tendered',
-                formatBaht(tenderedTotal(tenders)),
+                _money(tenderedTotal(tenders)),
                 PaymentIds.tendered,
                 color: AppColors.onlineOnInk,
               ),
               const Divider(color: Color(0x33FFFFFF)),
               amount(
                 'Remaining',
-                formatBaht(_remaining),
+                _money(_remaining),
                 PaymentIds.remaining,
                 size: 40,
               ),

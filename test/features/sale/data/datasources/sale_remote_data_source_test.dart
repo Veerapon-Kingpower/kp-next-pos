@@ -218,6 +218,46 @@ void main() {
     },
   );
 
+  test('exchangeCurrency posts legacy ChangePage\'s ExchangeCurrencyParam '
+      'and reads the AmountModel', () async {
+    apiClient.response = {
+      'isCompleted': true,
+      'Data': {
+        'CurrCode': {'Code': 'USD', 'Desc': 'US Dollar'},
+        'CurrRate': 35.5,
+        'CurrAmt': 20,
+        'totalLocalChange': 710,
+        'totalChange': 290,
+      },
+      'Message': [],
+    };
+
+    final quote = await dataSource.exchangeCurrency(
+      saleEngineEndpoint: 'https://sale-engine',
+      currencyCode: 'USD',
+      currencyAmount: 20,
+      baseAmount: 1000,
+      isChangeButton: false,
+    );
+
+    expect(
+      apiClient.lastUrl,
+      'https://sale-engine/SaleEngine/ExchangeCurrency',
+    );
+    expect(apiClient.lastData, {
+      'currCode': 'USD',
+      'currAmount': 20.0,
+      'basecurrAmount': 1000.0,
+      'isPaid': false,
+      'isChangeButton': false,
+    });
+    expect(quote.currencyCode, 'USD');
+    expect(quote.rate, 35.5);
+    expect(quote.currencyAmount, 20);
+    expect(quote.currencyAmountInBaht, 710);
+    expect(quote.localChange, 290);
+  });
+
   test('getCurrencies posts branch_no to SaleEngine/GetCurrency', () async {
     apiClient.response = {
       'isCompleted': true,

@@ -9,6 +9,7 @@ import 'domain/repositories/sale_repository.dart';
 import 'domain/usecases/add_item_to_cart_usecase.dart';
 import 'domain/usecases/get_cart_usecase.dart';
 import 'domain/usecases/change_order_currency_usecase.dart';
+import 'domain/usecases/exchange_change_usecase.dart';
 import 'domain/usecases/list_currencies_usecase.dart';
 import 'domain/usecases/lookup_article_by_barcode_usecase.dart';
 import 'domain/usecases/remove_cart_item_usecase.dart';
@@ -50,6 +51,9 @@ void setupSaleServiceLocator() {
   sl.registerFactory<ChangeOrderCurrencyUseCase>(
     () => ChangeOrderCurrencyUseCase(sl<SaleRepository>()),
   );
+  sl.registerFactory<ExchangeChangeUseCase>(
+    () => ExchangeChangeUseCase(sl<SaleRepository>()),
+  );
   sl.registerFactory<SaleCartViewModel>(
     () => SaleCartViewModel(
       restoreSession: sl<RestoreSessionUseCase>(),
@@ -59,6 +63,7 @@ void setupSaleServiceLocator() {
       removeCartItem: sl<RemoveCartItemUseCase>(),
       listCurrencies: sl<ListCurrenciesUseCase>(),
       changeOrderCurrency: sl<ChangeOrderCurrencyUseCase>(),
+      exchangeChange: sl<ExchangeChangeUseCase>(),
     ),
   );
 }

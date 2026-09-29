@@ -19,3 +19,13 @@ String formatAmount(double value) {
 /// [formatAmount] with the baht sign: `฿87,370.00`, `−฿255.00`.
 String formatBaht(double value) =>
     value < 0 ? '−฿${formatAmount(-value)}' : '฿${formatAmount(value)}';
+
+/// An amount in [currencyCode]: baht keeps the `฿` form ([formatBaht]),
+/// any other currency is prefixed with its code — `USD 166.20`, as legacy
+/// shows an order that was switched to another currency.
+String formatMoney(double value, String currencyCode) {
+  if (currencyCode.isEmpty || currencyCode == 'THB') return formatBaht(value);
+  return value < 0
+      ? '−$currencyCode ${formatAmount(-value)}'
+      : '$currencyCode ${formatAmount(value)}';
+}

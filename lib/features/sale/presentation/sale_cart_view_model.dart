@@ -6,8 +6,10 @@ import '../../customer/domain/entities/privilege.dart';
 import '../domain/barcode_scan_input.dart';
 import '../domain/entities/cart.dart';
 import '../domain/entities/currency.dart';
+import '../domain/entities/exchange_quote.dart';
 import '../domain/usecases/add_item_to_cart_usecase.dart';
 import '../domain/usecases/change_order_currency_usecase.dart';
+import '../domain/usecases/exchange_change_usecase.dart';
 import '../domain/usecases/list_currencies_usecase.dart';
 import '../domain/usecases/lookup_article_by_barcode_usecase.dart';
 import '../domain/usecases/remove_cart_item_usecase.dart';
@@ -26,6 +28,7 @@ class SaleCartViewModel extends GetxController {
 
   final ListCurrenciesUseCase _listCurrencies;
   final ChangeOrderCurrencyUseCase _changeOrderCurrency;
+  final ExchangeChangeUseCase _exchangeChange;
 
   SaleCartViewModel({
     required RestoreSessionUseCase restoreSession,
@@ -35,13 +38,15 @@ class SaleCartViewModel extends GetxController {
     required RemoveCartItemUseCase removeCartItem,
     required ListCurrenciesUseCase listCurrencies,
     required ChangeOrderCurrencyUseCase changeOrderCurrency,
+    required ExchangeChangeUseCase exchangeChange,
   }) : _restoreSession = restoreSession,
        _lookupArticle = lookupArticle,
        _addItemToCart = addItemToCart,
        _updateCartItemQuantity = updateCartItemQuantity,
        _removeCartItem = removeCartItem,
        _listCurrencies = listCurrencies,
-       _changeOrderCurrency = changeOrderCurrency;
+       _changeOrderCurrency = changeOrderCurrency,
+       _exchangeChange = exchangeChange;
 
   Cart? cart;
   bool isBusy = false;
@@ -65,6 +70,20 @@ class SaleCartViewModel extends GetxController {
 
   /// The branch rate table for the currency picker.
   Future<List<Currency>> listCurrencies() => _listCurrencies();
+
+  /// Legacy `ChangePage`: quotes [changeInBaht] of change in
+  /// [currencyCode] (`SaleEngine/ExchangeCurrency`). Calculation only.
+  Future<ExchangeQuote> exchangeChange({
+    required String currencyCode,
+    required double currencyAmount,
+    required double changeInBaht,
+    required bool isChangeButton,
+  }) => _exchangeChange(
+    currencyCode: currencyCode,
+    currencyAmount: currencyAmount,
+    changeInBaht: changeInBaht,
+    isChangeButton: isChangeButton,
+  );
 
   /// Legacy `SalePage.changeCurrency()`'s gate, checked before the picker
   /// opens.

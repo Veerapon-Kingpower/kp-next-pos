@@ -5,3 +5,4 @@ library;
 export 'desktop_shell.dart';
 export 'desktop_tokens.dart';
 export 'desktop_widgets.dart';
+export 'desktop_wizard_frame.dart';

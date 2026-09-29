@@ -331,3 +331,24 @@ abstract class DesktopSaleIds {
   static String qtyDecrease(String row) => 'desktop.sale.line.$row.qtyDecrease';
   static String qtyIncrease(String row) => 'desktop.sale.line.$row.qtyIncrease';
 }
+
+/// Desktop Checkout (S5) / Payment (S6) elements not shared with handheld.
+abstract class DesktopPaymentIds {
+  static const wizardSteps = 'desktop.wizard.steps';
+  static const wizardEscape = 'desktop.wizard.escape';
+  static const linesTable = 'desktop.checkout.linesTable';
+  static const flightCard = 'desktop.checkout.flightCard';
+  static const signatureBox = 'desktop.checkout.signatureBox';
+  static const detailPanel = 'desktop.payment.detailPanel';
+  static const tenderedField = 'desktop.payment.tenderedField';
+  static const appliedToBill = 'desktop.payment.appliedToBill';
+  static const changeDue = 'desktop.payment.changeDue';
+  static const addTenderButton = 'desktop.payment.addTenderButton';
+  static const openDrawerButton = 'desktop.payment.openDrawerButton';
+  static const exactChip = 'desktop.payment.quick.exact';
+  static const keypadBackspace = 'desktop.payment.keypad.backspace';
+
+  static String currency(String code) => 'desktop.payment.currency.$code';
+  static String quick(int amount) => 'desktop.payment.quick.$amount';
+  static String keypad(String key) => 'desktop.payment.keypad.$key';
+}

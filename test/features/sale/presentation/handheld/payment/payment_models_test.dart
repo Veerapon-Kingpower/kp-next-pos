@@ -69,4 +69,31 @@ void main() {
     ];
     expect(tenderedTotal(tenders), 60000);
   });
+
+  group('previewCashTender', () {
+    test('over-tender: applied capped at remaining, change returned', () {
+      final p = previewCashTender(remaining: 27370, tendered: 30000);
+      expect(p.applied, 27370);
+      expect(p.change, 2630);
+      expect(p.remainingAfter, 0);
+    });
+
+    test('part payment leaves a remainder and no change', () {
+      final p = previewCashTender(remaining: 27370, tendered: 10000);
+      expect(p.applied, 10000);
+      expect(p.change, 0);
+      expect(p.remainingAfter, 17370);
+    });
+
+    test('exact, zero and negative input', () {
+      expect(previewCashTender(remaining: 500, tendered: 500).change, 0);
+      expect(previewCashTender(remaining: 500, tendered: 0).applied, 0);
+      expect(previewCashTender(remaining: 500, tendered: -20).applied, 0);
+    });
+
+    test('rounds to satang', () {
+      final p = previewCashTender(remaining: 100.104, tendered: 200);
+      expect(p.change, 99.9);
+    });
+  });
 }

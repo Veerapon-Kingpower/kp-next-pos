@@ -264,16 +264,28 @@ void main() {
       );
     });
 
-    testWidgets('Take payment and Suspend are inert until 2c', (tester) async {
+    testWidgets('Take payment (F12) opens Checkout; Suspend is inert', (
+      tester,
+    ) async {
       final handle = tester.ensureSemantics();
       await pump(tester);
-      for (final id in [SaleIds.checkoutButton, DesktopSaleIds.suspendButton]) {
-        expect(
-          tester.getSemantics(byTestId(id)),
-          isSemantics(hasEnabledState: true, isEnabled: false),
-          reason: id,
-        );
-      }
+      expect(
+        tester.getSemantics(byTestId(DesktopSaleIds.suspendButton)),
+        isSemantics(hasEnabledState: true, isEnabled: false),
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.f12);
+      await tester.pumpAndSettle();
+      expect(byTestId(CheckoutIds.page), findsOneWidget);
+      handle.dispose();
+    });
+
+    testWidgets('Take payment is disabled on an empty bill', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pump(tester, cart: null);
+      expect(
+        tester.getSemantics(byTestId(SaleIds.checkoutButton)),
+        isSemantics(hasEnabledState: true, isEnabled: false),
+      );
       handle.dispose();
     });
   });

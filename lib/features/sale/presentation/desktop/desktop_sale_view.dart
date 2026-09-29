@@ -12,6 +12,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../customer/domain/entities/privilege.dart';
 import '../../domain/entities/cart_item.dart';
 import '../sale_cart_view_model.dart';
+import 'desktop_checkout_page.dart';
 import 'desktop_discount_overlay.dart';
 
 /// Desktop Sale (POS Desktop mockup screens 3 + 4): scan row, Buying /
@@ -24,8 +25,8 @@ import 'desktop_discount_overlay.dart';
 /// (desktop Phase 2 data-reality map): per-line discount and fulfilment,
 /// Collect / Take grouping and cancelled lines on Basket, discount /
 /// Cash-D / VAT breakdown, Lookup (F9), Freeze, Pickup, Print basket,
-/// Claim check, Suspend. Take payment (F12) lands with sub-phase 2c.
-// TODO(pos-desktop): wire the 2c Checkout; line discount / fulfilment /
+/// Claim check, Suspend. Take payment (F12) opens the 2c Checkout.
+// TODO(pos-desktop): line discount / fulfilment /
 // cancelled state once the order API carries them (openspec 4.4 / 5.2 /
 // 6.1).
 class DesktopSaleView extends StatefulWidget {
@@ -98,6 +99,12 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
     if (mounted) _scanFocus.requestFocus();
   }
 
+  Future<void> _takePayment() async {
+    if (_lines.isEmpty) return;
+    await openDesktopCheckoutPage(context, viewModel: widget.viewModel);
+    if (mounted) _scanFocus.requestFocus();
+  }
+
   Future<void> _removeSelected() async {
     final index = _selectedIndex;
     if (index < 0) return;
@@ -126,6 +133,7 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
           const SingleActivator(LogicalKeyboardKey.f6): _discountSelected,
           const SingleActivator(LogicalKeyboardKey.f7): _qtyPrefix,
           const SingleActivator(LogicalKeyboardKey.f8): _removeSelected,
+          const SingleActivator(LogicalKeyboardKey.f12): _takePayment,
           const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
               _moveSelection(1),
           const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
@@ -193,6 +201,7 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
                   lines: lines,
                   total: _total,
                   privilege: viewModel.selectedPrivilege,
+                  onTakePayment: lines.isEmpty ? null : _takePayment,
                 ),
               ),
             ],
@@ -713,11 +722,13 @@ class _Summary extends StatelessWidget {
   final List<CartItem> lines;
   final double total;
   final Privilege? privilege;
+  final VoidCallback? onTakePayment;
 
   const _Summary({
     required this.lines,
     required this.total,
     required this.privilege,
+    required this.onTakePayment,
   });
 
   @override
@@ -923,12 +934,13 @@ class _Summary extends StatelessWidget {
                 ),
               ],
               const Spacer(),
-              const DesktopButton(
+              DesktopButton(
                 id: SaleIds.checkoutButton,
                 label: 'Take payment',
                 icon: Icons.payments_outlined,
                 hotkey: 'F12',
                 height: 70,
+                onPressed: onTakePayment,
               ),
               const SizedBox(height: 10),
               const DesktopButton(

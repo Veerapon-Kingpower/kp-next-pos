@@ -84,3 +84,33 @@ String maskPaymentCode(String rawCode) {
   if (code.length < 8) return code;
   return '${code.substring(0, 2)} •••• ${code.substring(code.length - 4)}';
 }
+
+/// Client-side preview of a cash tender: what it would pay off, the change
+/// due and what would remain. Presentation-only — nothing is tendered.
+class CashTenderPreview {
+  final double applied;
+  final double change;
+  final double remainingAfter;
+
+  const CashTenderPreview({
+    required this.applied,
+    required this.change,
+    required this.remainingAfter,
+  });
+}
+
+double _satang(double v) => (v * 100).roundToDouble() / 100;
+
+CashTenderPreview previewCashTender({
+  required double remaining,
+  required double tendered,
+}) {
+  final owed = _satang(remaining < 0 ? 0 : remaining);
+  final given = _satang(tendered < 0 ? 0 : tendered);
+  final applied = given < owed ? given : owed;
+  return CashTenderPreview(
+    applied: applied,
+    change: _satang(given - applied),
+    remainingAfter: _satang(owed - applied),
+  );
+}

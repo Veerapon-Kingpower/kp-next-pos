@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/app/session_state.dart';
 import 'package:kp_pos/core/config/device_settings.dart';
@@ -293,11 +294,7 @@ void main() {
       await tester.tap(byTestId(DesktopCustomerIds.searchButton));
       await tester.pumpAndSettle();
 
-      expect(inProfile(find.text('Jane Doe')), findsOneWidget);
-      expect(inProfile(find.textContaining('P1234567')), findsOneWidget);
-      // The member-card badge is driven by `typeCardMember` (from legacy's
-      // `person.singleDiscount`), not the `isMember` flag.
-      expect(inProfile(find.text('GOLD')), findsOneWidget);
+      expect(inProfile(byTestId(ProfileIds.privileges)), findsOneWidget);
     },
   );
 
@@ -319,7 +316,8 @@ void main() {
   );
 
   testWidgets(
-    'the card always shows privileges, wallet, and tour details, but not contacts',
+    'the card shows privileges but no raw wallet, tour, contact, or header '
+    'facts',
     (tester) async {
       const customer = Customer(
         action: 'found',
@@ -358,16 +356,16 @@ void main() {
       await tester.tap(byTestId(DesktopCustomerIds.searchButton));
       await tester.pumpAndSettle();
 
-      // Agent is part of the always-visible header, matching legacy;
-      // privileges/wallet/tour are always visible too now (no toggle);
-      // contacts are deliberately not shown at all.
-      expect(inProfile(find.textContaining('AG1')), findsOneWidget);
-      expect(find.text('contactType: MOBILE'), findsNothing);
-      expect(find.text('contactValue: 0812345678'), findsNothing);
+      // The form beside the profile already holds name, passport, agent…;
+      // wallets are the Carat / e-Purse tiles, never a key/value dump.
       expect(inProfile(find.text('Gold Member')), findsOneWidget);
       expect(inProfile(find.text('[VIP]:PROMO123')), findsOneWidget);
-      expect(inProfile(find.text('balance: 100')), findsOneWidget);
-      expect(inProfile(find.text('tourCode: T1')), findsOneWidget);
+      expect(inProfile(find.textContaining('AG1')), findsNothing);
+      expect(inProfile(find.text('Jane Doe')), findsNothing);
+      expect(inProfile(find.text('Passport')), findsNothing);
+      expect(find.text('contactType: MOBILE'), findsNothing);
+      expect(inProfile(find.text('balance: 100')), findsNothing);
+      expect(inProfile(find.text('tourCode: T1')), findsNothing);
     },
   );
 
@@ -536,151 +534,7 @@ void main() {
     expect(checkedIn(ProfileIds.noPrivilege), findsOneWidget);
   });
 
-  testWidgets('a customer with no extra data shows only the no-flight bar', (
-    tester,
-  ) async {
-    const customer = Customer(
-      action: 'found',
-      isFound: true,
-      person: CustomerPerson(
-        englishName: 'John Smith',
-        passportNo: '',
-        nationality: '',
-        contacts: [],
-        privileges: [],
-        walletMembers: [],
-      ),
-      tour: {},
-      agentCode: '',
-      isMember: false,
-    );
-
-    await pumpCustomerTab(tester, buildPage(searchResult: const [customer]));
-
-    final searchField = find.widgetWithText(
-      TextField,
-      'Search by shopping card, passport, or ID card number',
-    );
-    await tester.enterText(searchField, 'CPX0002');
-    await tester.tap(byTestId(DesktopCustomerIds.searchButton));
-    await tester.pumpAndSettle();
-
-    expect(inProfile(find.text('Flight: Not available')), findsOneWidget);
-  });
-
-  testWidgets(
-    'shows the shopping card number and registered status in the header',
-    (tester) async {
-      const customer = Customer(
-        action: 'found',
-        isFound: true,
-        person: CustomerPerson(
-          englishName: 'Jane Doe',
-          passportNo: 'P1234567',
-          nationality: 'THA',
-          contacts: [],
-          privileges: [],
-          walletMembers: [],
-          shoppingCard: 'CPX0001',
-          isActivate: true,
-        ),
-        tour: {},
-        agentCode: '',
-        isMember: false,
-      );
-
-      await pumpCustomerTab(tester, buildPage(searchResult: const [customer]));
-
-      final searchField = find.widgetWithText(
-        TextField,
-        'Search by shopping card, passport, or ID card number',
-      );
-      await tester.enterText(searchField, 'CPX0001');
-      await tester.tap(byTestId(DesktopCustomerIds.searchButton));
-      await tester.pumpAndSettle();
-
-      // The search field also holds "CPX0001" as typed input, so match only
-      // a plain Text widget (not the field's EditableText) for the card.
-      expect(
-        find.byWidgetPredicate((w) => w is Text && w.data == 'CPX0001'),
-        findsOneWidget,
-      );
-      expect(inProfile(find.text('Registered')), findsOneWidget);
-    },
-  );
-
-  testWidgets(
-    'a not-activated customer shows a Not Registered status in the header',
-    (tester) async {
-      const customer = Customer(
-        action: 'found',
-        isFound: true,
-        person: CustomerPerson(
-          englishName: 'Jane Doe',
-          passportNo: 'P1234567',
-          nationality: 'THA',
-          contacts: [],
-          privileges: [],
-          walletMembers: [],
-          isActivate: false,
-        ),
-        tour: {},
-        agentCode: '',
-        isMember: false,
-      );
-
-      await pumpCustomerTab(tester, buildPage(searchResult: const [customer]));
-
-      final searchField = find.widgetWithText(
-        TextField,
-        'Search by shopping card, passport, or ID card number',
-      );
-      await tester.enterText(searchField, 'CPX0001');
-      await tester.tap(byTestId(DesktopCustomerIds.searchButton));
-      await tester.pumpAndSettle();
-
-      expect(inProfile(find.text('Not Registered')), findsOneWidget);
-    },
-  );
-
-  testWidgets('shows customer type and guide in the always-visible header', (
-    tester,
-  ) async {
-    const customer = Customer(
-      action: 'found',
-      isFound: true,
-      person: CustomerPerson(
-        englishName: 'Jane Doe',
-        passportNo: 'P1234567',
-        nationality: 'THA',
-        contacts: [],
-        privileges: [],
-        walletMembers: [],
-        customerTypeCode: 'VIP',
-        customerTypeDetail: 'VIP Member',
-      ),
-      tour: {},
-      agentCode: '',
-      subAgentCode: 'GD1',
-      isMember: false,
-    );
-
-    await pumpCustomerTab(tester, buildPage(searchResult: const [customer]));
-
-    final searchField = find.widgetWithText(
-      TextField,
-      'Search by shopping card, passport, or ID card number',
-    );
-    await tester.enterText(searchField, 'CPX0001');
-    await tester.tap(byTestId(DesktopCustomerIds.searchButton));
-    await tester.pumpAndSettle();
-
-    expect(inProfile(find.textContaining('VIP')), findsWidgets);
-    expect(inProfile(find.textContaining('VIP Member')), findsOneWidget);
-    expect(inProfile(find.textContaining('GD1')), findsOneWidget);
-  });
-
-  testWidgets('shows flight info attached to the customer info when present', (
+  testWidgets('the card shows no flight block — the form holds the flight', (
     tester,
   ) async {
     const customer = Customer(
@@ -698,9 +552,13 @@ void main() {
         flightTime: '10:00',
         flightRouteDetail: 'BKK - NRT',
         flightPickup: 'Gate A1',
+        customerTypeCode: 'VIP',
+        customerTypeDetail: 'VIP Member',
+        shoppingCard: 'CPX0001',
       ),
       tour: {},
       agentCode: '',
+      subAgentCode: 'GD1',
       isMember: false,
     );
 
@@ -710,13 +568,16 @@ void main() {
       TextField,
       'Search by shopping card, passport, or ID card number',
     );
-    await tester.enterText(searchField, 'CPX0001');
+    await tester.enterText(searchField, 'CPX0002');
     await tester.tap(byTestId(DesktopCustomerIds.searchButton));
     await tester.pumpAndSettle();
 
-    expect(inProfile(find.textContaining('TG101')), findsOneWidget);
-    expect(inProfile(find.textContaining('BKK - NRT')), findsOneWidget);
-    expect(inProfile(find.textContaining('Gate A1')), findsOneWidget);
+    expect(inProfile(find.textContaining('TG101')), findsNothing);
+    expect(inProfile(find.textContaining('BKK - NRT')), findsNothing);
+    expect(inProfile(find.text('Flight: Not available')), findsNothing);
+    expect(inProfile(find.textContaining('VIP Member')), findsNothing);
+    expect(inProfile(find.textContaining('GD1')), findsNothing);
+    expect(inProfile(find.text('CPX0001')), findsNothing);
   });
 
   group('desktop Customer (mockup screen 8)', () {
@@ -774,11 +635,16 @@ void main() {
       expect(byTestId(DesktopCustomerIds.form), findsOneWidget);
       expect(find.text('NEW CUSTOMER'), findsOneWidget);
       expect(byTestId(DesktopCustomerIds.profileEmpty), findsOneWidget);
-      // Register member has no enrolment API — visibly inert.
-      expect(
-        tester.getSemantics(byTestId(DesktopCustomerIds.registerMemberButton)),
-        isSemantics(isButton: true, hasEnabledState: true, isEnabled: false),
+      // No member enrolment API — so no Register member button.
+      expect(find.text('Register member'), findsNothing);
+      // The Search label fits beside its ENTER chip — not "Se…".
+      final searchLabel = tester.renderObject<RenderParagraph>(
+        find.descendant(
+          of: byTestId(DesktopCustomerIds.searchButton),
+          matching: find.text('Search'),
+        ),
       );
+      expect(searchLabel.didExceedMaxLines, isFalse);
 
       await search(tester, 'CPX9999');
       expect(inProfile(find.text('No customer found.')), findsOneWidget);
@@ -794,14 +660,10 @@ void main() {
       expect(find.text('UPDATE CUSTOMER'), findsOneWidget);
       expect(formText(tester, DesktopCustomerIds.passportNo), 'P1234567');
       expect(formText(tester, DesktopCustomerIds.englishName), 'Jane Doe');
-      expect(inProfile(find.text('Jane Doe')), findsOneWidget);
-      expect(
-        find.descendant(
-          of: byTestId(DesktopCustomerIds.matchedCard),
-          matching: find.text('Shopping card CPX0001'),
-        ),
-        findsOneWidget,
-      );
+      expect(inProfile(byTestId(ProfileIds.privileges)), findsOneWidget);
+      // No "Shopping card …" chip under the search bar — the form's status
+      // banner already shows the card ("Shopping card CPX0001 · Saving …").
+      expect(find.text('Shopping card CPX0001'), findsNothing);
       // The form is the edit — no separate edit icon on the profile.
       expect(find.byKey(const Key('editCustomerButton')), findsNothing);
       final formLeft = tester.getTopLeft(byTestId(DesktopCustomerIds.form)).dx;
@@ -827,6 +689,71 @@ void main() {
       expect(find.text('VISITS'), findsNothing);
       expect(find.text('Attach to bill'), findsNothing);
       expect(byTestId(ProfileIds.recentPurchases), findsOneWidget);
+      expect(byTestId(ProfileIds.caratExpiring), findsNothing);
+    });
+
+    testWidgets('the Carat tile notes the amount nearly expiring', (
+      tester,
+    ) async {
+      const expiring = Customer(
+        action: 'found',
+        isFound: true,
+        person: CustomerPerson(
+          englishName: 'KP DEV',
+          passportNo: '1234567',
+          nationality: 'USA',
+          contacts: [],
+          privileges: [],
+          walletMembers: [
+            {
+              'Code': 'CARAT_WALLET',
+              'PaymentCode': 'CARAT',
+              'Balance': 1475.0,
+              'NearlyExpiredAmount': 1475.0,
+              'NearlyExpiredAt': '2029-12-31T16:59:59.999Z',
+            },
+          ],
+        ),
+        tour: {},
+        agentCode: '',
+        isMember: true,
+      );
+      await pumpCustomerTab(tester, buildPage(searchResult: const [expiring]));
+      await search(tester, 'CPX0001');
+
+      expect(
+        find.descendant(
+          of: byTestId(ProfileIds.caratExpiring),
+          matching: find.text('1,475.00 expiring 31/12/2029'),
+        ),
+        findsOneWidget,
+      );
+      expect(inProfile(find.textContaining('WalletTypeCode')), findsNothing);
+      // A small hint, well under the value.
+      expect(
+        tester
+            .widget<Text>(
+              find.descendant(
+                of: byTestId(ProfileIds.caratExpiring),
+                matching: find.byType(Text),
+              ),
+            )
+            .style
+            ?.fontSize,
+        10.5,
+      );
+      // The expiring line doesn't make the Carat tile taller than e-Purse.
+      double tileHeight(String id) => tester
+          .getSize(
+            find
+                .ancestor(of: byTestId(id), matching: find.byType(Expanded))
+                .first,
+          )
+          .height;
+      expect(
+        tileHeight(ProfileIds.caratStat),
+        tileHeight(ProfileIds.ePurseStat),
+      );
     });
 
     testWidgets('a registered customer shows a Registered status and an '
@@ -968,7 +895,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(searchRepo.searchedShoppingCards, ['CPX0001']);
-      expect(inProfile(find.text('Jane Doe')), findsOneWidget);
+      expect(inProfile(byTestId(ProfileIds.privileges)), findsOneWidget);
       expect(find.text('UPDATE CUSTOMER'), findsOneWidget);
     });
   });
@@ -1078,7 +1005,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(byTestId(DesktopCustomerIds.searchField), findsOneWidget);
-      expect(inProfile(find.text('Jane Doe')), findsOneWidget);
+      expect(inProfile(byTestId(ProfileIds.privileges)), findsOneWidget);
       expect(
         tester.getSemantics(byTestId(NavIds.customer)),
         isSemantics(isSelected: true),

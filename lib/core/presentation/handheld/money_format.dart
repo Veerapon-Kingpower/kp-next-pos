@@ -27,6 +27,12 @@ String formatCarat(double? value) => value == null ? '—' : formatAmount(value)
 /// cash wallet.
 String formatEPurse(double? value) => value == null ? '—' : formatBaht(value);
 
+/// Carat nearly expiring — `1,475.00 expiring 31/12/2029`; the date in
+/// legacy's `d/MM/yyyy` form.
+String formatCaratExpiring(double amount, DateTime at) =>
+    '${formatAmount(amount)} expiring '
+    '${at.day}/${at.month.toString().padLeft(2, '0')}/${at.year}';
+
 /// An amount in [currencyCode]: baht keeps the `฿` form ([formatBaht]),
 /// any other currency is prefixed with its code — `USD 166.20`, as legacy
 /// shows an order that was switched to another currency.

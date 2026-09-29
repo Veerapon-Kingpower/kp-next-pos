@@ -130,6 +130,59 @@ void main() {
     expect(textIn(tester, ProfileIds.ePurseStat), '฿4,200.00');
     expect(find.text('SPEND YTD'), findsNothing);
     expect(find.text('VISITS'), findsNothing);
+    // Sofia's Carat wallet has nothing nearly expired.
+    expect(byTestId(ProfileIds.caratExpiring), findsNothing);
+  });
+
+  testWidgets('Carat tile notes the amount nearly expiring', (tester) async {
+    const expiring = Customer(
+      action: 'found',
+      isFound: true,
+      person: CustomerPerson(
+        englishName: 'KP DEV',
+        passportNo: '1234567',
+        nationality: 'USA',
+        contacts: [],
+        privileges: [],
+        walletMembers: [
+          {
+            'Code': 'CARAT_WALLET',
+            'PaymentCode': 'CARAT',
+            'Balance': 1475.0,
+            'NearlyExpiredAmount': 1475.0,
+            'NearlyExpiredAt': '2029-12-31T16:59:59.999Z',
+          },
+        ],
+      ),
+      tour: {},
+      agentCode: '',
+      isMember: true,
+    );
+    await open(tester, customer: expiring);
+    expect(
+      textIn(tester, ProfileIds.caratExpiring),
+      '1,475.00 expiring 31/12/2029',
+    );
+    // A small hint, well under the value.
+    expect(
+      tester
+          .widget<Text>(
+            find.descendant(
+              of: byTestId(ProfileIds.caratExpiring),
+              matching: find.byType(Text),
+            ),
+          )
+          .style
+          ?.fontSize,
+      10,
+    );
+    // The expiring line doesn't make the Carat tile taller than e-Purse.
+    double tileHeight(String id) => tester
+        .getSize(
+          find.ancestor(of: byTestId(id), matching: find.byType(Expanded)).first,
+        )
+        .height;
+    expect(tileHeight(ProfileIds.caratStat), tileHeight(ProfileIds.ePurseStat));
   });
 
   testWidgets('flight card shows the linked flight', (tester) async {

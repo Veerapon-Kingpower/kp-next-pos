@@ -80,6 +80,7 @@ abstract class SaleIds {
   static const saveButton = 'sale.saveButton';
   static const moreButton = 'sale.moreButton';
   static const moreSheet = 'sale.moreSheet';
+
   /// An order-type option in the More sheet, by `SaleOrderType.name`
   /// (`normal`, `delivery`, `preOrder`, `deposit`).
   static String orderType(String name) => 'sale.orderType.$name';
@@ -257,6 +258,7 @@ abstract class ProfileIds {
   static const status = 'profile.status';
   static const caratStat = 'profile.stat.carat';
   static const ePurseStat = 'profile.stat.ePurse';
+  static const caratExpiring = 'profile.stat.caratExpiring';
   static const flightCard = 'profile.flightCard';
   static const privileges = 'profile.privileges';
   static const noPrivilege = 'profile.privilege.none';
@@ -381,8 +383,6 @@ abstract class DesktopCustomerIds {
   static const searchField = 'desktop.customer.searchField';
   static const searchButton = 'desktop.customer.searchButton';
   static const newCustomerButton = 'desktop.customer.newCustomerButton';
-  static const registerMemberButton = 'desktop.customer.registerMemberButton';
-  static const matchedCard = 'desktop.customer.matchedCard';
   static const profile = 'desktop.customer.profile';
   static const profileEmpty = 'desktop.customer.profileEmpty';
   static String result(int index) => 'desktop.customer.result.$index';

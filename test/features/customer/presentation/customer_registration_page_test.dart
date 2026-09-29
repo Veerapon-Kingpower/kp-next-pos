@@ -1091,6 +1091,13 @@ void main() {
       await lookup(tester, DesktopCustomerIds.flightCode, 'TG');
       expect(flightDateText(tester), 'Tue 18 Aug 2026 10:00');
 
+      expect(
+        find.descendant(
+          of: byTestId(DesktopCustomerIds.nonInternational),
+          matching: find.text('Non-international flight (take away)'),
+        ),
+        findsOneWidget,
+      );
       await tester.tap(byTestId(DesktopCustomerIds.nonInternational));
       await tester.pumpAndSettle();
 

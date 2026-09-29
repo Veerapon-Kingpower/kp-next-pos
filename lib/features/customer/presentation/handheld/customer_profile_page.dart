@@ -54,6 +54,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
   Widget build(BuildContext context) {
     final person = _person;
     final badge = person.typeCardMember.trim().toUpperCase();
+    final expiring = person.caratNearlyExpired;
     final cardLine = [
       person.shoppingCard,
       person.nationality,
@@ -73,24 +74,32 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: _StatTile(
-                      id: ProfileIds.caratStat,
-                      label: 'Carat',
-                      value: formatCarat(person.caratBalance),
+              // Equal-height tiles even when only Carat has an expiring line.
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: _StatTile(
+                        id: ProfileIds.caratStat,
+                        label: 'Carat',
+                        value: formatCarat(person.caratBalance),
+                        note: expiring == null
+                            ? null
+                            : formatCaratExpiring(expiring.amount, expiring.at),
+                        noteId: ProfileIds.caratExpiring,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _StatTile(
-                      id: ProfileIds.ePurseStat,
-                      label: 'e-Purse',
-                      value: formatEPurse(person.ePurseBalance),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _StatTile(
+                        id: ProfileIds.ePurseStat,
+                        label: 'e-Purse',
+                        value: formatEPurse(person.ePurseBalance),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               const SizedBox(height: 14),
               _FlightCard(
@@ -300,8 +309,17 @@ class _StatTile extends StatelessWidget {
   final String id;
   final String label;
   final String value;
+  // Small amber line under the value (Carat nearly expiring); none if null.
+  final String? note;
+  final String? noteId;
 
-  const _StatTile({required this.id, required this.label, required this.value});
+  const _StatTile({
+    required this.id,
+    required this.label,
+    required this.value,
+    this.note,
+    this.noteId,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -329,6 +347,21 @@ class _StatTile extends StatelessWidget {
               style: HandheldText.statValue.copyWith(fontSize: 21),
             ),
           ),
+          if (note != null) ...[
+            const SizedBox(height: 4),
+            TestId(
+              noteId ?? '',
+              child: Text(
+                note!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: HandheldText.bodySmall.copyWith(
+                  fontSize: 10,
+                  color: AppColors.warning,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

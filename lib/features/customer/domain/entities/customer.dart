@@ -123,16 +123,35 @@ class CustomerPerson {
   /// (`CASH_WALLET`, THB). Null when the customer has no such wallet.
   double? get ePurseBalance => _walletBalance('CASHW');
 
+  /// Carat due to expire soon — the Carat wallet's `NearlyExpiredAmount`
+  /// and `NearlyExpiredAt`. [at] is the Bangkok (UTC+7) calendar date: the
+  /// API sends the end of that day in UTC (`2029-12-31T16:59:59.999Z`).
+  /// Null when nothing is due, the date is missing, or there's no Carat.
+  ({double amount, DateTime at})? get caratNearlyExpired {
+    final wallet = _wallet('CARAT');
+    if (wallet == null) return null;
+    final amount = _toDouble(wallet['NearlyExpiredAmount']);
+    final at = DateTime.tryParse('${wallet['NearlyExpiredAt'] ?? ''}');
+    if (amount == null || amount <= 0 || at == null) return null;
+    return (amount: amount, at: at.toUtc().add(const Duration(hours: 7)));
+  }
+
   // Legacy's `WalletMemberModel` keys are PascalCase (`PaymentCode`,
   // `Balance`).
   double? _walletBalance(String paymentCode) {
+    final wallet = _wallet(paymentCode);
+    return wallet == null ? null : _toDouble(wallet['Balance']);
+  }
+
+  Map<String, dynamic>? _wallet(String paymentCode) {
     for (final wallet in walletMembers) {
-      if ('${wallet['PaymentCode'] ?? ''}'.toUpperCase() != paymentCode) {
-        continue;
+      if ('${wallet['PaymentCode'] ?? ''}'.toUpperCase() == paymentCode) {
+        return wallet;
       }
-      final balance = wallet['Balance'];
-      return balance is num ? balance.toDouble() : double.tryParse('$balance');
     }
     return null;
   }
+
+  static double? _toDouble(Object? value) =>
+      value is num ? value.toDouble() : double.tryParse('$value');
 }

@@ -98,8 +98,7 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
 
   // A found customer the server already reports as registered
   // (`isActivate`) — shown as a status banner.
-  bool get _isRegistered =>
-      widget.existingCustomer?.person.isActivate ?? false;
+  bool get _isRegistered => widget.existingCustomer?.person.isActivate ?? false;
 
   // Labels say "Update" for an edit or an already-registered customer; the
   // wire `action` still follows [_isEdit] exactly as legacy does.
@@ -814,7 +813,7 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
               value: _allowTakeAway,
               onChanged: (value) => _setNonInternational(value ?? false),
               title: const Text(
-                'Non-international flight (take away — clears flight fields)',
+                'Non-international flight (take away)',
                 style: TextStyle(fontSize: 14),
               ),
             ),

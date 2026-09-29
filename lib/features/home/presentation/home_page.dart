@@ -629,7 +629,7 @@ class _HomePageState extends State<HomePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _customerSearchBar(viewModel, customer),
+          _customerSearchBar(viewModel),
           const SizedBox(height: 20),
           Expanded(
             child: LayoutBuilder(
@@ -663,8 +663,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _customerSearchBar(HomeViewModel viewModel, Customer? customer) {
-    final card = customer?.person.shoppingCard ?? '';
+  Widget _customerSearchBar(HomeViewModel viewModel) {
     return DesktopPanel(
       padding: const EdgeInsets.all(18),
       child: Column(
@@ -707,8 +706,7 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
               const SizedBox(width: 10),
-              SizedBox(
-                width: 140,
+              IntrinsicWidth(
                 child: DesktopButton(
                   id: DesktopCustomerIds.searchButton,
                   label: 'Search',
@@ -731,65 +729,14 @@ class _HomePageState extends State<HomePage> {
                   onPressed: _newCustomer,
                 ),
               ),
-              const SizedBox(width: 10),
-              // TODO(pos-desktop): KP member registration — no member
-              // enrolment API in this app yet.
-              const SizedBox(
-                width: 190,
-                child: DesktopButton(
-                  id: DesktopCustomerIds.registerMemberButton,
-                  label: 'Register member',
-                  icon: Icons.card_membership_outlined,
-                  height: 58,
-                ),
-              ),
             ],
           ),
           const SizedBox(height: 10),
-          Row(
-            children: [
-              // `Register/GetCustomer` takes the value as-is — no format
-              // detection, so no "detected ID type" is claimed.
-              const Expanded(
-                child: Text(
-                  'Scan or type a shopping card, passport no. or ID card '
-                  'number.',
-                  style: TextStyle(fontSize: 12.5, color: AppColors.mutedText),
-                ),
-              ),
-              if (card.isNotEmpty)
-                TestId(
-                  DesktopCustomerIds.matchedCard,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.success.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.check_circle,
-                          size: 14,
-                          color: AppColors.success,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Shopping card $card',
-                          style: const TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
+          // `Register/GetCustomer` takes the value as-is — no format
+          // detection, so no "detected ID type" is claimed.
+          const Text(
+            'Scan or type a shopping card, passport no. or ID card number.',
+            style: TextStyle(fontSize: 12.5, color: AppColors.mutedText),
           ),
         ],
       ),
@@ -892,31 +839,48 @@ class _HomePageState extends State<HomePage> {
     }
 
     final results = viewModel.customerSearchResults;
-    Widget stat(String id, String label, String value) => Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.line),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label.toUpperCase(), style: DesktopText.fieldLabel),
-            const SizedBox(height: 6),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: TestId(
-                id,
-                child: Text(value, style: DesktopText.kpiValue),
-              ),
+    final expiring = customer.person.caratNearlyExpired;
+    Widget stat(String id, String label, String value, {String? note}) =>
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.line),
             ),
-          ],
-        ),
-      ),
-    );
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label.toUpperCase(), style: DesktopText.fieldLabel),
+                const SizedBox(height: 6),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: TestId(
+                    id,
+                    child: Text(value, style: DesktopText.kpiValue),
+                  ),
+                ),
+                if (note != null) ...[
+                  const SizedBox(height: 4),
+                  TestId(
+                    ProfileIds.caratExpiring,
+                    child: Text(
+                      note,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 10.5,
+                        color: AppColors.warning,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -946,25 +910,31 @@ class _HomePageState extends State<HomePage> {
           ),
           const SizedBox(height: 16),
         ],
-        Row(
-          children: [
-            stat(
-              ProfileIds.caratStat,
-              'Carat',
-              formatCarat(customer.person.caratBalance),
-            ),
-            const SizedBox(width: 10),
-            stat(
-              ProfileIds.ePurseStat,
-              'e-Purse',
-              formatEPurse(customer.person.ePurseBalance),
-            ),
-          ],
+        // Equal-height tiles even when only Carat has an expiring line.
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              stat(
+                ProfileIds.caratStat,
+                'Carat',
+                formatCarat(customer.person.caratBalance),
+                note: expiring == null
+                    ? null
+                    : formatCaratExpiring(expiring.amount, expiring.at),
+              ),
+              const SizedBox(width: 10),
+              stat(
+                ProfileIds.ePurseStat,
+                'e-Purse',
+                formatEPurse(customer.person.ePurseBalance),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 16),
         _CustomerResultCard(
           customer: customer,
-          isAirportMpos: viewModel.settings.isAirportMpos,
           onGoToSale: _goToSale,
           selectedPrivilege: _selectedPrivilege,
           onSelectPrivilege: _selectPrivilege,
@@ -1060,28 +1030,22 @@ class _PrivilegeSelection {
   const _PrivilegeSelection(this.privilege);
 }
 
-/// Search-result card, restyled to match legacy smart-pos's `CustomerPage`
-/// header: the shopping card number, name, passport, nationality, customer
-/// type, agent, guide, and register status are always visible (legacy shows
-/// exactly one customer per screen, so its whole header is static); flight
-/// info and the privilege/wallet/tour data sit directly below that header,
-/// always visible too — there is no expand/collapse step. It is the desktop
-/// Customer tab's profile body, so legacy's `btn-edit-icon` is not repeated
-/// here: the edit form is already open beside it. The "Go to Sale" button
-/// ports the two data-only guards
-/// from legacy's `checkConditionToSalePage()` before switching tabs — see
-/// `_HomePageState._goToSale`'s doc comment for what's deliberately not
-/// replicated.
+/// Search-result card: the privilege radio list. It is the desktop Customer
+/// tab's profile body, beside the edit form, so the name, shopping card,
+/// passport, nationality, customer type, agent/guide, flight and register
+/// status are left to that form instead of being repeated here; the wallets
+/// are the Carat / e-Purse tiles above the card. The member-card face is
+/// left out for now. [onGoToSale] ports the two data-only guards from
+/// legacy's `checkConditionToSalePage()` — see `_HomePageState._goToSale`'s
+/// doc comment.
 class _CustomerResultCard extends StatelessWidget {
   final Customer customer;
-  final bool isAirportMpos;
   final Future<void> Function(Customer) onGoToSale;
   final Privilege? selectedPrivilege;
   final ValueChanged<Privilege?> onSelectPrivilege;
 
   const _CustomerResultCard({
     required this.customer,
-    required this.isAirportMpos,
     required this.onGoToSale,
     required this.selectedPrivilege,
     required this.onSelectPrivilege,
@@ -1089,561 +1053,14 @@ class _CustomerResultCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The same radio list as the handheld profile: "No privilege" (default)
+    // plus each privilege; see `_HomePageState._selectPrivilege`.
     return AppCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _CustomerCardFace(customer: customer),
-                Expanded(
-                  child: _CustomerHeaderDetail(
-                    customer: customer,
-                    onGoToSale: onGoToSale,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          _CustomerDetails(
-            customer: customer,
-            isAirportMpos: isAirportMpos,
-            selectedPrivilege: selectedPrivilege,
-            onSelectPrivilege: onSelectPrivilege,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Left-hand card face — mirrors legacy's gold-bordered member card visual
-/// (`wrapper-card` in `customer.scss`): the member-card photo
-/// (`Customer.pathURLMemberCard`, a real top-level API field) as the
-/// background when present, with the type-code/member-tier badge overlaid
-/// on it — same as legacy's `cardImg` + `.text-card-type`/
-/// `.text-type-card-member` overlay. Falls back to the icon placeholder
-/// when there's no photo, or if it fails to load.
-class _CustomerCardFace extends StatelessWidget {
-  final Customer customer;
-
-  const _CustomerCardFace({required this.customer});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 72,
-      decoration: const BoxDecoration(
-        color: Color(0x14C5A059), // AppColors.goldAccent at low opacity
-        border: Border(
-          right: BorderSide(color: AppColors.goldAccent, width: 4),
-        ),
-      ),
-      child: customer.pathURLMemberCard.isEmpty
-          ? _placeholder(context)
-          : Stack(
-              fit: StackFit.expand,
-              children: [
-                Image.network(
-                  customer.pathURLMemberCard,
-                  fit: BoxFit.cover,
-                  loadingBuilder: (context, child, progress) =>
-                      progress == null ? child : _placeholder(context),
-                  errorBuilder: (context, error, stackTrace) =>
-                      _placeholder(context),
-                ),
-                if (_badgeText(customer.person).isNotEmpty)
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: DecoratedBox(
-                      decoration: const BoxDecoration(color: Color(0x99000000)),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: AppSpacing.xxs,
-                        ),
-                        child: _badgeLabels(
-                          context,
-                          customer.person,
-                          onDark: true,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-    );
-  }
-
-  Widget _placeholder(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.xs,
-        vertical: AppSpacing.sm,
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(
-            Icons.person_outline,
-            size: AppSizing.iconSizeLarge,
-            color: AppColors.goldDark,
-          ),
-          const SizedBox(height: AppSpacing.xxs),
-          _badgeLabels(context, customer.person, onDark: false),
-        ],
-      ),
-    );
-  }
-
-  String _badgeText(CustomerPerson person) =>
-      person.custTypeCode + person.typeCardMember;
-
-  Widget _badgeLabels(
-    BuildContext context,
-    CustomerPerson person, {
-    required bool onDark,
-  }) {
-    final textTheme = Theme.of(context).textTheme;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (person.custTypeCode.isNotEmpty)
-          Text(
-            person.custTypeCode,
-            textAlign: TextAlign.center,
-            style: textTheme.labelMedium?.copyWith(
-              color: onDark ? Colors.white : null,
-            ),
-          ),
-        if (person.typeCardMember.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.xxs),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: AppColors.goldAccent,
-              borderRadius: BorderRadius.circular(AppSizing.cornerRadiusSm),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              child: Text(
-                person.typeCardMember.toUpperCase(),
-                style: const TextStyle(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-/// Always-visible header detail block — shopping card number, name, and the
-/// label/value facts legacy shows in `CustomerPage`'s header (Passport,
-/// Nationality, Customer Type, Agent, Guide, register status).
-class _CustomerHeaderDetail extends StatelessWidget {
-  final Customer customer;
-  final Future<void> Function(Customer) onGoToSale;
-
-  const _CustomerHeaderDetail({
-    required this.customer,
-    required this.onGoToSale,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final person = customer.person;
-
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Flexible(
-                child: Text(
-                  person.shoppingCard.isEmpty ? '—' : person.shoppingCard,
-                  textAlign: TextAlign.right,
-                  style: textTheme.titleLarge,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.xxs),
-              const Icon(
-                Icons.qr_code_2,
-                size: AppSizing.iconSize,
-                color: AppColors.goldAccent,
-              ),
-            ],
-          ),
-          const Divider(
-            color: AppColors.goldAccent,
-            thickness: 2,
-            height: AppSpacing.md,
-          ),
-          Text(
-            person.englishName.isEmpty
-                ? 'Unnamed customer'
-                : person.englishName,
-            textAlign: TextAlign.right,
-            style: textTheme.titleMedium,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          _FactRow(label: 'Passport', value: person.passportNo),
-          _FactRow(label: 'Nationality', value: person.nationality),
-          _FactRow(
-            label: 'Customer Type',
-            value: person.customerTypeCode,
-            sub: person.customerTypeDetail,
-          ),
-          _FactRow(label: 'Agent', value: customer.agentCode),
-          _FactRow(label: 'Guide', value: customer.subAgentCode),
-          Container(
-            margin: const EdgeInsets.only(top: AppSpacing.xs),
-            padding: const EdgeInsets.only(top: AppSpacing.xs),
-            decoration: const BoxDecoration(
-              border: Border(top: BorderSide(color: AppColors.divider)),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  person.isActivate ? Icons.check_circle : Icons.cancel,
-                  size: AppSizing.iconSize,
-                  color: person.isActivate
-                      ? AppColors.success
-                      : AppColors.danger,
-                ),
-                const SizedBox(width: AppSpacing.xxs),
-                Expanded(
-                  child: Text(
-                    person.isActivate ? 'Registered' : 'Not Registered',
-                    style: textTheme.labelLarge?.copyWith(
-                      color: person.isActivate
-                          ? AppColors.success
-                          : AppColors.danger,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// One label-left/value-right fact row, mirroring legacy's
-/// `text-detail-left`/`text-detail-right` pairing. Renders nothing when
-/// both [value] and [sub] are empty, so absent fields don't leave a blank
-/// row.
-class _FactRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final String sub;
-
-  const _FactRow({required this.label, required this.value, this.sub = ''});
-
-  @override
-  Widget build(BuildContext context) {
-    if (value.isEmpty && sub.isEmpty) return const SizedBox.shrink();
-    final textTheme = Theme.of(context).textTheme;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: textTheme.bodyMedium?.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  value.isEmpty ? '—' : value,
-                  textAlign: TextAlign.right,
-                  style: textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                if (sub.isNotEmpty)
-                  Text(
-                    sub,
-                    textAlign: TextAlign.right,
-                    style: textTheme.bodySmall?.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Always-visible, directly below the header — the flight block (styled
-/// like legacy's blue-accented flight card, or a compact "not available"
-/// bar when there's no flight) plus privilege/wallet/tour. Previously sat
-/// behind a "Details" tap-to-expand toggle; removed so flight info reads as
-/// part of the customer's info rather than a separate step.
-class _CustomerDetails extends StatelessWidget {
-  final Customer customer;
-  final bool isAirportMpos;
-  final Privilege? selectedPrivilege;
-  final ValueChanged<Privilege?> onSelectPrivilege;
-
-  const _CustomerDetails({
-    required this.customer,
-    required this.isAirportMpos,
-    required this.selectedPrivilege,
-    required this.onSelectPrivilege,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final person = customer.person;
-    final extras = <Widget>[
-      ..._privilegeSection(context, person.privileges),
-      ..._mapListSection(context, 'Wallet', person.walletMembers),
-      ..._mapSection(context, 'Tour', customer.tour),
-    ];
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.sm,
-        AppSpacing.sm,
-        AppSpacing.sm,
-        AppSpacing.sm,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          person.flightCode.isEmpty
-              ? const _NoFlightBar()
-              : _FlightCard(person: person, isAirportMpos: isAirportMpos),
-          if (extras.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.xs),
-            ...extras,
-          ],
-        ],
-      ),
-    );
-  }
-
-  // The same radio list as the handheld profile: "No privilege" (default)
-  // plus each privilege; see `_HomePageState._selectPrivilege`.
-  List<Widget> _privilegeSection(
-    BuildContext context,
-    List<Privilege> privileges,
-  ) => [
-    PrivilegeRadioList(
-      privileges: privileges,
-      selected: selectedPrivilege,
-      onChanged: onSelectPrivilege,
-    ),
-  ];
-
-  List<Widget> _mapListSection(
-    BuildContext context,
-    String title,
-    List<Map<String, dynamic>> items,
-  ) {
-    if (items.isEmpty) return const [];
-    final textTheme = Theme.of(context).textTheme;
-    return [
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: textTheme.labelLarge),
-          for (final item in items) _KeyValueRows(data: item),
-        ],
-      ),
-    ];
-  }
-
-  List<Widget> _mapSection(
-    BuildContext context,
-    String title,
-    Map<String, dynamic> data,
-  ) {
-    if (data.isEmpty) return const [];
-    final textTheme = Theme.of(context).textTheme;
-    return [
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: textTheme.labelLarge),
-          _KeyValueRows(data: data),
-        ],
-      ),
-    ];
-  }
-}
-
-/// Flight block, styled like legacy's blue-accented flight card: an icon
-/// column (flight code) beside date/time, route, and — off airport-mPOS
-/// only, matching legacy's `*ngIf="!isMPOSAirport"` — a pickup (PU) row.
-class _FlightCard extends StatelessWidget {
-  final CustomerPerson person;
-  final bool isAirportMpos;
-
-  const _FlightCard({required this.person, required this.isAirportMpos});
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        border: const Border(
-          right: BorderSide(color: AppColors.info, width: 4),
-        ),
-        borderRadius: BorderRadius.circular(AppSizing.cornerRadiusSm),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1F0A192F),
-            blurRadius: 4,
-            offset: Offset(0, 1),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(AppSizing.cornerRadiusSm),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                width: 72,
-                padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-                color: AppColors.info,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.flight,
-                      color: Colors.white,
-                      size: AppSizing.iconSize,
-                    ),
-                    const SizedBox(height: AppSpacing.xxs),
-                    Text(
-                      person.flightCode,
-                      style: textTheme.labelMedium?.copyWith(
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                    vertical: AppSpacing.xs,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            person.flightDate,
-                            style: textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          Text(
-                            person.flightTime,
-                            style: textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: AppSpacing.xxs),
-                      _FactRow(label: 'Route', value: person.flightRouteDetail),
-                      if (!isAirportMpos)
-                        _FactRow(label: 'PU', value: person.flightPickup),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Compact "no flight" bar — legacy's collapsed `wrapper-no-flight` state.
-class _NoFlightBar extends StatelessWidget {
-  const _NoFlightBar();
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: AppSpacing.sm,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        border: const Border(
-          right: BorderSide(color: AppColors.info, width: 4),
-        ),
-        borderRadius: BorderRadius.circular(AppSizing.cornerRadiusSm),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1F0A192F),
-            blurRadius: 4,
-            offset: Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.flight_outlined,
-            color: AppColors.info.withValues(alpha: 0.55),
-            size: AppSizing.iconSize,
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Text(
-              'Flight: Not available',
-              overflow: TextOverflow.ellipsis,
-              style: textTheme.bodyMedium?.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ),
-        ],
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      child: PrivilegeRadioList(
+        privileges: customer.person.privileges,
+        selected: selectedPrivilege,
+        onChanged: onSelectPrivilege,
       ),
     );
   }
@@ -1704,30 +1121,6 @@ class _PrivilegeRow extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _KeyValueRows extends StatelessWidget {
-  final Map<String, dynamic> data;
-
-  const _KeyValueRows({required this.data});
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: data.entries
-          .map(
-            (entry) => Text(
-              '${entry.key}: ${entry.value ?? '—'}',
-              style: textTheme.bodySmall?.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-          )
-          .toList(growable: false),
     );
   }
 }

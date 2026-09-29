@@ -23,4 +23,15 @@ void main() {
     expect(formatBaht(87370), '฿87,370.00');
     expect(formatBaht(-255), '−฿255.00');
   });
+
+  test('formatCaratExpiring reads amount and d/MM/yyyy date', () {
+    expect(
+      formatCaratExpiring(1475, DateTime.utc(2029, 12, 31)),
+      '1,475.00 expiring 31/12/2029',
+    );
+    expect(
+      formatCaratExpiring(20, DateTime.utc(2027, 3, 5)),
+      '20.00 expiring 5/03/2027',
+    );
+  });
 }

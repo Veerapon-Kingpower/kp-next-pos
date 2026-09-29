@@ -10,6 +10,7 @@ abstract class HandheldMetrics {
   static const pagePadding = 20.0;
   static const primaryActionHeight = 56.0;
   static const scanFieldHeight = 62.0;
+  static const darkScanFieldHeight = 52.0;
   static const tileHeight = 84.0;
   static const navBarHeight = 76.0;
   static const navItemHeight = 60.0;

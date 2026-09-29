@@ -5,9 +5,13 @@ import '../widgets/test_id.dart';
 import 'handheld_tokens.dart';
 
 /// The handheld's always-in-reach scan / type field (mockup screens 2, 3,
-/// 16, 17): a 62 dp gold-bordered box with a barcode glyph. Hardware
-/// scanners on the Sunmi deliver scans as keyboard input followed by
-/// Enter, so [onSubmitted] fires for both a trigger scan and a typed code.
+/// 16, 17). Hardware scanners on the Sunmi deliver scans as keyboard input
+/// followed by Enter, so [onSubmitted] fires for both a trigger scan and a
+/// typed code.
+///
+/// On light pages it is the 62 dp gold-bordered box (Home); with [onDark]
+/// it is the 52 dp translucent box that sits inside a coloured header
+/// (Sale).
 class ScanField extends StatelessWidget {
   final String id;
   final TextEditingController controller;
@@ -16,6 +20,7 @@ class ScanField extends StatelessWidget {
   final FocusNode? focusNode;
   final bool autofocus;
   final bool enabled;
+  final bool onDark;
 
   const ScanField({
     super.key,
@@ -26,16 +31,22 @@ class ScanField extends StatelessWidget {
     this.focusNode,
     this.autofocus = false,
     this.enabled = true,
+    this.onDark = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return TestId(
-      id,
-      child: SizedBox(
-        height: HandheldMetrics.scanFieldHeight,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
+    final foreground = onDark ? Colors.white : AppColors.textPrimary;
+    final decoration = onDark
+        ? BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(HandheldMetrics.radiusSm),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.5),
+              width: 1.5,
+            ),
+          )
+        : BoxDecoration(
             color: AppColors.surface,
             borderRadius: BorderRadius.circular(HandheldMetrics.radius),
             border: Border.all(color: AppColors.goldMuted, width: 2),
@@ -45,17 +56,26 @@ class ScanField extends StatelessWidget {
                 spreadRadius: 4,
               ),
             ],
-          ),
+          );
+
+    return TestId(
+      id,
+      child: SizedBox(
+        height: onDark
+            ? HandheldMetrics.darkScanFieldHeight
+            : HandheldMetrics.scanFieldHeight,
+        child: DecoratedBox(
+          decoration: decoration,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: EdgeInsets.symmetric(horizontal: onDark ? 14 : 16),
             child: Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.qr_code_scanner,
-                  size: 21,
-                  color: AppColors.goldDark,
+                  size: onDark ? 18 : 21,
+                  color: onDark ? Colors.white : AppColors.goldDark,
                 ),
-                const SizedBox(width: 13),
+                const SizedBox(width: 12),
                 Expanded(
                   child: TextField(
                     controller: controller,
@@ -64,11 +84,15 @@ class ScanField extends StatelessWidget {
                     enabled: enabled,
                     textInputAction: TextInputAction.search,
                     onSubmitted: onSubmitted,
-                    style: HandheldText.body,
+                    cursorColor: onDark ? Colors.white : null,
+                    style: HandheldText.body.copyWith(color: foreground),
                     decoration: InputDecoration.collapsed(
                       hintText: hintText,
                       hintStyle: HandheldText.body.copyWith(
-                        color: AppColors.hintText,
+                        fontSize: onDark ? 14 : 14.5,
+                        color: onDark
+                            ? Colors.white.withValues(alpha: 0.8)
+                            : AppColors.hintText,
                       ),
                     ),
                   ),

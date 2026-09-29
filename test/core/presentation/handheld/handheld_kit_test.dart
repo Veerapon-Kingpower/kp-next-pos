@@ -378,4 +378,51 @@ void main() {
       expect(rect.center.dx, closeTo(410, 0.5));
     });
   });
+
+  group('H2 kit additions', () {
+    testWidgets('ScanField onDark: 52 dp translucent field that submits', (
+      tester,
+    ) async {
+      final controller = TextEditingController();
+      addTearDown(controller.dispose);
+      String? submitted;
+      await tester.pumpWidget(
+        _app(
+          Scaffold(
+            backgroundColor: AppColors.ink,
+            body: ScanField(
+              id: 'x.darkScan',
+              controller: controller,
+              hintText: 'Scan or type item code',
+              onSubmitted: (v) => submitted = v,
+              onDark: true,
+            ),
+          ),
+        ),
+      );
+      expect(tester.getSize(byTestId('x.darkScan')).height, 52);
+      await tester.enterText(find.byType(TextField), '8850012345678');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      expect(submitted, '8850012345678');
+    });
+
+    testWidgets('HandheldScaffold fullWidthBody skips the medium cap', (
+      tester,
+    ) async {
+      setDeviceSize(tester, mediumSize);
+      await tester.pumpWidget(
+        _app(
+          const HandheldScaffold(
+            fullWidthBody: true,
+            body: SizedBox(
+              key: Key('body'),
+              height: 10,
+              width: double.infinity,
+            ),
+          ),
+        ),
+      );
+      expect(tester.getSize(find.byKey(const Key('body'))).width, 820);
+    });
+  });
 }

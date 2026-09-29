@@ -20,6 +20,11 @@ class HandheldScaffold extends StatelessWidget {
   final Widget? navBar;
   final Color backgroundColor;
 
+  /// Skip the medium-width cap — for bodies that paint their own
+  /// full-bleed chrome (e.g. the Sale screen's coloured header) and
+  /// constrain their content with [HandheldContentWidth] themselves.
+  final bool fullWidthBody;
+
   const HandheldScaffold({
     super.key,
     this.header,
@@ -27,11 +32,14 @@ class HandheldScaffold extends StatelessWidget {
     this.actionBar,
     this.navBar,
     this.backgroundColor = AppColors.surfaceAlt,
+    this.fullWidthBody = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isMedium = AppBreakpoints.sizeClass(context) != AppSizeClass.compact;
+    final isMedium =
+        !fullWidthBody &&
+        AppBreakpoints.sizeClass(context) != AppSizeClass.compact;
 
     return Scaffold(
       backgroundColor: backgroundColor,

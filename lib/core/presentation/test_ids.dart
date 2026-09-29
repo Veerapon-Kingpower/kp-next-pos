@@ -52,3 +52,63 @@ abstract class SettingsIds {
   static const endpointsSection = 'settings.endpointsSection';
   static const deviceSection = 'settings.deviceSection';
 }
+
+abstract class SaleIds {
+  static const header = 'sale.header';
+  static const backButton = 'sale.backButton';
+  static const scanField = 'sale.scanField';
+  static const scanError = 'sale.scanError';
+  static const staleNotice = 'sale.staleNotice';
+  static const totalLine = 'sale.totalLine';
+  static const netPay = 'sale.netPay';
+  static const tabBuying = 'sale.tab.buying';
+  static const tabBasket = 'sale.tab.basket';
+  static const emptyState = 'sale.emptyState';
+  static const privilege = 'sale.privilege';
+  static const basketNotice = 'sale.basketNotice';
+  static const checkoutButton = 'sale.checkoutButton';
+  static const customerButton = 'sale.customerButton';
+  static const discountButton = 'sale.discountButton';
+  static const saveButton = 'sale.saveButton';
+  static const moreButton = 'sale.moreButton';
+  static const moreSheet = 'sale.moreSheet';
+  static const orderTypeShopping = 'sale.orderType.shopping';
+  static const orderTypeDelivery = 'sale.orderType.delivery';
+  static const orderTypePreOrder = 'sale.orderType.preOrder';
+  static const voidConfirm = 'sale.voidConfirm';
+
+  /// One cart line, keyed by its cart `row`.
+  static String line(String row) => 'sale.line.$row';
+}
+
+abstract class EditLineIds {
+  static const page = 'editLine.page';
+  static const undoButton = 'editLine.undoButton';
+  static const saveButton = 'editLine.saveButton';
+  static const saveCloseButton = 'editLine.saveCloseButton';
+  static const qtyDecrease = 'editLine.qty.decrease';
+  static const qtyIncrease = 'editLine.qty.increase';
+  static const qtyValue = 'editLine.qty.value';
+  static const amount = 'editLine.amount';
+  static const netAmount = 'editLine.netAmount';
+  static const serialField = 'editLine.serialField';
+  static const freezeSwitch = 'editLine.freezeSwitch';
+  static const lockDiscountSwitch = 'editLine.lockDiscountSwitch';
+  static const pickupCollect = 'editLine.pickup.collect';
+  static const pickupTake = 'editLine.pickup.take';
+  static const voidButton = 'editLine.voidButton';
+}
+
+abstract class DiscountIds {
+  static const sheet = 'discount.sheet';
+  static const closeButton = 'discount.closeButton';
+  static const modePercent = 'discount.mode.percent';
+  static const modeAmount = 'discount.mode.amount';
+  static const modePromo = 'discount.mode.promo';
+  static const valueField = 'discount.valueField';
+  static const netPreview = 'discount.netPreview';
+  static const applyButton = 'discount.applyButton';
+  static const cancelButton = 'discount.cancelButton';
+
+  static String preset(int percent) => 'discount.preset.$percent';
+}

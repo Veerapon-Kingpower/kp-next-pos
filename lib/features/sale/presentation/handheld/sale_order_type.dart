@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 /// app always runs [shopping] — see `HandheldSaleView`.
 enum SaleOrderType {
   shopping(
-    label: 'Shopping',
+    label: 'Normal',
     icon: Icons.shopping_bag_outlined,
     header: Color(0xFF654F1C),
     band: Color(0xFF4A3A14),

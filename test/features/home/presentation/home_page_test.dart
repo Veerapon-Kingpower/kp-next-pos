@@ -189,7 +189,7 @@ void main() {
 
     expect(byTestId(SaleIds.scanField), findsOneWidget);
     expect(byTestId(DesktopSaleIds.summary), findsOneWidget);
-    expect(find.text('Sale · Shopping'), findsOneWidget);
+    expect(find.text('Sale · Normal'), findsOneWidget);
   });
 
   testWidgets('tapping the logout icon asks for confirmation first', (
@@ -806,7 +806,7 @@ void main() {
       await tester.tap(byTestId(ProfileIds.attachButton));
       await tester.pumpAndSettle();
 
-      expect(find.text('Sale · Shopping'), findsOneWidget);
+      expect(find.text('Sale · Normal'), findsOneWidget);
       expect(
         tester.getSemantics(byTestId(NavIds.sale)),
         isSemantics(isSelected: true),
@@ -1241,7 +1241,7 @@ void main() {
       await tester.tap(byTestId(HomeIds.tileSale));
       await tester.pumpAndSettle();
       expect(byTestId(SaleIds.scanField), findsOneWidget);
-      expect(find.text('Sale · Shopping'), findsOneWidget);
+      expect(find.text('Sale · Normal'), findsOneWidget);
 
       await tester.tap(byTestId(SaleIds.backButton));
       await tester.pumpAndSettle();

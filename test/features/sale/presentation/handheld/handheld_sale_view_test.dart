@@ -54,7 +54,7 @@ void main() {
       tester,
     ) async {
       await pump(tester);
-      expect(find.text('Sale · Shopping'), findsOneWidget);
+      expect(find.text('Sale · Normal'), findsOneWidget);
       expect(textIn(tester, SaleIds.netPay), '฿21,500.00');
       expect(textIn(tester, SaleIds.totalLine), 'Total 21,500.00 · 3 units');
       expect(
@@ -67,7 +67,7 @@ void main() {
     });
 
     for (final (type, title, color) in [
-      (SaleOrderType.shopping, 'Sale · Shopping', AppColors.goldDark),
+      (SaleOrderType.shopping, 'Sale · Normal', AppColors.goldDark),
       (SaleOrderType.delivery, 'Sale · Delivery', Color(0xFF165FA9)),
       (SaleOrderType.preOrder, 'Sale · Pre-order', Color(0xFFBF4D0D)),
     ]) {

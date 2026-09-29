@@ -25,6 +25,7 @@ import '../../customer/presentation/handheld/customer_profile_page.dart';
 import '../../enquiry/presentation/enquiry_page.dart';
 import '../../enquiry/presentation/handheld_enquiry_view.dart';
 import '../../sale/presentation/handheld/handheld_sale_view.dart';
+import '../../sale/presentation/handheld/sale_order_type.dart';
 import '../../sale/presentation/sale_cart_view_model.dart';
 import '../../sale/presentation/widgets/sale_page.dart';
 import '../../settings/presentation/settings_page.dart';
@@ -426,9 +427,9 @@ class _HomePageState extends State<HomePage> {
         ),
       ],
       // The Sale screen names its order type, as in the mockup; the app
-      // only runs Shopping bills today (see HandheldSaleView / SaleOrderType).
+      // only runs Normal (shopping) bills today (see SaleOrderType).
       title: section == _HomeSection.sale
-          ? 'Sale · Shopping'
+          ? 'Sale · ${SaleOrderType.shopping.label}'
           : destinations[selectedIndex].label,
       contextItems: [
         DesktopContextItem(label: 'Store', value: orDash(settings.location)),

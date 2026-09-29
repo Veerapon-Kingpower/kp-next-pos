@@ -24,6 +24,7 @@ import '../../customer/presentation/customer_registration_page.dart';
 import '../../customer/presentation/customer_registration_view_model.dart';
 import '../../customer/presentation/handheld/customer_profile_page.dart';
 import '../../enquiry/presentation/enquiry_page.dart';
+import '../../enquiry/presentation/handheld_enquiry_view.dart';
 import '../../sale/presentation/handheld/handheld_sale_view.dart';
 import '../../sale/presentation/sale_cart_view_model.dart';
 import '../../sale/presentation/widgets/sale_page.dart';
@@ -424,10 +425,13 @@ class _HomePageState extends State<HomePage> {
     // and, as in the mockup, hides the bottom nav (its back button returns
     // Home).
     final isSale = section == _HomeSection.sale;
+    // Enquiry also paints its own dark header (search + filters) but keeps
+    // the bottom nav.
+    final ownsHeader = isSale || section == _HomeSection.enquiry;
 
     return HandheldScaffold(
-      header: isSale ? null : _handheldHeaderFor(section, viewModel),
-      fullWidthBody: isSale,
+      header: ownsHeader ? null : _handheldHeaderFor(section, viewModel),
+      fullWidthBody: ownsHeader,
       body: IndexedStack(
         index: selectedIndex,
         children: [
@@ -481,6 +485,9 @@ class _HomePageState extends State<HomePage> {
     BuildContext context,
     HomeViewModel viewModel,
   ) {
+    if (section == _HomeSection.enquiry) {
+      return const HandheldEnquiryView();
+    }
     if (section == _HomeSection.sale) {
       return HandheldSaleView(
         viewModel: _saleCartViewModel,

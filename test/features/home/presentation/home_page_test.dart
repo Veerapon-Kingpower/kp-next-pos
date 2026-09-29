@@ -1099,7 +1099,8 @@ void main() {
       await pumpHandheld(tester, buildPage());
       await tester.tap(byTestId(HomeIds.tileEnquiry));
       await tester.pumpAndSettle();
-      expect(find.text('Enquiry — coming soon'), findsOneWidget);
+      expect(byTestId(EnquiryIds.searchField), findsOneWidget);
+      expect(byTestId(NavIds.enquiry), findsOneWidget, reason: 'nav stays');
       expect(
         tester.getSemantics(byTestId(NavIds.enquiry)),
         isSemantics(isSelected: true),

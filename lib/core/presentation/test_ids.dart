@@ -188,3 +188,73 @@ abstract class SignatureIds {
   static const customerClear = 'signature.customer.clear';
   static const customerStatus = 'signature.customer.status';
 }
+
+abstract class FlightPickerIds {
+  static const sheet = 'flightPicker.sheet';
+  static const closeButton = 'flightPicker.closeButton';
+  static const selectedDate = 'flightPicker.selectedDate';
+  static const selectedTime = 'flightPicker.selectedTime';
+  static const monthLabel = 'flightPicker.monthLabel';
+  static const previousMonth = 'flightPicker.previousMonth';
+  static const nextMonth = 'flightPicker.nextMonth';
+  static const confirmButton = 'flightPicker.confirmButton';
+  static const cancelButton = 'flightPicker.cancelButton';
+
+  /// A day cell, `yyyy-mm-dd`.
+  static String day(DateTime date) =>
+      'flightPicker.day.${date.year}-${date.month.toString().padLeft(2, '0')}'
+      '-${date.day.toString().padLeft(2, '0')}';
+}
+
+abstract class RegisterIds {
+  static const page = 'register.page';
+  static const scanPassportButton = 'register.scanPassportButton';
+  static const travellerSection = 'register.travellerSection';
+  static const contactSection = 'register.contactSection';
+  static const agentSection = 'register.agentSection';
+  static const submitButton = 'register.submitButton';
+  static const cancelButton = 'register.cancelButton';
+}
+
+abstract class ProfileIds {
+  static const page = 'profile.page';
+  static const name = 'profile.name';
+  static const badge = 'profile.badge';
+  static const cardLine = 'profile.cardLine';
+  static const status = 'profile.status';
+  static const pointsStat = 'profile.stat.points';
+  static const ePurseStat = 'profile.stat.ePurse';
+  static const spendStat = 'profile.stat.spend';
+  static const visitsStat = 'profile.stat.visits';
+  static const flightCard = 'profile.flightCard';
+  static const privileges = 'profile.privileges';
+  static const recentPurchases = 'profile.recentPurchases';
+  static const attachButton = 'profile.attachButton';
+  static const editButton = 'profile.editButton';
+  static const travellerButton = 'profile.travellerButton';
+
+  static String privilege(int index) => 'profile.privilege.$index';
+}
+
+abstract class TravellerIds {
+  static const page = 'traveller.page';
+  static const passportCard = 'traveller.passportCard';
+  static const mrzScanButton = 'traveller.mrzScanButton';
+  static const flightSearch = 'traveller.flightSearch';
+  static const flightEmpty = 'traveller.flightEmpty';
+  static const saveButton = 'traveller.saveButton';
+  static const cancelButton = 'traveller.cancelButton';
+
+  static String flight(int index) => 'traveller.flight.$index';
+}
+
+abstract class EnquiryIds {
+  static const searchField = 'enquiry.searchField';
+  static const filterToday = 'enquiry.filter.today';
+  static const filterMine = 'enquiry.filter.mine';
+  static const filterNotPicked = 'enquiry.filter.notPicked';
+  static const filterRefunded = 'enquiry.filter.refunded';
+  static const resultsNotice = 'enquiry.resultsNotice';
+  static const reprintButton = 'enquiry.reprintButton';
+  static const refundButton = 'enquiry.refundButton';
+}

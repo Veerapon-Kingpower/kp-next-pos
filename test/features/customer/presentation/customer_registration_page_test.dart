@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kp_pos/core/presentation/test_ids.dart';
 import 'package:kp_pos/core/error/app_exception.dart';
 import 'package:kp_pos/features/customer/domain/entities/agent.dart';
 import 'package:kp_pos/features/customer/domain/entities/customer.dart';
@@ -15,11 +16,14 @@ import 'package:kp_pos/features/flight/domain/usecases/get_flight_by_code_usecas
 import 'package:kp_pos/features/nationality/domain/entities/nationality.dart';
 import 'package:kp_pos/features/nationality/domain/usecases/list_nationalities_usecase.dart';
 
+import '../../../helpers/test_id_finders.dart';
 import '../../flight/fake_flight_repository.dart';
 import '../../nationality/fake_nationality_repository.dart';
 import '../fake_customer_repository.dart';
 
-const _nationalities = [Nationality(countryCode: 'THA', countryName: 'Thailand')];
+const _nationalities = [
+  Nationality(countryCode: 'THA', countryName: 'Thailand'),
+];
 const _agents = [
   Agent(
     subAgentCode: 'GD1',
@@ -99,7 +103,9 @@ void main() {
         .platformDispatcher
         .views
         .first;
-    view.physicalSize = const Size(800, 2400);
+    // Desktop width by default — these tests cover the shared form logic
+    // through the desktop layout; the handheld group sets its own size.
+    view.physicalSize = const Size(1200, 2400);
     view.devicePixelRatio = 1.0;
     addTearDown(view.resetPhysicalSize);
     addTearDown(view.resetDevicePixelRatio);
@@ -157,9 +163,9 @@ void main() {
         body: Builder(
           builder: (context) => Center(
             child: ElevatedButton(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(builder: (_) => page),
-              ),
+              onPressed: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute<void>(builder: (_) => page)),
               child: const Text('Open registration'),
             ),
           ),
@@ -233,7 +239,11 @@ void main() {
     final positions = labelOrder
         .map((label) => tester.getTopLeft(find.text(label)).dy)
         .toList();
-    expect(positions, positions.toList()..sort(), reason: 'fields must appear top-to-bottom in legacy order');
+    expect(
+      positions,
+      positions.toList()..sort(),
+      reason: 'fields must appear top-to-bottom in legacy order',
+    );
   });
 
   testWidgets(
@@ -720,7 +730,9 @@ void main() {
 
         // Not the focus of this test — skips flight/nationality
         // requiredness so the tap below reaches the register call.
-        await tester.tap(find.widgetWithText(SwitchListTile, 'Allow take-away'));
+        await tester.tap(
+          find.widgetWithText(SwitchListTile, 'Allow take-away'),
+        );
         await tester.pump();
 
         await tester.tap(find.widgetWithText(FilledButton, 'Register'));
@@ -728,11 +740,105 @@ void main() {
 
         expect(repo.lastRegisterCall!['action'], 'REGISTER_ADD');
         final listPersonal =
-            repo.lastRegisterCall!['listPersonal'] as List<Map<String, dynamic>>;
+            repo.lastRegisterCall!['listPersonal']
+                as List<Map<String, dynamic>>;
         expect(listPersonal.single['listIdentity'], existingIdentity);
         expect(listPersonal.single['provinceCode'], 'PC1');
         expect(listPersonal.single['cityCode'], 'CC1');
       },
     );
+  });
+
+  group('handheld layout (below desktop width)', () {
+    Future<void> openHandheld(
+      WidgetTester tester, {
+      Size size = compactSize,
+      List<Flight> flightDates = _flightDates,
+    }) async {
+      setDeviceSize(tester, size);
+      await tester.pumpWidget(buildHarness(flightDates: flightDates));
+      await openPage(tester);
+    }
+
+    testWidgets('dark header, grouped sections and automation ids', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await openHandheld(tester);
+      expect(byTestId(RegisterIds.page), findsOneWidget);
+      expect(find.text('Register customer'), findsOneWidget);
+      expect(
+        find.text('New shopping card · attaches to this sale'),
+        findsOneWidget,
+      );
+      for (final id in [
+        RegisterIds.scanPassportButton,
+        RegisterIds.travellerSection,
+        RegisterIds.submitButton,
+        RegisterIds.cancelButton,
+      ]) {
+        expect(find.bySemanticsIdentifier(id), findsOneWidget, reason: id);
+      }
+      expect(byTestId(RegisterIds.contactSection), findsOneWidget);
+      expect(byTestId(RegisterIds.agentSection), findsOneWidget);
+      expect(
+        tester.getSemantics(byTestId(RegisterIds.scanPassportButton)),
+        isSemantics(hasEnabledState: true, isEnabled: false),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('Register in the bottom bar validates like desktop', (
+      tester,
+    ) async {
+      await openHandheld(tester);
+      await tester.tap(byTestId(RegisterIds.submitButton));
+      await tester.pumpAndSettle();
+      expect(find.text('Error!'), findsOneWidget);
+      expect(find.text('Please input passport.'), findsOneWidget);
+    });
+
+    testWidgets('the flight date opens the handheld picker, limited to '
+        'the resolved dates', (tester) async {
+      final handle = tester.ensureSemantics();
+      await openHandheld(tester, flightDates: _flightDatesWithGap);
+      await enterByLabel(tester, 'Flight', 'TG');
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump();
+      await tester.tap(find.text('TG101 — Bangkok - Tokyo'));
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('flightDateField')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DatePickerDialog), findsNothing);
+      expect(byTestId(FlightPickerIds.sheet), findsOneWidget);
+      expect(
+        tester.getSemantics(
+          byTestId(FlightPickerIds.day(DateTime(2026, 8, 19))),
+        ),
+        isSemantics(hasEnabledState: true, isEnabled: false),
+      );
+
+      await tester.tap(byTestId(FlightPickerIds.day(DateTime(2026, 8, 20))));
+      await tester.pump();
+      await tester.tap(byTestId(FlightPickerIds.confirmButton));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('20-08-2026'), findsOneWidget);
+      handle.dispose();
+    });
+
+    testWidgets('Cancel closes the page', (tester) async {
+      await openHandheld(tester);
+      await tester.tap(byTestId(RegisterIds.cancelButton));
+      await tester.pumpAndSettle();
+      expect(find.text('Open registration'), findsOneWidget);
+    });
+
+    testWidgets('iPad portrait renders without overflow', (tester) async {
+      await openHandheld(tester, size: mediumSize);
+      expect(tester.takeException(), isNull);
+      expect(byTestId(RegisterIds.submitButton), findsOneWidget);
+    });
   });
 }

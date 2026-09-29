@@ -3,10 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../../core/presentation/handheld/handheld.dart';
+import '../../../core/presentation/test_ids.dart';
 import '../../../core/presentation/widgets/app_buttons.dart';
 import '../../../core/presentation/widgets/app_card.dart';
 import '../../../core/presentation/widgets/app_text_field.dart';
 import '../../../core/presentation/widgets/autocomplete_field.dart';
+import '../../../core/presentation/widgets/test_id.dart';
+import '../../../core/theme/app_breakpoints.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../flight/domain/entities/flight.dart';
@@ -14,6 +18,7 @@ import '../../nationality/domain/entities/nationality.dart';
 import '../domain/entities/agent.dart';
 import '../domain/entities/customer.dart';
 import 'customer_registration_view_model.dart';
+import 'handheld/flight_date_picker.dart';
 
 /// Manual-entry "Register new customer" form, fields ordered to match
 /// `customer-form.html`'s non-airport layout. Doubles as the edit-existing-
@@ -162,7 +167,9 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
   Future<void> _prefillFlightDates(String flightCode) async {
     final dates = await widget.viewModel.getDatesForFlight(flightCode);
     if (!mounted) return;
-    final firstCandidate = dates.isEmpty ? null : _parseFlightDate(dates.first.flightDate);
+    final firstCandidate = dates.isEmpty
+        ? null
+        : _parseFlightDate(dates.first.flightDate);
     setState(() {
       _flightDates = dates;
       _selectedFlightDate = firstCandidate == null
@@ -249,7 +256,9 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
     });
     final dates = await widget.viewModel.getDatesForFlight(flight.flightCode);
     if (!mounted) return;
-    final firstCandidate = dates.isEmpty ? null : _parseFlightDate(dates.first.flightDate);
+    final firstCandidate = dates.isEmpty
+        ? null
+        : _parseFlightDate(dates.first.flightDate);
     setState(() {
       _flightDates = dates;
       _selectedFlightDate = firstCandidate == null
@@ -339,7 +348,8 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
   // inert — per-day `daysConfig` list, ported here as an actual
   // restriction via `selectableDayPredicate`).
   Future<void> _pickFlightDate() async {
-    final anchor = _parseFlightDate(_flightDates.first.flightDate) ?? DateTime.now();
+    final anchor =
+        _parseFlightDate(_flightDates.first.flightDate) ?? DateTime.now();
     final anchorDateOnly = _dateOnly(anchor);
     final allowedDates = _candidateDateOnlySet(_flightDates);
     final lastDateOnly = allowedDates.isEmpty
@@ -353,21 +363,43 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
         ? currentDateOnly
         : anchorDateOnly;
 
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: initialDate,
-      firstDate: anchorDateOnly,
-      lastDate: lastDateOnly.isBefore(anchorDateOnly)
-          ? anchorDateOnly
-          : lastDateOnly,
-      selectableDayPredicate: allowedDates.isEmpty
-          ? null
-          : (day) => allowedDates.contains(_dateOnly(day)),
-    );
-    if (picked == null || !mounted) return;
+    // Handheld widths use the mockup's own picker (screen 13) with the same
+    // rules: fixed schedule time, first candidate date as the floor, only
+    // resolved candidate dates selectable.
+    final DateTime? picked;
+    if (AppBreakpoints.isWide(context)) {
+      picked = await showDatePicker(
+        context: context,
+        initialDate: initialDate,
+        firstDate: anchorDateOnly,
+        lastDate: lastDateOnly.isBefore(anchorDateOnly)
+            ? anchorDateOnly
+            : lastDateOnly,
+        selectableDayPredicate: allowedDates.isEmpty
+            ? null
+            : (day) => allowedDates.contains(_dateOnly(day)),
+      );
+    } else {
+      picked = await showFlightDatePicker(
+        context,
+        flightCode: _flight?.flightCode ?? '',
+        firstDate: anchorDateOnly,
+        initialDate: initialDate,
+        time: TimeOfDay(hour: anchor.hour, minute: anchor.minute),
+        allowedDates: allowedDates,
+      );
+    }
+    final chosen = picked;
+    if (chosen == null || !mounted) return;
     setState(
       () => _selectedFlightDate = _formatFlightDate(
-        DateTime(picked.year, picked.month, picked.day, anchor.hour, anchor.minute),
+        DateTime(
+          chosen.year,
+          chosen.month,
+          chosen.day,
+          anchor.hour,
+          anchor.minute,
+        ),
       ),
     );
   }
@@ -451,168 +483,69 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-
     return GetBuilder<CustomerRegistrationViewModel>(
       init: widget.viewModel,
       global: false,
-      builder: (viewModel) => Scaffold(
-        appBar: AppBar(
-          title: Text(_isEdit ? 'Customer profile' : 'Register new customer'),
-        ),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 480),
-              child: AppCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "Manual entry — passport/MRZ scan isn't available yet",
-                      style: textTheme.bodySmall?.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
+      builder: (viewModel) => AppBreakpoints.isWide(context)
+          ? _buildDesktop(context, viewModel)
+          : _buildHandheld(context, viewModel),
+    );
+  }
+
+  bool _isSubmitting(CustomerRegistrationViewModel viewModel) =>
+      viewModel.status == CustomerRegistrationStatus.submitting;
+
+  Widget _buildDesktop(
+    BuildContext context,
+    CustomerRegistrationViewModel viewModel,
+  ) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_isEdit ? 'Customer profile' : 'Register new customer'),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _manualEntryNote,
+                    style: textTheme.bodySmall?.copyWith(
+                      color: AppColors.textSecondary,
                     ),
-                    const SizedBox(height: AppSpacing.md),
-                    AppTextField(
-                      controller: _passportNoController,
-                      label: 'Passport no.',
-                      onChanged: (_) => setState(() {}),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    AppTextField(
-                      controller: _englishNameController,
-                      label: 'English name',
-                      onChanged: (_) => setState(() {}),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    DropdownButtonFormField<String>(
-                      initialValue: _gender,
-                      decoration: const InputDecoration(
-                        labelText: 'Gender',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: const [
-                        DropdownMenuItem(value: 'M', child: Text('Male')),
-                        DropdownMenuItem(value: 'F', child: Text('Female')),
-                      ],
-                      onChanged: (value) =>
-                          setState(() => _gender = value ?? 'M'),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    AutocompleteField<Nationality>(
-                      label: 'Nationality',
-                      hintText: 'Type to search nationality',
-                      initialText: _nationality?.countryCode,
-                      search: viewModel.searchNationalities,
-                      itemLabel: (n) => '${n.countryCode} - ${n.countryName}',
-                      onSelected: (n) => setState(() => _nationality = n),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    AutocompleteField<Flight>(
-                      label: 'Flight',
-                      hintText: 'Type to search flight code',
-                      initialText: _flight?.flightCode,
-                      search: viewModel.searchFlights,
-                      itemLabel: (f) => f.flightDescription.isEmpty
-                          ? f.flightCode
-                          : '${f.flightCode} — ${f.flightDescription}',
-                      onSelected: _onFlightSelected,
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    InkWell(
-                      key: const Key('flightDateField'),
-                      onTap: _flightDates.isEmpty ? null : _pickFlightDate,
-                      child: InputDecorator(
-                        decoration: const InputDecoration(
-                          labelText: 'Flight date',
-                          border: OutlineInputBorder(),
-                          suffixIcon: Icon(Icons.calendar_today),
-                        ),
-                        child: Text(_selectedFlightDate ?? ''),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    AppTextField(
-                      controller: _emailController,
-                      label: 'Email',
-                      keyboardType: TextInputType.emailAddress,
-                      errorText: _emailError,
-                      onChanged: (_) => setState(() {}),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    AppTextField(
-                      controller: _mobileController,
-                      label: 'Mobile',
-                      keyboardType: TextInputType.phone,
-                      onChanged: (_) => setState(() {}),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    AppTextField(
-                      controller: _weChatController,
-                      label: 'WeChat',
-                      onChanged: (_) => setState(() {}),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    AutocompleteField<Agent>(
-                      label: 'Agent',
-                      hintText: 'Type to search agent',
-                      initialText: _agent?.agentCode,
-                      search: viewModel.searchAgents,
-                      itemLabel: (a) =>
-                          a.agentDesc.isEmpty ? a.agentCode : a.agentDesc,
-                      onSelected: (a) => setState(() => _agent = a),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    AutocompleteField<Agent>(
-                      label: 'Guide',
-                      hintText: 'Type to search guide',
-                      initialText: _guide?.subAgentCode,
-                      search: viewModel.searchGuides,
-                      itemLabel: (a) => a.subAgentDesc.isEmpty
-                          ? a.subAgentCode
-                          : a.subAgentDesc,
-                      onSelected: (a) => setState(() => _guide = a),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    AppTextField(
-                      controller: _customerTypeController,
-                      label: 'Customer type',
-                      onChanged: (_) => setState(() {}),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Allow take-away'),
-                      value: _allowTakeAway,
-                      onChanged: (value) =>
-                          setState(() => _allowTakeAway = value),
-                    ),
-                    if (viewModel.status == CustomerRegistrationStatus.failure &&
-                        viewModel.errorMessage != null)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                        child: Text(
-                          viewModel.errorMessage!,
-                          style: const TextStyle(color: AppColors.danger),
-                        ),
-                      ),
-                    AppPrimaryButton(
-                      // Never disabled by field validity — matches legacy,
-                      // which always allows tapping Save/Update and
-                      // validates on tap via [_validateRegister] instead.
-                      // Only in-flight submission blocks a repeat tap.
-                      label: _isEdit ? 'Update' : 'Register',
-                      onPressed:
-                          viewModel.status ==
-                              CustomerRegistrationStatus.submitting
-                          ? null
-                          : _submit,
-                    ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  ..._spaced([
+                    _passportField(),
+                    _englishNameField(),
+                    _genderField(),
+                    _nationalityField(viewModel),
+                    _flightField(viewModel),
+                    _flightDateField(),
+                    _emailField(),
+                    _mobileField(),
+                    _weChatField(),
+                    _agentField(viewModel),
+                    _guideField(viewModel),
+                    _customerTypeField(),
+                    _takeAwaySwitch(),
+                  ]),
+                  ?_errorText(viewModel),
+                  AppPrimaryButton(
+                    // Never disabled by field validity — matches legacy,
+                    // which always allows tapping Save/Update and
+                    // validates on tap via [_validateRegister] instead.
+                    // Only in-flight submission blocks a repeat tap.
+                    label: _isEdit ? 'Update' : 'Register',
+                    onPressed: _isSubmitting(viewModel) ? null : _submit,
+                  ),
+                ],
               ),
             ),
           ),
@@ -620,4 +553,265 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
       ),
     );
   }
+
+  static const _manualEntryNote =
+      "Manual entry — passport/MRZ scan isn't available yet";
+
+  /// Handheld layout (mockup screen 12): dark header, the same fields
+  /// grouped into Traveller / Contact / Agent sections under an (inert)
+  /// passport scan, and a fixed Register / Cancel bar. Validation and
+  /// submit are shared with desktop.
+  Widget _buildHandheld(
+    BuildContext context,
+    CustomerRegistrationViewModel viewModel,
+  ) {
+    Widget section(String id, String title, List<Widget> children) =>
+        HandheldSection(
+          id: id,
+          title: title,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: _spaced(children),
+              ),
+            ),
+          ],
+        );
+
+    return TestId(
+      RegisterIds.page,
+      child: HandheldScaffold(
+        header: HandheldHeader(
+          title: _isEdit ? 'Customer profile' : 'Register customer',
+          subtitle: _isEdit
+              ? 'Update this shopping card'
+              : 'New shopping card · attaches to this sale',
+          leading: const BackButton(color: Colors.white),
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(HandheldMetrics.pagePadding),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // TODO(pos-handheld): MRZ / boarding-pass scan (deferred —
+              // see project memory); inert until a reader is wired.
+              TestId(
+                RegisterIds.scanPassportButton,
+                child: Semantics(
+                  button: true,
+                  enabled: false,
+                  child: Container(
+                    height: HandheldMetrics.primaryActionHeight,
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    decoration: BoxDecoration(
+                      color: AppColors.cream,
+                      borderRadius: BorderRadius.circular(
+                        HandheldMetrics.radius,
+                      ),
+                      border: Border.all(color: AppColors.goldMuted, width: 2),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(
+                          Icons.qr_code_scanner,
+                          size: 18,
+                          color: AppColors.goldDark,
+                        ),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Scan passport or boarding pass',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: AppColors.goldDark,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(_manualEntryNote, style: HandheldText.bodySmall),
+              const SizedBox(height: AppSpacing.md),
+              section(RegisterIds.travellerSection, 'Traveller', [
+                _flightField(viewModel),
+                _flightDateField(),
+                _passportField(),
+                _englishNameField(),
+                _genderField(),
+                _nationalityField(viewModel),
+              ]),
+              const SizedBox(height: AppSpacing.md),
+              section(RegisterIds.contactSection, 'Contact', [
+                _emailField(),
+                _mobileField(),
+                _weChatField(),
+              ]),
+              const SizedBox(height: AppSpacing.md),
+              section(RegisterIds.agentSection, 'Agent', [
+                _agentField(viewModel),
+                _guideField(viewModel),
+                _customerTypeField(),
+                _takeAwaySwitch(),
+              ]),
+              ?_errorText(viewModel),
+            ],
+          ),
+        ),
+        actionBar: HandheldActionBar(
+          primary: HandheldPrimaryButton(
+            id: RegisterIds.submitButton,
+            label: _isEdit ? 'Update' : 'Register',
+            icon: Icons.check,
+            onPressed: _isSubmitting(viewModel) ? null : _submit,
+          ),
+          secondary: HandheldSecondaryButton(
+            id: RegisterIds.cancelButton,
+            label: 'Cancel',
+            onPressed: () => Navigator.of(context).maybePop(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  static List<Widget> _spaced(List<Widget> fields) => [
+    for (var i = 0; i < fields.length; i++) ...[
+      if (i > 0) const SizedBox(height: AppSpacing.sm),
+      fields[i],
+    ],
+  ];
+
+  Widget? _errorText(CustomerRegistrationViewModel viewModel) {
+    if (viewModel.status != CustomerRegistrationStatus.failure ||
+        viewModel.errorMessage == null) {
+      return null;
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      child: Text(
+        viewModel.errorMessage!,
+        style: const TextStyle(color: AppColors.danger),
+      ),
+    );
+  }
+
+  Widget _passportField() => AppTextField(
+    controller: _passportNoController,
+    label: 'Passport no.',
+    onChanged: (_) => setState(() {}),
+  );
+
+  Widget _englishNameField() => AppTextField(
+    controller: _englishNameController,
+    label: 'English name',
+    onChanged: (_) => setState(() {}),
+  );
+
+  Widget _genderField() => DropdownButtonFormField<String>(
+    initialValue: _gender,
+    decoration: const InputDecoration(
+      labelText: 'Gender',
+      border: OutlineInputBorder(),
+    ),
+    items: const [
+      DropdownMenuItem(value: 'M', child: Text('Male')),
+      DropdownMenuItem(value: 'F', child: Text('Female')),
+    ],
+    onChanged: (value) => setState(() => _gender = value ?? 'M'),
+  );
+
+  Widget _nationalityField(CustomerRegistrationViewModel viewModel) =>
+      AutocompleteField<Nationality>(
+        label: 'Nationality',
+        hintText: 'Type to search nationality',
+        initialText: _nationality?.countryCode,
+        search: viewModel.searchNationalities,
+        itemLabel: (n) => '${n.countryCode} - ${n.countryName}',
+        onSelected: (n) => setState(() => _nationality = n),
+      );
+
+  Widget _flightField(CustomerRegistrationViewModel viewModel) =>
+      AutocompleteField<Flight>(
+        label: 'Flight',
+        hintText: 'Type to search flight code',
+        initialText: _flight?.flightCode,
+        search: viewModel.searchFlights,
+        itemLabel: (f) => f.flightDescription.isEmpty
+            ? f.flightCode
+            : '${f.flightCode} — ${f.flightDescription}',
+        onSelected: _onFlightSelected,
+      );
+
+  Widget _flightDateField() => InkWell(
+    key: const Key('flightDateField'),
+    onTap: _flightDates.isEmpty ? null : _pickFlightDate,
+    child: InputDecorator(
+      decoration: const InputDecoration(
+        labelText: 'Flight date',
+        border: OutlineInputBorder(),
+        suffixIcon: Icon(Icons.calendar_today),
+      ),
+      child: Text(_selectedFlightDate ?? ''),
+    ),
+  );
+
+  Widget _emailField() => AppTextField(
+    controller: _emailController,
+    label: 'Email',
+    keyboardType: TextInputType.emailAddress,
+    errorText: _emailError,
+    onChanged: (_) => setState(() {}),
+  );
+
+  Widget _mobileField() => AppTextField(
+    controller: _mobileController,
+    label: 'Mobile',
+    keyboardType: TextInputType.phone,
+    onChanged: (_) => setState(() {}),
+  );
+
+  Widget _weChatField() => AppTextField(
+    controller: _weChatController,
+    label: 'WeChat',
+    onChanged: (_) => setState(() {}),
+  );
+
+  Widget _agentField(CustomerRegistrationViewModel viewModel) =>
+      AutocompleteField<Agent>(
+        label: 'Agent',
+        hintText: 'Type to search agent',
+        initialText: _agent?.agentCode,
+        search: viewModel.searchAgents,
+        itemLabel: (a) => a.agentDesc.isEmpty ? a.agentCode : a.agentDesc,
+        onSelected: (a) => setState(() => _agent = a),
+      );
+
+  Widget _guideField(CustomerRegistrationViewModel viewModel) =>
+      AutocompleteField<Agent>(
+        label: 'Guide',
+        hintText: 'Type to search guide',
+        initialText: _guide?.subAgentCode,
+        search: viewModel.searchGuides,
+        itemLabel: (a) =>
+            a.subAgentDesc.isEmpty ? a.subAgentCode : a.subAgentDesc,
+        onSelected: (a) => setState(() => _guide = a),
+      );
+
+  Widget _customerTypeField() => AppTextField(
+    controller: _customerTypeController,
+    label: 'Customer type',
+    onChanged: (_) => setState(() {}),
+  );
+
+  Widget _takeAwaySwitch() => SwitchListTile(
+    contentPadding: EdgeInsets.zero,
+    title: const Text('Allow take-away'),
+    value: _allowTakeAway,
+    onChanged: (value) => setState(() => _allowTakeAway = value),
+  );
 }

@@ -468,6 +468,34 @@ worker is available (no shared files: sale feature vs customer feature).
 
 **2d plan file:** `2026-08-27-pos-desktop-phase2d-customer-lookups.md`
 
+**2d status (2026-09-29): done.** Deviations from the task lists above:
+
+- **No "Detected Member ID" chip (S8).** `Register/GetCustomer` takes one value
+  with no format detection; the search bar shows the matched shopping card instead.
+- **S8 layout:** the registration form is embedded on the left — a new-customer
+  form until a search finds someone (legacy's found → profile / not found →
+  register routing), then that customer's edit form; saving re-runs the lookup
+  with the saved shopping card. The right-hand profile reuses the legacy-parity
+  `_CustomerResultCard` (its edit icon dropped — the form is the edit).
+  **Attach to bill is real** (same guards + picked privilege as handheld), not
+  inert. Points / spend YTD / visits show "—", recent purchases a notice;
+  Register member is inert. Below 1000 dp the profile stacks above the form.
+- **Customer type (S13)** looks up `SaleEngine/GetListAgent` with
+  `typeSearch: "customertype"` (legacy `CustomertypePickerPage`; the value is
+  inferred in `api-contracts.md`). Handheld keeps the free-text field.
+- **Sub agent** is disabled until an agent is chosen and cleared when it changes,
+  but not filtered by agent — the guide search takes no agent parameter.
+- **S12** takes each day's time from that day's own resolved departure (handheld
+  keeps legacy's fixed first-candidate time); the floor is the first departure,
+  not a business date (no business-date source).
+- **S9** opens from the form's "Flight & passport" button and writes passport /
+  name / nationality / flight back into the form (saved on Update). MRZ and
+  boarding pass are inert; DOB / expiry are left out (not on the register API);
+  no flight status / gate / region filter; collection point = the flight's
+  departure airport; allowances labelled "not checked yet".
+- The old Material desktop registration form is gone; its shared-logic tests now
+  run at handheld width.
+
 ---
 
 ## Blockers & open items

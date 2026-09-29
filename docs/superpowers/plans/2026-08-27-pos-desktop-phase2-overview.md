@@ -202,6 +202,25 @@ worker is available (no shared files: sale feature vs customer feature).
 
 **2a plan file:** `2026-08-27-pos-desktop-phase2a-quick-wins.md`
 
+**2a status (2026-09-29): done** — `111f823` (DesktopShell + S2), `c55f9b8` (S1),
+`87af28e` (S10), `041aa11` (S11). Implemented straight from the task lists above
+(no separate 2a plan file). Deviations, applied to every remaining sub-phase too:
+
+- **No placeholder data.** Where this plan says "placeholder data" (S2 KPIs /
+  suspended bills / promotions, S10 result set, S6 fake PENDING tenders) the screens
+  show "—" or an explicit "not available yet" notice instead — the same rule as the
+  handheld spec (decision 3), so cashiers never read invented figures as real.
+- **Desktop shell.** A custom `DesktopShell` (84 dp ink rail + 64 dp top bar, from the
+  mockup) replaces `AppShell`'s Material rail at ≥ 840 dp; pushed pages use
+  `DesktopPageFrame`.
+- **S2 scan field** looks up the customer (the mockup's "shopping card, passport or
+  member QR") and switches to the Customer tab, rather than scanning an article.
+- **S11** stays editable with no `SupervisorLockGate` (first-run setup; no card
+  verification API) — the same call as handheld Settings.
+- **S1** "Remember username", QR and staff-card sign-in are inert.
+- **Automation ids:** `TestId` + `lib/core/presentation/test_ids.dart`; desktop reuses
+  the handheld ids for shared elements (rule 8).
+
 ---
 
 ## Sub-phase 2b — sale spine

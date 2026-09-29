@@ -297,6 +297,21 @@ worker is available (no shared files: sale feature vs customer feature).
 
 **2b plan file:** `2026-08-27-pos-desktop-phase2b-sale-spine.md`
 
+**2b status (2026-09-29): done** — `7f5e561`. Deviations from the task lists above:
+
+- **No `CartItem.status` domain add (S4).** A cancel that only flips local state
+  would drop the line from on-screen totals while the server cart still charges it,
+  so Basket's "Cancel line" uses the real `removeItem` (confirmed) and un-cancel /
+  cancelled-but-visible wait for an order API that models it.
+- **S7 Apply is inert** — writing a local-only line discount would show totals the
+  sale engine won't honour. The overlay's arithmetic (`previewLineDiscount`, unit
+  tested) drives the preview only; no stub ceiling or promotion list is invented.
+- **No `SaleBillViewModel`.** The summary sums `lineTotal` inline; discount / Cash-D
+  / VAT show "—".
+- Lookup (F9), Freeze, Pickup, Print basket, Claim check, Suspend and Take payment
+  (F12, until 2c) are inert. Below 760 dp the table hides the Discount /
+  Fulfilment columns (both "—").
+
 ---
 
 ## Sub-phase 2c — checkout flow

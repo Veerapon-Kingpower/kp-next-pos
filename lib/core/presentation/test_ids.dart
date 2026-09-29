@@ -40,6 +40,9 @@ abstract class HomeIds {
   static const tileEnquiry = 'home.tile.enquiry';
   static const suspendedBills = 'home.suspendedBills';
   static const customerResult = 'home.customerResult';
+
+  /// One customer lookup result tile on the handheld Home.
+  static String customerTile(int index) => 'home.customerTile.$index';
 }
 
 abstract class SettingsIds {

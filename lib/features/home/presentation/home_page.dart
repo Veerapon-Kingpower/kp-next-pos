@@ -22,6 +22,7 @@ import '../../customer/domain/entities/customer.dart';
 import '../../customer/domain/entities/privilege.dart';
 import '../../customer/presentation/customer_registration_page.dart';
 import '../../customer/presentation/customer_registration_view_model.dart';
+import '../../customer/presentation/handheld/customer_profile_page.dart';
 import '../../enquiry/presentation/enquiry_page.dart';
 import '../../sale/presentation/handheld/handheld_sale_view.dart';
 import '../../sale/presentation/sale_cart_view_model.dart';
@@ -241,6 +242,50 @@ class _HomePageState extends State<HomePage> {
     setState(() => _section = _HomeSection.sale);
   }
 
+  /// Handheld customer profile (mockup screen 8), pushed over Home.
+  void _openHandheldProfile(Customer customer, HomeViewModel viewModel) {
+    final selected = _selectedPrivilege;
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CustomerProfilePage(
+          customer: customer,
+          initialPrivilege:
+              selected != null &&
+                  customer.person.privileges.any((p) => identical(p, selected))
+              ? selected
+              : null,
+          searchFlights: widget
+              .customerRegistrationViewModelFactory()
+              .searchFlights,
+          onAttach: (privilege) => _attachToBill(customer, privilege),
+          onEdit: () => _openRegistration(existingCustomer: customer),
+        ),
+      ),
+    );
+  }
+
+  /// Handheld "Attach to bill": the same data guards as [_goToSale], but
+  /// the privilege was already picked on the profile page, so no picker
+  /// dialog. Returns whether the customer was attached (the profile page
+  /// closes on true).
+  Future<bool> _attachToBill(Customer customer, Privilege? privilege) async {
+    final person = customer.person;
+    if (person.fastRegister) {
+      await _showSaleBlockedDialog('ShoppingCard is fast register');
+      return false;
+    }
+    if (!person.isActivate) {
+      await _showSaleBlockedDialog('ShoppingCard is not register');
+      return false;
+    }
+    setState(() {
+      _selectedPrivilege = privilege;
+      _section = _HomeSection.sale;
+    });
+    _saleCartViewModel.selectPrivilege(privilege);
+    return true;
+  }
+
   Future<_PrivilegeSelection?> _choosePrivilege(List<Privilege> privileges) {
     return showDialog<_PrivilegeSelection>(
       context: context,
@@ -450,7 +495,7 @@ class _HomePageState extends State<HomePage> {
     return HandheldHomeView(
       searchController: _customerSearchController,
       onSearch: (_) => _searchCustomer(),
-      searchResults: _customerSearchResults(context, viewModel),
+      searchResults: _customerSearchResults(context, viewModel, compact: true),
       onRegister: () => _openRegistration(),
       onSale: () => setState(() => _section = _HomeSection.sale),
       onEnquiry: () => setState(() => _section = _HomeSection.enquiry),
@@ -627,7 +672,11 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _customerSearchResults(BuildContext context, HomeViewModel viewModel) {
+  Widget _customerSearchResults(
+    BuildContext context,
+    HomeViewModel viewModel, {
+    bool compact = false,
+  }) {
     if (viewModel.isSearchingCustomer) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
@@ -647,6 +696,20 @@ class _HomePageState extends State<HomePage> {
       return const EmptyStateView(
         message: 'No customer found.',
         icon: Icons.person_search_outlined,
+      );
+    }
+    if (compact) {
+      // Handheld: a tile per match; the full profile opens on tap.
+      final results = viewModel.customerSearchResults;
+      return Column(
+        children: [
+          for (var i = 0; i < results.length; i++)
+            HandheldCustomerResultTile(
+              id: HomeIds.customerTile(i),
+              customer: results[i],
+              onTap: () => _openHandheldProfile(results[i], viewModel),
+            ),
+        ],
       );
     }
     return Column(

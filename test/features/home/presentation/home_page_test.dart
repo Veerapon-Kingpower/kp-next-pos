@@ -952,16 +952,31 @@ void main() {
       expect(find.text('PosKpi · Branch 03 · Somchai P.'), findsOneWidget);
     });
 
-    testWidgets('scanning a shopping card on Home shows the customer card', (
+    testWidgets('scanning a shopping card lists the customer as a tile', (
       tester,
     ) async {
       await pumpHandheld(tester, buildPage(searchResult: const [jane]));
       await scan(tester, 'CPX0001');
 
-      expect(find.text('Jane Doe'), findsOneWidget);
       expect(
         find.descendant(
-          of: byTestId(HomeIds.customerResult),
+          of: byTestId(HomeIds.customerTile(0)),
+          matching: find.text('Jane Doe'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('tapping the tile opens the customer profile', (tester) async {
+      await pumpHandheld(tester, buildPage(searchResult: const [jane]));
+      await scan(tester, 'CPX0001');
+      await tester.tap(byTestId(HomeIds.customerTile(0)));
+      await tester.pumpAndSettle();
+
+      expect(byTestId(ProfileIds.page), findsOneWidget);
+      expect(
+        find.descendant(
+          of: byTestId(ProfileIds.privilege(0)),
           matching: find.text('Gold Member'),
         ),
         findsOneWidget,
@@ -976,18 +991,53 @@ void main() {
       expect(find.text('No customer found.'), findsOneWidget);
     });
 
-    testWidgets('a privilege picked on Home carries over to the Sale tab', (
+    testWidgets('Attach to bill carries the picked privilege to Sale', (
       tester,
     ) async {
       await pumpHandheld(tester, buildPage(searchResult: const [jane]));
       await scan(tester, 'CPX0001');
-      await tester.tap(find.byKey(const Key('privilegeCard_0')));
+      await tester.tap(byTestId(HomeIds.customerTile(0)));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(byTestId(ProfileIds.privilege(0)));
+      await tester.tap(byTestId(ProfileIds.privilege(0)));
+      await tester.pump();
+      await tester.tap(byTestId(ProfileIds.attachButton));
       await tester.pumpAndSettle();
 
-      await tester.tap(byTestId(NavIds.sale));
-      await tester.pumpAndSettle();
-
+      expect(byTestId(ProfileIds.page), findsNothing);
+      expect(byTestId(SaleIds.scanField), findsOneWidget);
       expect(find.text('[VIP]:PROMO123'), findsOneWidget);
+    });
+
+    testWidgets('Attach to bill is blocked for an unregistered card', (
+      tester,
+    ) async {
+      const unregistered = Customer(
+        action: 'found',
+        isFound: true,
+        person: CustomerPerson(
+          englishName: 'Jane Doe',
+          passportNo: 'P1234567',
+          nationality: 'THA',
+          contacts: [],
+          privileges: [],
+          walletMembers: [],
+        ),
+        tour: {},
+        agentCode: '',
+        isMember: false,
+      );
+      await pumpHandheld(tester, buildPage(searchResult: const [unregistered]));
+      await scan(tester, 'CPX0001');
+      await tester.tap(byTestId(HomeIds.customerTile(0)));
+      await tester.pumpAndSettle();
+      await tester.tap(byTestId(ProfileIds.attachButton));
+      await tester.pumpAndSettle();
+
+      expect(find.text('ShoppingCard is not register'), findsOneWidget);
+      await tester.tap(find.text('Got it'));
+      await tester.pumpAndSettle();
+      expect(byTestId(ProfileIds.page), findsOneWidget);
     });
 
     testWidgets('the Sale tile and the Sale nav item open the Sale screen', (

@@ -4,6 +4,7 @@ import '../../../../core/presentation/handheld/handheld.dart';
 import '../../../../core/presentation/test_ids.dart';
 import '../../../../core/presentation/widgets/test_id.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../customer/domain/entities/customer.dart';
 
 /// Header of the handheld Home screen (mockup screen 2): avatar initials,
 /// time-of-day greeting, the module / branch / user line, the sale-mode
@@ -237,6 +238,126 @@ class HandheldHomeView extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// One handheld Home lookup result (mockup screen 2 → 8): initials, name,
+/// member badge, shopping card and registration status; tap opens the
+/// customer profile.
+class HandheldCustomerResultTile extends StatelessWidget {
+  final String id;
+  final Customer customer;
+  final VoidCallback onTap;
+
+  const HandheldCustomerResultTile({
+    super.key,
+    required this.id,
+    required this.customer,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final person = customer.person;
+    final badge = person.typeCardMember.trim().toUpperCase();
+    final line = [
+      person.shoppingCard,
+      person.passportNo,
+      person.nationality,
+    ].where((s) => s.isNotEmpty).join(' · ');
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: TestId(
+        id,
+        child: Material(
+          color: AppColors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(HandheldMetrics.radius),
+            side: const BorderSide(color: AppColors.line),
+          ),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(HandheldMetrics.radius),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  _Avatar(
+                    initials: HandheldHomeHeader.initialsOf(person.englishName),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                person.englishName.isEmpty
+                                    ? '—'
+                                    : person.englishName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            if (badge.isNotEmpty) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 5,
+                                  vertical: 1,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.gold,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  badge,
+                                  style: const TextStyle(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.ink,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        if (line.isNotEmpty)
+                          Text(
+                            line,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: HandheldText.bodySmall.copyWith(
+                              fontSize: 11.5,
+                            ),
+                          ),
+                        Text(
+                          person.isActivate ? 'Registered' : 'Not registered',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: person.isActivate
+                                ? AppColors.success
+                                : AppColors.warning,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right, color: AppColors.mutedText),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

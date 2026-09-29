@@ -27,9 +27,7 @@ class WizardStepBar extends StatelessWidget {
         Text(title, style: textTheme.titleMedium),
         Text(
           'Step $currentStep of $totalSteps',
-          style: textTheme.bodySmall?.copyWith(
-            color: AppColors.textSecondary,
-          ),
+          style: textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
         ),
       ],
     );

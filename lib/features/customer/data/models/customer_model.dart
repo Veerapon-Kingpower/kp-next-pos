@@ -75,7 +75,10 @@ class CustomerPersonModel extends CustomerPerson {
       // in `CustomerModel.ts`), unlike its Dart/camelCase counterpart.
       flightPickup: json['flightpickup'] as String? ?? '',
       custTypeCode: _identityValue(json['singleDiscount'], 'CODE'),
-      typeCardMember: _identityValue(json['singleDiscount'], 'TYPE CARD MEMBER'),
+      typeCardMember: _identityValue(
+        json['singleDiscount'],
+        'TYPE CARD MEMBER',
+      ),
       gender: json['gender'] as String? ?? 'M',
       listIdentity: _rawList(json['listIdentity']),
       provinceCode: json['provinceCode'] as String? ?? '',

@@ -26,14 +26,17 @@ const _rows = [
 ];
 
 void main() {
-  test('agents send typeSearch "A" and keep code/description matches', () async {
-    final repo = FakeCustomerRepository(agentsResult: _rows);
+  test(
+    'agents send typeSearch "A" and keep code/description matches',
+    () async {
+      final repo = FakeCustomerRepository(agentsResult: _rows);
 
-    final result = await ListAgentsUseCase(repo)(input: 'BANGKOK');
+      final result = await ListAgentsUseCase(repo)(input: 'BANGKOK');
 
-    expect(repo.lastAgentsTypeSearch, 'A');
-    expect(result.map((a) => a.agentCode), ['AG02']);
-  });
+      expect(repo.lastAgentsTypeSearch, 'A');
+      expect(result.map((a) => a.agentCode), ['AG02']);
+    },
+  );
 
   test('guides send typeSearch "S" and keep sub agent code/description '
       'matches', () async {

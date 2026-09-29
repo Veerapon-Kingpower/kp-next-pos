@@ -462,18 +462,15 @@ void main() {
     },
   );
 
-  test(
-    'searchCustomerTypes delegates with typeSearch "C"',
-    () async {
-      final repo = FakeCustomerRepository();
-      final viewModel = buildViewModel(repo);
+  test('searchCustomerTypes delegates with typeSearch "C"', () async {
+    final repo = FakeCustomerRepository();
+    final viewModel = buildViewModel(repo);
 
-      await viewModel.searchCustomerTypes('TOU');
+    await viewModel.searchCustomerTypes('TOU');
 
-      expect(repo.lastAgentsInput, 'TOU');
-      expect(repo.lastAgentsTypeSearch, 'C');
-    },
-  );
+    expect(repo.lastAgentsInput, 'TOU');
+    expect(repo.lastAgentsTypeSearch, 'C');
+  });
 
   test('searchFlights delegates to GetFlightByCodeUseCase', () async {
     final flightRepo = FakeFlightRepository();

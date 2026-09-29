@@ -9,11 +9,7 @@ void main() {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
-          body: WizardStepBar(
-            title: 'Checkout',
-            currentStep: 2,
-            totalSteps: 3,
-          ),
+          body: WizardStepBar(title: 'Checkout', currentStep: 2, totalSteps: 3),
         ),
       ),
     );

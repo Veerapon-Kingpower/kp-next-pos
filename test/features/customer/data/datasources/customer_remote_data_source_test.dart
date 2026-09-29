@@ -93,44 +93,41 @@ void main() {
     expect(result.first.subAgentCode, 'GD1');
   });
 
-  test(
-    'searchCustomer parses customer type and registration status',
-    () async {
-      apiClient.response = {
-        'isCompleted': true,
-        'Data': [
-          {
-            'action': 'found',
-            'isFound': true,
-            'person': {
-              'englishName': 'Jane Doe',
-              'customerTypeCode': 'VIP',
-              'customerTypeDetail': 'VIP Member',
-              'isActivate': true,
-            },
-            'tour': <String, dynamic>{},
-            'agentCode': '',
-            'isMember': false,
+  test('searchCustomer parses customer type and registration status', () async {
+    apiClient.response = {
+      'isCompleted': true,
+      'Data': [
+        {
+          'action': 'found',
+          'isFound': true,
+          'person': {
+            'englishName': 'Jane Doe',
+            'customerTypeCode': 'VIP',
+            'customerTypeDetail': 'VIP Member',
+            'isActivate': true,
           },
-        ],
-        'Message': [],
-      };
+          'tour': <String, dynamic>{},
+          'agentCode': '',
+          'isMember': false,
+        },
+      ],
+      'Message': [],
+    };
 
-      final result = await dataSource.searchCustomer(
-        baseUrl: 'https://web-service',
-        branchNo: '03',
-        subBranch: 'CPX-DT',
-        shoppingCard: 'CPX0001',
-        isTour: false,
-        pickupCode: 'A1',
-        machineNo: 'uuid-1',
-      );
+    final result = await dataSource.searchCustomer(
+      baseUrl: 'https://web-service',
+      branchNo: '03',
+      subBranch: 'CPX-DT',
+      shoppingCard: 'CPX0001',
+      isTour: false,
+      pickupCode: 'A1',
+      machineNo: 'uuid-1',
+    );
 
-      expect(result.first.person.customerTypeCode, 'VIP');
-      expect(result.first.person.customerTypeDetail, 'VIP Member');
-      expect(result.first.person.isActivate, true);
-    },
-  );
+    expect(result.first.person.customerTypeCode, 'VIP');
+    expect(result.first.person.customerTypeDetail, 'VIP Member');
+    expect(result.first.person.isActivate, true);
+  });
 
   test(
     'searchCustomer extracts the shopping card number from the SHOPCARD entry in listIdentity',

@@ -17,18 +17,21 @@ void main() {
       expect(mapExceptionToFailure(error), isA<TimeoutFailure>());
     });
 
-    test('maps any other ApiException to ApiFailure, preserving its message', () {
-      const error = ApiException(
-        messageDesc: 'Article not found',
-        messageCode: 'E01',
-      );
+    test(
+      'maps any other ApiException to ApiFailure, preserving its message',
+      () {
+        const error = ApiException(
+          messageDesc: 'Article not found',
+          messageCode: 'E01',
+        );
 
-      final failure = mapExceptionToFailure(error);
+        final failure = mapExceptionToFailure(error);
 
-      expect(failure, isA<ApiFailure>());
-      expect(failure.message, 'Article not found');
-      expect((failure as ApiFailure).messageCode, 'E01');
-    });
+        expect(failure, isA<ApiFailure>());
+        expect(failure.message, 'Article not found');
+        expect((failure as ApiFailure).messageCode, 'E01');
+      },
+    );
 
     test('maps a non-ApiException error to UnknownFailure', () {
       expect(mapExceptionToFailure(Exception('boom')), isA<UnknownFailure>());

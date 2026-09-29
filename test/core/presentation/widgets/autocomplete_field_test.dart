@@ -24,28 +24,27 @@ void main() {
     );
   }
 
-  testWidgets(
-    'typing shows suggestions inline once the debounce elapses',
-    (tester) async {
-      await tester.pumpWidget(
-        buildSubject(
-          search: (query) async => const ['Thailand', 'Taiwan'],
-          onSelected: (_) {},
-        ),
-      );
+  testWidgets('typing shows suggestions inline once the debounce elapses', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      buildSubject(
+        search: (query) async => const ['Thailand', 'Taiwan'],
+        onSelected: (_) {},
+      ),
+    );
 
-      await tester.enterText(find.byType(TextField), 'th');
-      // Before the debounce elapses, nothing has been searched yet.
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(find.text('Thailand'), findsNothing);
+    await tester.enterText(find.byType(TextField), 'th');
+    // Before the debounce elapses, nothing has been searched yet.
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('Thailand'), findsNothing);
 
-      await tester.pump(const Duration(milliseconds: 250));
-      await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pump();
 
-      expect(find.text('Thailand'), findsOneWidget);
-      expect(find.text('Taiwan'), findsOneWidget);
-    },
-  );
+    expect(find.text('Thailand'), findsOneWidget);
+    expect(find.text('Taiwan'), findsOneWidget);
+  });
 
   testWidgets('rapid typing only searches once, with the settled query', (
     tester,
@@ -100,9 +99,7 @@ void main() {
     },
   );
 
-  testWidgets('an empty result list shows no suggestions box', (
-    tester,
-  ) async {
+  testWidgets('an empty result list shows no suggestions box', (tester) async {
     await tester.pumpWidget(
       buildSubject(search: (query) async => const [], onSelected: (_) {}),
     );

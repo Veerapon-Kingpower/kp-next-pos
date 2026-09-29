@@ -36,7 +36,10 @@ void main() {
     });
 
     test('noThai drops Thai and keeps everything else as typed', () {
-      expect(apply(FormInputs.noThai, 'u001สวัสดี Pa\$\$w0rd!'), 'u001 Pa\$\$w0rd!');
+      expect(
+        apply(FormInputs.noThai, 'u001สวัสดี Pa\$\$w0rd!'),
+        'u001 Pa\$\$w0rd!',
+      );
     });
 
     test('upperCase upper-cases free text', () {

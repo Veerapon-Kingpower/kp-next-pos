@@ -235,6 +235,7 @@ void main() {
       await pump(tester);
       expect(textIn(tester, DesktopSaleIds.qtyTotal), '3');
       expect(textIn(tester, DesktopSaleIds.lineCount), '2');
+      expect(textIn(tester, DesktopSaleIds.mode), 'Normal');
       expect(textIn(tester, DesktopSaleIds.grand), '21,500.00');
       expect(textIn(tester, SaleIds.netPay), '฿21,500.00');
       expect(

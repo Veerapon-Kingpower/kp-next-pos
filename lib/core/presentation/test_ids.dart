@@ -339,6 +339,7 @@ abstract class DesktopSaleIds {
   static const summary = 'desktop.sale.summary';
   static const qtyTotal = 'desktop.sale.qtyTotal';
   static const lineCount = 'desktop.sale.lineCount';
+  static const mode = 'desktop.sale.mode';
   static const grand = 'desktop.sale.grand';
   static const removeButton = 'desktop.sale.removeButton';
   static const freezeButton = 'desktop.sale.freezeButton';

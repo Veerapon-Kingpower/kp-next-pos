@@ -901,7 +901,12 @@ class _Summary extends StatelessWidget {
               id: DesktopSaleIds.lineCount,
             ),
             const SizedBox(width: 8),
-            tile('Mode', 'Shopping', const Color(0xFFEAF1FA)),
+            tile(
+              'Mode',
+              'Normal',
+              const Color(0xFFEAF1FA),
+              id: DesktopSaleIds.mode,
+            ),
           ],
         ),
         const SizedBox(height: 8),

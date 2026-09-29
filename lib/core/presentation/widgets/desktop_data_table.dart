@@ -22,11 +22,16 @@ class DesktopDataTable extends StatelessWidget {
   final List<List<Widget>> rows;
   final Widget? emptyPlaceholder;
 
+  /// Keep the column headers above [emptyPlaceholder] when there are no
+  /// rows (e.g. a search screen whose columns should stay visible).
+  final bool keepHeaderWhenEmpty;
+
   const DesktopDataTable({
     super.key,
     required this.columns,
     required this.rows,
     this.emptyPlaceholder,
+    this.keepHeaderWhenEmpty = false,
   });
 
   @override
@@ -36,7 +41,7 @@ class DesktopDataTable extends StatelessWidget {
       'Each row must have exactly one cell per column',
     );
 
-    if (rows.isEmpty && emptyPlaceholder != null) {
+    if (rows.isEmpty && emptyPlaceholder != null && !keepHeaderWhenEmpty) {
       return emptyPlaceholder!;
     }
 
@@ -57,6 +62,7 @@ class DesktopDataTable extends StatelessWidget {
           ),
         ),
         const Divider(height: 1, color: AppColors.divider),
+        if (rows.isEmpty && emptyPlaceholder != null) emptyPlaceholder!,
         for (var i = 0; i < rows.length; i++) ...[
           _TableRow(rows[i]),
           if (i != rows.length - 1)
@@ -76,11 +82,7 @@ class _TableRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-      child: Row(
-        children: [
-          for (final cell in cells) Expanded(child: cell),
-        ],
-      ),
+      child: Row(children: [for (final cell in cells) Expanded(child: cell)]),
     );
   }
 }

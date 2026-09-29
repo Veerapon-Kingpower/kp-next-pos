@@ -819,7 +819,7 @@ void main() {
   );
 
   testWidgets(
-    'at desktop width, tapping Enquiry shows the Enquiry placeholder',
+    'at desktop width, tapping Enquiry shows the transaction search',
     (tester) async {
       tester.view.physicalSize = const Size(1200, 900);
       tester.view.devicePixelRatio = 1.0;
@@ -831,7 +831,7 @@ void main() {
       await tester.tap(find.text('Enquiry').last);
       await tester.pumpAndSettle();
 
-      expect(find.text('Enquiry — coming soon'), findsOneWidget);
+      expect(byTestId(DesktopIds.enquirySearchButton), findsOneWidget);
     },
   );
 

@@ -49,4 +49,28 @@ void main() {
     expect(find.text('No items yet'), findsOneWidget);
     expect(find.text('Item'), findsNothing);
   });
+
+  testWidgets('keepHeaderWhenEmpty shows headers above the placeholder', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: DesktopDataTable(
+            columns: [DesktopDataColumn(label: 'Item')],
+            rows: [],
+            emptyPlaceholder: Text('No items yet'),
+            keepHeaderWhenEmpty: true,
+          ),
+        ),
+      ),
+    );
+    expect(find.text('Item'), findsOneWidget);
+    expect(find.text('No items yet'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Item')).dy <
+          tester.getTopLeft(find.text('No items yet')).dy,
+      isTrue,
+    );
+  });
 }

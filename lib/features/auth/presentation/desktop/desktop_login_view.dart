@@ -2,44 +2,28 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/config/device_settings.dart';
 import '../../../../core/presentation/desktop/desktop.dart';
+import '../../../../core/presentation/form_inputs.dart';
 import '../../../../core/presentation/test_ids.dart';
 import '../../../../core/presentation/widgets/test_id.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../handheld/handheld_login_form.dart' show kingPowerMobileLogo;
 import '../login_page.dart' show loginBackgroundAsset;
 
-const _months = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-];
-
-/// Desktop sign-in (POS Desktop mockup screen 1): terminal identity on the
-/// brand photo, the sign-in form on white.
+/// Desktop sign-in (POS Desktop mockup screen 1): station name and app
+/// version on the brand photo, the sign-in form on white.
 ///
-/// Wired to the existing user-code + password flow. The identity panel
-/// reads local device settings (store, machine, sale mode) and today's
-/// date; live RC / bridge status has no source yet so it isn't shown.
-/// QR sign-in, staff-card sign-in and "Remember username" are inert
-/// (desktop spec decision 3 — PIN / terminal binding out of scope).
-// TODO(pos-desktop): QR + staff-card sign-in, remember-username
-// persistence, live RC / app / bridge status.
+/// Wired to the existing user-code + password flow. The station name comes
+/// from local device settings (location). QR sign-in is inert (desktop spec decision 3 — PIN / terminal binding
+/// out of scope).
+// TODO(pos-desktop): QR sign-in, live RC / app / bridge status.
 class DesktopLoginView extends StatefulWidget {
   final TextEditingController userCodeController;
   final TextEditingController passwordController;
   final bool isSubmitting;
   final String? errorMessage;
   final DeviceSettings? deviceSettings;
-  final DateTime now;
+
+  /// Shown under the station name; nothing is shown while it's null.
+  final String? appVersion;
   final VoidCallback onSubmit;
   final VoidCallback onOpenSettings;
 
@@ -50,7 +34,7 @@ class DesktopLoginView extends StatefulWidget {
     required this.isSubmitting,
     required this.errorMessage,
     required this.deviceSettings,
-    required this.now,
+    this.appVersion,
     required this.onSubmit,
     required this.onOpenSettings,
   });
@@ -73,7 +57,7 @@ class _DesktopLoginViewState extends State<DesktopLoginView> {
             flex: 53,
             child: _IdentityPanel(
               settings: widget.deviceSettings,
-              now: widget.now,
+              appVersion: widget.appVersion,
             ),
           ),
           Expanded(
@@ -135,21 +119,6 @@ class _DesktopLoginViewState extends State<DesktopLoginView> {
             child: TextButton(
               onPressed: () => setState(() => _obscure = !_obscure),
               child: Text(_obscure ? 'Show' : 'Hide'),
-            ),
-          ),
-        ),
-        const SizedBox(height: 14),
-        TestId(
-          DesktopIds.loginRememberUser,
-          child: const CheckboxListTile(
-            value: false,
-            onChanged: null,
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            controlAffinity: ListTileControlAffinity.leading,
-            title: Text(
-              'Remember username on this terminal',
-              style: TextStyle(fontSize: 13.5),
             ),
           ),
         ),
@@ -231,27 +200,12 @@ class _DesktopLoginViewState extends State<DesktopLoginView> {
           ),
         ),
         const SizedBox(height: 16),
-        Row(
-          children: [
-            const Expanded(
-              child: DesktopButton(
-                id: DesktopIds.loginIdCardButton,
-                label: 'Staff card',
-                icon: Icons.badge_outlined,
-                secondary: true,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: DesktopButton(
-                id: LoginIds.settingsButton,
-                label: 'Device settings',
-                icon: Icons.settings_outlined,
-                secondary: true,
-                onPressed: widget.onOpenSettings,
-              ),
-            ),
-          ],
+        DesktopButton(
+          id: LoginIds.settingsButton,
+          label: 'Device settings',
+          icon: Icons.settings_outlined,
+          secondary: true,
+          onPressed: widget.onOpenSettings,
         ),
       ],
     );
@@ -260,9 +214,9 @@ class _DesktopLoginViewState extends State<DesktopLoginView> {
 
 class _IdentityPanel extends StatelessWidget {
   final DeviceSettings? settings;
-  final DateTime now;
+  final String? appVersion;
 
-  const _IdentityPanel({required this.settings, required this.now});
+  const _IdentityPanel({required this.settings, required this.appVersion});
 
   @override
   Widget build(BuildContext context) {
@@ -270,14 +224,6 @@ class _IdentityPanel extends StatelessWidget {
     final station = s == null || s.location.isEmpty
         ? 'King Power POS'
         : s.location;
-    final machine = s == null || s.machine == 0 ? '—' : '${s.machine}';
-    final branch = s == null || s.branch.isEmpty ? '—' : s.branch;
-    final saleMode = s == null
-        ? '—'
-        : s.forceOfflineMode
-        ? 'Sell offline'
-        : 'Sell online';
-    final date = '${now.day} ${_months[now.month - 1]} ${now.year}';
 
     return TestId(
       DesktopIds.loginIdentityPanel,
@@ -304,10 +250,6 @@ class _IdentityPanel extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: const Image(image: kingPowerMobileLogo, height: 52),
-                ),
                 const Spacer(),
                 const Text(
                   'SMART POS · CASHIER STATION',
@@ -328,56 +270,25 @@ class _IdentityPanel extends StatelessWidget {
                     color: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 32),
-                Wrap(
-                  spacing: 40,
-                  runSpacing: 16,
-                  children: [
-                    _Fact(label: 'Machine', value: machine),
-                    _Fact(label: 'Branch', value: branch),
-                    _Fact(label: 'Business date', value: date),
-                    _Fact(label: 'Sale mode', value: saleMode),
-                  ],
-                ),
+                if (appVersion != null) ...[
+                  const SizedBox(height: 16),
+                  TestId(
+                    LoginIds.appVersion,
+                    child: Text(
+                      'Version $appVersion',
+                      style: TextStyle(
+                        fontSize: 14,
+                        letterSpacing: 0.4,
+                        color: Colors.white.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
         ],
       ),
-    );
-  }
-}
-
-class _Fact extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _Fact({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          label.toUpperCase(),
-          style: TextStyle(
-            fontSize: 11,
-            letterSpacing: 1,
-            color: Colors.white.withValues(alpha: 0.6),
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w500,
-            color: Colors.white,
-          ),
-        ),
-      ],
     );
   }
 }
@@ -414,6 +325,7 @@ class _Field extends StatelessWidget {
         obscureText: obscureText,
         textInputAction: textInputAction,
         onSubmitted: onSubmitted,
+        inputFormatters: FormInputs.noThai,
         style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
         decoration: InputDecoration(
           prefixIcon: Icon(icon, color: AppColors.goldDark),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../core/app/session_state.dart';
 import '../../../core/config/device_settings.dart';
@@ -21,16 +22,33 @@ const loginBackgroundAsset = AssetImage(
   'assets/images/Login-sales_Branding_FINAL.jpg',
 );
 
+/// The running build's version as shown on sign-in — `1.0.0 (1)`, from
+/// `pubspec.yaml`'s `version:`. Null when the platform can't report it.
+Future<String?> loadAppVersion() async {
+  try {
+    final info = await PackageInfo.fromPlatform();
+    return info.buildNumber.isEmpty
+        ? info.version
+        : '${info.version} (${info.buildNumber})';
+  } catch (_) {
+    return null;
+  }
+}
+
 class LoginPage extends StatefulWidget {
   final LoginViewModel viewModel;
   final SessionState sessionState;
   final SettingsViewModel Function() settingsViewModelFactory;
+
+  /// Reads the app version shown on sign-in; replaceable in tests.
+  final Future<String?> Function() appVersion;
 
   const LoginPage({
     super.key,
     required this.viewModel,
     required this.sessionState,
     required this.settingsViewModelFactory,
+    this.appVersion = loadAppVersion,
   });
 
   @override
@@ -42,6 +60,7 @@ class _LoginPageState extends State<LoginPage> {
   final _passwordController = TextEditingController();
   // Local read for the desktop identity panel — null until it resolves.
   DeviceSettings? _deviceSettings;
+  String? _appVersion;
 
   @override
   void initState() {
@@ -55,6 +74,9 @@ class _LoginPageState extends State<LoginPage> {
     widget.viewModel.addListener(_onSideEffect);
     widget.sessionState.readDeviceSettings().then((settings) {
       if (mounted) setState(() => _deviceSettings = settings);
+    });
+    widget.appVersion().then((version) {
+      if (mounted) setState(() => _appVersion = version);
     });
   }
 
@@ -121,7 +143,7 @@ class _LoginPageState extends State<LoginPage> {
         isSubmitting: isSubmitting,
         errorMessage: errorMessage,
         deviceSettings: _deviceSettings,
-        now: DateTime.now(),
+        appVersion: _appVersion,
         onSubmit: _submit,
         onOpenSettings: _openSettings,
       );
@@ -134,6 +156,7 @@ class _LoginPageState extends State<LoginPage> {
       passwordController: _passwordController,
       isSubmitting: isSubmitting,
       errorMessage: errorMessage,
+      appVersion: _appVersion,
       onSubmit: _submit,
       onOpenSettings: _openSettings,
     );

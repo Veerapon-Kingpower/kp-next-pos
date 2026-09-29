@@ -35,6 +35,10 @@ void main() {
       expect(apply(FormInputs.weChat, 'jane_wc-01 สวัสดี!'), 'JANE_WC-01');
     });
 
+    test('noThai drops Thai and keeps everything else as typed', () {
+      expect(apply(FormInputs.noThai, 'u001สวัสดี Pa\$\$w0rd!'), 'u001 Pa\$\$w0rd!');
+    });
+
     test('upperCase upper-cases free text', () {
       expect(apply(FormInputs.upperCase, 'tg916 bkk'), 'TG916 BKK');
     });

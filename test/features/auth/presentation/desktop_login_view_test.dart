@@ -31,6 +31,7 @@ void main() {
     ),
     String? error,
     bool submitting = false,
+    String? appVersion = '1.0.0 (1)',
     Size size = const Size(1440, 900),
   }) async {
     setDeviceSize(tester, size);
@@ -42,7 +43,7 @@ void main() {
           isSubmitting: submitting,
           errorMessage: error,
           deviceSettings: settings,
-          now: DateTime(2026, 8, 26, 14, 26),
+          appVersion: appVersion,
           onSubmit: () => events.add('submit'),
           onOpenSettings: () => events.add('settings'),
         ),
@@ -50,7 +51,7 @@ void main() {
     );
   }
 
-  testWidgets('identity panel shows station, machine and business date', (
+  testWidgets('identity panel shows the station and app version only', (
     tester,
   ) async {
     await pump(tester);
@@ -60,29 +61,40 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.descendant(of: panel, matching: find.text('412')),
+      find.descendant(
+        of: byTestId(LoginIds.appVersion),
+        matching: find.text('Version 1.0.0 (1)'),
+      ),
       findsOneWidget,
     );
+    // The Machine / Branch / Business date / Sale mode row is gone.
+    for (final label in ['MACHINE', 'BRANCH', 'BUSINESS DATE', 'SALE MODE']) {
+      expect(find.text(label), findsNothing, reason: label);
+    }
+    // Nor is the gold King Power Mobile logo.
     expect(
-      find.descendant(of: panel, matching: find.text('26 Aug 2026')),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(of: panel, matching: find.text('Sell online')),
-      findsOneWidget,
+      find.byWidgetPredicate(
+        (w) =>
+            w is Image &&
+            w.image is AssetImage &&
+            (w.image as AssetImage).assetName.contains(
+              'kingpower_mobile_logo',
+            ),
+      ),
+      findsNothing,
     );
   });
 
-  testWidgets('identity panel falls back to — before settings load', (
+  testWidgets('before settings / version load: default station, no version', (
     tester,
   ) async {
-    await pump(tester, settings: null);
+    await pump(tester, settings: null, appVersion: null);
     final panel = byTestId(DesktopIds.loginIdentityPanel);
     expect(
       find.descendant(of: panel, matching: find.text('King Power POS')),
       findsOneWidget,
     );
-    expect(find.descendant(of: panel, matching: find.text('—')), findsWidgets);
+    expect(byTestId(LoginIds.appVersion), findsNothing);
   });
 
   testWidgets('Sign in and Enter on the password submit', (tester) async {
@@ -120,22 +132,16 @@ void main() {
     );
   });
 
-  testWidgets('QR, ID card and remember-username are inert; settings works', (
-    tester,
-  ) async {
+  testWidgets('QR is inert, settings works; no Staff card or '
+      'remember-username', (tester) async {
     final handle = tester.ensureSemantics();
     await pump(tester);
-    for (final id in [
-      LoginIds.qrLoginButton,
-      DesktopIds.loginIdCardButton,
-      DesktopIds.loginRememberUser,
-    ]) {
-      expect(
-        tester.getSemantics(byTestId(id)),
-        isSemantics(hasEnabledState: true, isEnabled: false),
-        reason: id,
-      );
-    }
+    expect(
+      tester.getSemantics(byTestId(LoginIds.qrLoginButton)),
+      isSemantics(hasEnabledState: true, isEnabled: false),
+    );
+    expect(find.text('Staff card'), findsNothing);
+    expect(find.text('Remember username on this terminal'), findsNothing);
     await tester.tap(byTestId(LoginIds.settingsButton));
     expect(events, ['settings']);
     handle.dispose();

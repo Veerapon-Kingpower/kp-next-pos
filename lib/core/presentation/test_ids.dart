@@ -28,6 +28,7 @@ abstract class LoginIds {
   static const qrLoginButton = 'login.qrLoginButton';
   static const settingsButton = 'login.settingsButton';
   static const errorMessage = 'login.errorMessage';
+  static const appVersion = 'login.appVersion';
 }
 
 abstract class HomeIds {
@@ -298,8 +299,6 @@ abstract class DesktopIds {
 
   // Sign in (S1)
   static const loginIdentityPanel = 'desktop.login.identityPanel';
-  static const loginRememberUser = 'desktop.login.rememberUser';
-  static const loginIdCardButton = 'desktop.login.idCardButton';
 
   // Home dashboard (S2)
   static const homeGreeting = 'desktop.home.greeting';

@@ -47,6 +47,12 @@ abstract class FormInputs {
     const UpperCaseTextFormatter(),
   ];
 
+  /// No Thai characters (U+0E00–U+0E7F) — typed or pasted; everything else
+  /// passes as typed. Used by the sign-in username / password.
+  static final noThai = <TextInputFormatter>[
+    FilteringTextInputFormatter.deny(RegExp(r'[฀-๿]')),
+  ];
+
   /// Free text or a lookup query: upper case.
   static const upperCase = <TextInputFormatter>[UpperCaseTextFormatter()];
 

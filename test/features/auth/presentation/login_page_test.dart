@@ -197,7 +197,46 @@ void main() {
       ),
       sessionState: buildSessionState(),
       settingsViewModelFactory: buildSettingsViewModelFactory(),
+      appVersion: () async => '1.0.0 (1)',
     );
+
+    for (final (name, size) in [
+      ('handheld', compactSize),
+      ('desktop', expandedSize),
+    ]) {
+      testWidgets('$name: username and password take no Thai', (
+        tester,
+      ) async {
+        setDeviceSize(tester, size);
+        await tester.pumpWidget(MaterialApp(home: buildPage()));
+
+        Future<String> typed(String id, String text) async {
+          final field = find.descendant(
+            of: byTestId(id),
+            matching: find.byType(TextField),
+          );
+          await tester.enterText(field, text);
+          return tester.widget<TextField>(field).controller!.text;
+        }
+
+        expect(await typed(LoginIds.userCodeField, 'u001สมชาย'), 'u001');
+        expect(await typed(LoginIds.passwordField, 'รหัสPass1!'), 'Pass1!');
+      });
+
+      testWidgets('$name: shows the app version', (tester) async {
+        setDeviceSize(tester, size);
+        await tester.pumpWidget(MaterialApp(home: buildPage()));
+        await tester.pump();
+
+        expect(
+          find.descendant(
+            of: byTestId(LoginIds.appVersion),
+            matching: find.text('Version 1.0.0 (1)'),
+          ),
+          findsOneWidget,
+        );
+      });
+    }
 
     testWidgets('renders the dark handheld form with automation ids', (
       tester,
@@ -223,6 +262,26 @@ void main() {
       expect(scaffold.backgroundColor, AppColors.ink);
       handle.dispose();
     });
+
+    for (final (name, size) in [
+      ('handheld', compactSize),
+      ('desktop', expandedSize),
+    ]) {
+      testWidgets('$name: no gold King Power Mobile logo', (tester) async {
+        setDeviceSize(tester, size);
+        await tester.pumpWidget(MaterialApp(home: buildPage()));
+
+        final logo = find.byWidgetPredicate(
+          (w) =>
+              w is Image &&
+              w.image is AssetImage &&
+              (w.image as AssetImage).assetName.contains(
+                'kingpower_mobile_logo',
+              ),
+        );
+        expect(logo, findsNothing);
+      });
+    }
 
     testWidgets('Show / Hide toggles password visibility', (tester) async {
       setDeviceSize(tester, compactSize);

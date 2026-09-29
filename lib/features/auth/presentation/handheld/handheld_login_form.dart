@@ -1,16 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/presentation/form_inputs.dart';
 import '../../../../core/presentation/handheld/handheld.dart';
 import '../../../../core/presentation/test_ids.dart';
 import '../../../../core/presentation/widgets/test_id.dart';
 import '../../../../core/theme/app_colors.dart';
 
-const kingPowerMobileLogo = AssetImage(
-  'assets/images/kingpower_mobile_logo.png',
-);
-
-/// Handheld sign-in (mockup screen 1): dark `ink` page, King Power Mobile
-/// logo, username / password on dark fields, gold Sign in, and a QR-code
+/// Handheld sign-in (mockup screen 1): dark `ink` page, username /
+/// password on dark fields, gold Sign in, and a QR-code
 /// login alternative. Wired to the existing user-code + password flow; the
 /// owning page holds the controllers and the view-model.
 class HandheldLoginForm extends StatefulWidget {
@@ -18,6 +15,9 @@ class HandheldLoginForm extends StatefulWidget {
   final TextEditingController passwordController;
   final bool isSubmitting;
   final String? errorMessage;
+
+  /// Shown under the form; nothing is shown while it's null.
+  final String? appVersion;
   final VoidCallback onSubmit;
   final VoidCallback onOpenSettings;
 
@@ -27,6 +27,7 @@ class HandheldLoginForm extends StatefulWidget {
     required this.passwordController,
     required this.isSubmitting,
     required this.errorMessage,
+    this.appVersion,
     required this.onSubmit,
     required this.onOpenSettings,
   });
@@ -83,17 +84,6 @@ class _HandheldLoginFormState extends State<HandheldLoginForm> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Center(
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: const Image(
-              image: kingPowerMobileLogo,
-              height: 64,
-              semanticLabel: 'King Power Mobile',
-            ),
-          ),
-        ),
-        const SizedBox(height: 28),
         Text(
           'SMART POS MOBILE',
           textAlign: TextAlign.center,
@@ -200,6 +190,19 @@ class _HandheldLoginFormState extends State<HandheldLoginForm> {
             ),
           ),
         ),
+        if (widget.appVersion != null) ...[
+          const SizedBox(height: 28),
+          TestId(
+            LoginIds.appVersion,
+            child: Text(
+              'Version ${widget.appVersion}',
+              textAlign: TextAlign.center,
+              style: HandheldText.bodySmall.copyWith(
+                color: Colors.white.withValues(alpha: 0.45),
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -252,6 +255,7 @@ class _DarkField extends StatelessWidget {
             obscureText: obscureText,
             textInputAction: textInputAction,
             onSubmitted: onSubmitted,
+            inputFormatters: FormInputs.noThai,
             cursorColor: AppColors.gold,
             style: HandheldText.title.copyWith(
               fontSize: 17,

@@ -18,7 +18,7 @@ import '../../customer/presentation/widgets/registration_checks_list.dart';
 /// Only data `Register/GetCustomer` returns is shown — facts without a
 /// value (and the mockup's member ID, last purchase, join / expiry dates,
 /// which have no API) are left out rather than faked. Points are the
-/// Carat wallet.
+/// Carat wallet; e-Purse is the cash wallet.
 class HomeCustomerResult extends StatelessWidget {
   final Customer customer;
   final String query;
@@ -74,18 +74,19 @@ class HomeCustomerResult extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Padding(
-                        padding: const EdgeInsets.all(24),
+                        padding: const EdgeInsets.all(18),
                         child: _Identity(
                           customer: customer,
                           now: now,
                           selectedPrivilege: selectedPrivilege,
                           onSelectPrivilege: onSelectPrivilege,
+                          onEditProfile: onEditProfile,
                         ),
                       ),
                     ),
                     Container(
                       width: side,
-                      padding: const EdgeInsets.all(20),
+                      padding: const EdgeInsets.all(16),
                       decoration: const BoxDecoration(
                         border: Border(left: BorderSide(color: AppColors.line)),
                       ),
@@ -94,7 +95,6 @@ class HomeCustomerResult extends StatelessWidget {
                         onStartSale: onStartSale,
                         onRegister: onRegister,
                         onEnquiry: onEnquiry,
-                        onEditProfile: onEditProfile,
                         onClear: onClear,
                       ),
                     ),
@@ -129,7 +129,7 @@ class _StatusStrip extends StatelessWidget {
     return TestId(
       DesktopIds.homeStatus,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 9),
         color: color.withValues(alpha: 0.1),
         child: Row(
           children: [
@@ -172,19 +172,22 @@ class _StatusStrip extends StatelessWidget {
   }
 }
 
-/// Avatar, name, tier badge and "gender · nationality · type · phone",
-/// the fact grid, then the privilege radio list.
+/// Avatar, name, tier badge and "gender · nationality · type · phone" with
+/// Edit profile at the end of that header, the fact grid, then the
+/// privilege radio list.
 class _Identity extends StatelessWidget {
   final Customer customer;
   final DateTime now;
   final Privilege? selectedPrivilege;
   final ValueChanged<Privilege?> onSelectPrivilege;
+  final VoidCallback onEditProfile;
 
   const _Identity({
     required this.customer,
     required this.now,
     required this.selectedPrivilege,
     required this.onSelectPrivilege,
+    required this.onEditProfile,
   });
 
   static String _initials(String name) {
@@ -232,6 +235,8 @@ class _Identity extends StatelessWidget {
               ? ''
               : formatCaratExpiring(expiring.amount, expiring.at),
         ),
+      if (person.ePurseBalance != null)
+        _Fact('ePurse', 'e-Purse', formatEPurse(person.ePurseBalance)),
     ];
 
     return Column(
@@ -240,8 +245,8 @@ class _Identity extends StatelessWidget {
         Row(
           children: [
             Container(
-              width: 72,
-              height: 72,
+              width: 56,
+              height: 56,
               alignment: Alignment.center,
               decoration: const BoxDecoration(
                 shape: BoxShape.circle,
@@ -322,17 +327,40 @@ class _Identity extends StatelessWidget {
                 ],
               ),
             ),
+            const SizedBox(width: 12),
+            TestId(
+              DesktopIds.homeEditProfileButton,
+              child: OutlinedButton.icon(
+                onPressed: onEditProfile,
+                icon: const Icon(
+                  Icons.edit_outlined,
+                  size: 16,
+                  color: AppColors.goldDark,
+                ),
+                label: const Text('Edit profile'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.textPrimary,
+                  minimumSize: const Size(0, 44),
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  side: const BorderSide(color: Color(0xFFD8DDE5)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  textStyle: const TextStyle(fontSize: 13),
+                ),
+              ),
+            ),
           ],
         ),
         if (facts.isNotEmpty) ...[
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {
               const gap = 20.0;
               final width = (constraints.maxWidth - gap * 2) / 3;
               return Wrap(
                 spacing: gap,
-                runSpacing: 18,
+                runSpacing: 12,
                 children: [
                   for (final fact in facts)
                     SizedBox(
@@ -344,7 +372,7 @@ class _Identity extends StatelessWidget {
             },
           ),
         ],
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
         PrivilegeRadioList(
           privileges: person.privileges,
           selected: selectedPrivilege,
@@ -403,14 +431,12 @@ class _FactCell extends StatelessWidget {
 }
 
 /// Registration checks, then Start sale (enabled once registered) — plus
-/// Register for an unregistered card — with Enquiry / Edit profile / Clear
-/// beneath.
+/// Register for an unregistered card — with Enquiry / Clear beneath.
 class _Actions extends StatelessWidget {
   final CustomerPerson person;
   final VoidCallback onStartSale;
   final VoidCallback onRegister;
   final VoidCallback onEnquiry;
-  final VoidCallback onEditProfile;
   final VoidCallback onClear;
 
   const _Actions({
@@ -418,7 +444,6 @@ class _Actions extends StatelessWidget {
     required this.onStartSale,
     required this.onRegister,
     required this.onEnquiry,
-    required this.onEditProfile,
     required this.onClear,
   });
 
@@ -429,8 +454,11 @@ class _Actions extends StatelessWidget {
       children: [
         const Text('REGISTRATION CHECKS', style: DesktopText.fieldLabel),
         const SizedBox(height: 6),
-        RegistrationChecksList(person: person),
-        const SizedBox(height: 28),
+        RegistrationChecksList(
+          person: person,
+          rowPadding: const EdgeInsets.symmetric(vertical: 8),
+        ),
+        const SizedBox(height: 16),
         // Always shown; only a registered (`isActivate`) card can start a
         // sale — the rest register first.
         DesktopButton(
@@ -462,15 +490,6 @@ class _Actions extends StatelessWidget {
                 icon: Icons.search,
                 hotkey: 'F4',
                 onPressed: onEnquiry,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _SmallAction(
-                id: DesktopIds.homeEditProfileButton,
-                label: 'Edit profile',
-                icon: Icons.account_circle_outlined,
-                onPressed: onEditProfile,
               ),
             ),
             const SizedBox(width: 8),

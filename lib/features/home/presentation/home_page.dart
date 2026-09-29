@@ -222,7 +222,9 @@ class _HomePageState extends State<HomePage> {
     if (!mounted || !_homeLookup) return;
     final viewModel = widget.viewModel;
     if (viewModel.customerSearchError == null &&
-        viewModel.customerSearchResults.isEmpty) {
+        _notFound(viewModel.customerSearchResults)) {
+      // The Customer tab's form picks up an `isFound: false` record as its
+      // prefilled "Register customer" (legacy passes `customer` along).
       _dashboardScanController.clear();
       setState(() {
         _homeLookup = false;
@@ -232,6 +234,12 @@ class _HomePageState extends State<HomePage> {
     }
     setState(() => _homeFoundAt = DateTime.now());
   }
+
+  // `GetCustomer`'s "not found" is a record with `isFound: false`, not an
+  // empty list — legacy `customer.ts` checks `Data[0]` and its `isFound`
+  // and sends either case to CustomerFormPage (REGISTER) with that record.
+  static bool _notFound(List<Customer> results) =>
+      results.isEmpty || !results.first.isFound;
 
   // Clear (Esc): back to the dashboard with nothing looked up.
   void _clearHomeLookup() {
@@ -247,8 +255,10 @@ class _HomePageState extends State<HomePage> {
     final viewModel = widget.viewModel;
     if (viewModel.customerSearchError != null) return;
     final results = viewModel.customerSearchResults;
-    if (results.isEmpty) {
-      _openRegistration();
+    if (_notFound(results)) {
+      _openRegistration(
+        existingCustomer: results.isEmpty ? null : results.first,
+      );
     } else if (results.length == 1) {
       _openHandheldProfile(results.first, viewModel);
     }

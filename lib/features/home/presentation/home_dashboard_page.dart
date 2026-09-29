@@ -72,7 +72,7 @@ class HomeDashboardPage extends StatelessWidget {
       child: Focus(
         autofocus: true,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(DesktopMetrics.pagePadding),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -82,7 +82,7 @@ class HomeDashboardPage extends StatelessWidget {
                 onScan: onScan,
                 onClear: lookup?.onClear ?? scanController.clear,
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 14),
               if (lookup != null)
                 TestId(DesktopIds.homeLookup, child: lookup.body)
               else
@@ -114,20 +114,20 @@ class _IdlePanel extends StatelessWidget {
           border: Border.all(color: AppColors.line),
         ),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 520),
+          constraints: const BoxConstraints(minHeight: 380),
           child: IntrinsicHeight(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Expanded(
                   child: Padding(
-                    padding: EdgeInsets.all(30),
+                    padding: EdgeInsets.all(22),
                     child: _WhoIsTheCustomer(),
                   ),
                 ),
                 Container(
                   width: 300,
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(16),
                   decoration: const BoxDecoration(
                     border: Border(left: BorderSide(color: AppColors.line)),
                   ),
@@ -147,7 +147,7 @@ class _IdlePanel extends StatelessWidget {
                         ),
                       ),
                       const Spacer(),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 16),
                       const DesktopButton(
                         id: ProfileIds.goToSaleButton,
                         label: 'Start sale',
@@ -184,8 +184,8 @@ class _WhoIsTheCustomer extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: 72,
-          height: 72,
+          width: 56,
+          height: 56,
           decoration: const BoxDecoration(
             color: AppColors.cream,
             shape: BoxShape.circle,
@@ -196,15 +196,15 @@ class _WhoIsTheCustomer extends StatelessWidget {
             color: AppColors.goldDark,
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 14),
         const Text('Who is the customer?', style: DesktopText.heroTitle),
-        const SizedBox(height: 10),
+        const SizedBox(height: 6),
         const Text(
           'Scan or type any one of these. The system checks registration '
           'before a sale can start.',
           style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 14),
         // `Register/GetCustomer` takes the value as-is: a shopping card or
         // passport (legacy's own search) or an ID card number.
         const IntrinsicHeight(
@@ -256,7 +256,7 @@ class _IdentifierCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surfaceAlt,
         borderRadius: BorderRadius.circular(10),
@@ -266,7 +266,7 @@ class _IdentifierCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, size: 22, color: AppColors.goldDark),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           Text(
             label,
             style: const TextStyle(
@@ -304,6 +304,7 @@ class _FindCustomerPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DesktopPanel(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -318,14 +319,14 @@ class _FindCustomerPanel extends StatelessWidget {
               _LookupStepper(step: step),
             ],
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
                 child: TestId(
                   DesktopIds.homeScanField,
                   child: Container(
-                    height: DesktopMetrics.fieldHeight + 4,
+                    height: DesktopMetrics.fieldHeight,
                     padding: const EdgeInsets.only(left: 16),
                     decoration: BoxDecoration(
                       color: AppColors.cream,
@@ -377,7 +378,7 @@ class _FindCustomerPanel extends StatelessWidget {
                   label: 'Search',
                   icon: Icons.search,
                   hotkey: 'ENTER',
-                  height: DesktopMetrics.fieldHeight + 4,
+                  height: DesktopMetrics.fieldHeight,
                   onPressed: () => onScan(controller.text),
                 ),
               ),

@@ -136,6 +136,23 @@ void main() {
     handle.dispose();
   });
 
+  testWidgets('idle Home fits an iPad landscape body without scrolling', (
+    tester,
+  ) async {
+    // 1024 × 768 less the desktop shell's 64 dp top bar.
+    await pump(tester, size: const Size(1024, 704));
+    final scrollable = find
+        .descendant(
+          of: find.byType(SingleChildScrollView).first,
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    expect(
+      tester.state<ScrollableState>(scrollable).position.maxScrollExtent,
+      0,
+    );
+  });
+
   for (final size in [const Size(1024, 768), const Size(1920, 1080)]) {
     testWidgets('lays out without overflow at ${size.width.toInt()} dp', (
       tester,

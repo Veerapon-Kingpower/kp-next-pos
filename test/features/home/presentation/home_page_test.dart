@@ -1078,6 +1078,7 @@ void main() {
         ],
         walletMembers: [
           {'Code': 'CARAT_WALLET', 'PaymentCode': 'CARAT', 'Balance': 18420.0},
+          {'Code': 'CASH_WALLET', 'PaymentCode': 'CASHW', 'Balance': 4200.0},
         ],
         shoppingCard: '8823-4419-0027',
         typeCardMember: 'KP Elite',
@@ -1093,8 +1094,8 @@ void main() {
       isMember: true,
     );
     const unregistered = Customer(
-      action: 'REGISTER_ADD',
-      isFound: false,
+      action: 'found',
+      isFound: true,
       person: CustomerPerson(
         englishName: 'Jane Doe',
         passportNo: 'P1234567',
@@ -1103,6 +1104,23 @@ void main() {
         privileges: [],
         walletMembers: [],
         shoppingCard: 'CPX0001',
+      ),
+      tour: {},
+      agentCode: '',
+      isMember: false,
+    );
+    // `GetCustomer`'s "not found": a record, not an empty list —
+    // `isFound: false` (legacy `customer.ts` routes it to CustomerFormPage).
+    const notFound = Customer(
+      action: 'REGISTER_ADD',
+      isFound: false,
+      person: CustomerPerson(
+        englishName: '',
+        passportNo: 'CB999999',
+        nationality: '',
+        contacts: [],
+        privileges: [],
+        walletMembers: [],
       ),
       tour: {},
       agentCode: '',
@@ -1178,6 +1196,30 @@ void main() {
         isSemantics(isButton: true, hasEnabledState: true, isEnabled: true),
       );
       expect(byTestId(DesktopIds.homeRegisterButton), findsNothing);
+      expect(
+        find.descendant(
+          of: byTestId(DesktopIds.homeFact('ePurse')),
+          matching: find.text('฿4,200.00'),
+        ),
+        findsOneWidget,
+      );
+      // Edit profile sits in the identity header, beside the name — not in
+      // the action column, where Enquiry and Clear now fit in full.
+      expect(
+        tester.getTopLeft(byTestId(DesktopIds.homeEditProfileButton)).dx,
+        lessThan(tester.getTopLeft(byTestId(ProfileIds.goToSaleButton)).dx),
+      );
+      // Two-up, not three-up: each takes half the action column.
+      for (final id in [
+        DesktopIds.homeEnquiryButton,
+        DesktopIds.homeClearButton,
+      ]) {
+        expect(
+          tester.getSize(byTestId(id)).width,
+          greaterThan(130),
+          reason: id,
+        );
+      }
     });
 
     testWidgets('Start sale carries the picked privilege to the Sale tab', (
@@ -1237,6 +1279,29 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       expect(byTestId(ProfileIds.goToSaleButton), findsOneWidget);
+    });
+
+    testWidgets('an isFound: false record goes to the Customer tab to '
+        'register, prefilled from it', (tester) async {
+      await lookUp(tester, buildPage(searchResult: const [notFound]), 'CB9');
+
+      expect(byTestId(DesktopIds.homeLookup), findsNothing);
+      expect(
+        tester.getSemantics(byTestId(NavIds.customer)),
+        isSemantics(isSelected: true),
+      );
+      expect(
+        tester
+            .widget<TextField>(
+              find.descendant(
+                of: byTestId(DesktopCustomerIds.passportNo),
+                matching: find.byType(TextField),
+              ),
+            )
+            .controller!
+            .text,
+        'CB999999',
+      );
     });
 
     testWidgets('nothing found goes to the Customer tab to register', (
@@ -1454,6 +1519,30 @@ void main() {
     testWidgets('a scan that finds nothing opens Register', (tester) async {
       await pumpHandheld(tester, buildPage());
       await scan(tester, 'CPX9999');
+      expect(byTestId(RegisterIds.page), findsOneWidget);
+    });
+
+    testWidgets('an isFound: false record opens Register, not the profile', (
+      tester,
+    ) async {
+      const notFound = Customer(
+        action: 'REGISTER_ADD',
+        isFound: false,
+        person: CustomerPerson(
+          englishName: '',
+          passportNo: 'CB999999',
+          nationality: '',
+          contacts: [],
+          privileges: [],
+          walletMembers: [],
+        ),
+        tour: {},
+        agentCode: '',
+        isMember: false,
+      );
+      await pumpHandheld(tester, buildPage(searchResult: const [notFound]));
+      await scan(tester, 'CB999999');
+      expect(byTestId(ProfileIds.page), findsNothing);
       expect(byTestId(RegisterIds.page), findsOneWidget);
     });
 

@@ -25,4 +25,10 @@ class UserSession {
       (a) => a.moduleCode == moduleCode && a.action == action,
     );
   }
+
+  /// Port of `ShareDataProvider.canDoIt(AuthorizeCode.X)` as the Sale page
+  /// calls it: matches `list_authorize[].AuthCode` alone (e.g.
+  /// `actCurrency`).
+  bool hasAuthCode(String authCode) =>
+      authorizedActions.any((a) => a.authCode == authCode);
 }

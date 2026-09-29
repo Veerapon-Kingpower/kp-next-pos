@@ -4,7 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/presentation/desktop/desktop.dart';
 import 'package:kp_pos/core/presentation/test_ids.dart';
 import 'package:kp_pos/features/customer/domain/entities/privilege.dart';
+import 'package:kp_pos/features/auth/domain/entities/authorized_action.dart';
+import 'package:kp_pos/features/auth/domain/entities/user_session.dart';
 import 'package:kp_pos/features/sale/domain/entities/cart.dart';
+import 'package:kp_pos/features/sale/domain/entities/cart_item.dart';
+import 'package:kp_pos/features/sale/domain/entities/currency.dart';
 import 'package:kp_pos/features/sale/presentation/desktop/desktop_sale_view.dart';
 import 'package:kp_pos/features/sale/presentation/sale_cart_view_model.dart';
 
@@ -372,5 +376,148 @@ void main() {
         reason: id,
       );
     }
+  });
+
+  group('currency (legacy Sale header / CurrencyPickerPage)', () {
+    const permitted = UserSession(
+      sessionKey: 'abc123',
+      branchNo: '03',
+      userCode: 'U001',
+      userName: 'Test User',
+      authorizedActions: [
+        AuthorizedAction(
+          moduleCode: 'SALE',
+          authCode: 'actCurrency',
+          action: 'Currency',
+        ),
+      ],
+    );
+    const currencies = [
+      Currency(code: 'THB', description: 'Thai Baht', rate: 1),
+      Currency(code: 'USD', description: 'US Dollar', rate: 35.5, symbol: r'$'),
+      Currency(code: 'EUR', description: 'Euro', rate: 38.2),
+    ];
+    const usdCart = Cart(
+      guid: 'order-1',
+      isCheckOut: false,
+      items: [
+        CartItem(
+          row: '1',
+          articleCode: '3145891255607',
+          articleName: 'CHANEL N°5 EAU DE PARFUM 100ML',
+          quantity: 1,
+          unitPrice: 166.2,
+          lineTotal: 166.2,
+        ),
+      ],
+      billing: CartBilling(
+        currencyCode: 'USD',
+        currencyDescription: 'US Dollar',
+        currencyRate: 35.5,
+        total: 166.2,
+        grand: 166.2,
+        discount: 0,
+        cashD: 0,
+        netPay: 166.2,
+        netPayBase: 5900,
+      ),
+    );
+
+    Future<(SaleCartViewModel, FakeSaleRepository)> open(
+      WidgetTester tester, {
+      UserSession session = permitted,
+      String shoppingCard = 'CPX0001',
+    }) async {
+      setDeviceSize(tester, const Size(1440 - 84, 900 - 64));
+      final repo = FakeSaleRepository(
+        cartResult: sampleCart,
+        currencies: currencies,
+        currencyCartResult: usdCart,
+      );
+      final viewModel = buildSaleViewModel(
+        repo,
+        cart: sampleCart,
+        session: session,
+      )..attachShoppingCard(shoppingCard);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: DesktopSaleView(viewModel: viewModel)),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return (viewModel, repo);
+    }
+
+    testWidgets('inert until a customer (shopping card) is attached', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await open(tester, shoppingCard: '');
+      expect(
+        tester.getSemantics(byTestId(DesktopSaleIds.currencyButton)),
+        isSemantics(isButton: true, hasEnabledState: true, isEnabled: false),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('no actCurrency permission: legacy "Oops !" and no picker', (
+      tester,
+    ) async {
+      await open(tester, session: testSession);
+      await tester.tap(byTestId(DesktopSaleIds.currencyButton));
+      await tester.pumpAndSettle();
+      expect(find.text("Sorry, you don't have permission."), findsOneWidget);
+      expect(byTestId(DesktopSaleIds.currencyPicker), findsNothing);
+    });
+
+    testWidgets('picker lists the branch currencies, THB first, and filters '
+        'by code or name', (tester) async {
+      await open(tester);
+      await tester.tap(byTestId(DesktopSaleIds.currencyButton));
+      await tester.pumpAndSettle();
+
+      expect(byTestId(DesktopSaleIds.currencyPicker), findsOneWidget);
+      expect(
+        tester.getTopLeft(byTestId(DesktopSaleIds.currencyOption('THB'))).dy,
+        lessThan(
+          tester.getTopLeft(byTestId(DesktopSaleIds.currencyOption('USD'))).dy,
+        ),
+      );
+      await tester.enterText(
+        find.descendant(
+          of: byTestId(DesktopSaleIds.currencySearch),
+          matching: find.byType(TextField),
+        ),
+        'euro',
+      );
+      await tester.pump();
+      expect(byTestId(DesktopSaleIds.currencyOption('EUR')), findsOneWidget);
+      expect(byTestId(DesktopSaleIds.currencyOption('USD')), findsNothing);
+    });
+
+    testWidgets('picking USD reprices the order through the sale engine and '
+        'shows its amounts', (tester) async {
+      final (_, repo) = await open(tester);
+      expect(textIn(tester, SaleIds.netPay), '฿21,500.00');
+
+      await tester.tap(byTestId(DesktopSaleIds.currencyButton));
+      await tester.pumpAndSettle();
+      await tester.tap(byTestId(DesktopSaleIds.currencyOption('USD')));
+      await tester.pumpAndSettle();
+
+      expect(repo.lastCurrencyShoppingCard, 'CPX0001');
+      expect(repo.lastCurrencyCode, 'USD');
+      expect(textIn(tester, SaleIds.netPay), 'USD 166.20');
+      expect(textIn(tester, DesktopSaleIds.netPayBase), '= ฿5,900.00');
+      expect(textIn(tester, DesktopSaleIds.currencyRate), '35.50000');
+      expect(find.text('Net (USD)'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: byTestId(DesktopSaleIds.currencyButton),
+          matching: find.text('USD'),
+        ),
+        findsOneWidget,
+      );
+    });
   });
 }

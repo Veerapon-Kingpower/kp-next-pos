@@ -1,5 +1,6 @@
 import 'package:kp_pos/features/sale/domain/entities/article.dart';
 import 'package:kp_pos/features/sale/domain/entities/cart.dart';
+import 'package:kp_pos/features/sale/domain/entities/currency.dart';
 import 'package:kp_pos/features/sale/domain/repositories/sale_repository.dart';
 
 /// Shared test double for [SaleRepository] — used wherever a test needs a
@@ -16,12 +17,20 @@ class FakeSaleRepository implements SaleRepository {
   String? lastUpdatedRow;
   int? lastUpdatedQuantity;
   String? lastRemovedRow;
+  final List<Currency> currencies;
+  final Object? currenciesError;
+  final Cart? currencyCartResult;
+  String? lastCurrencyShoppingCard;
+  String? lastCurrencyCode;
 
   FakeSaleRepository({
     this.lookupResult,
     this.lookupError,
     this.cartResult = const Cart(guid: '', isCheckOut: false, items: []),
     this.mutationError,
+    this.currencies = const [],
+    this.currenciesError,
+    this.currencyCartResult,
   });
 
   @override
@@ -81,5 +90,23 @@ class FakeSaleRepository implements SaleRepository {
   }) async {
     if (mutationError != null) throw mutationError!;
     return cartResult;
+  }
+
+  @override
+  Future<List<Currency>> listCurrencies() async {
+    if (currenciesError != null) throw currenciesError!;
+    return currencies;
+  }
+
+  @override
+  Future<Cart> changeOrderCurrency({
+    required String sessionKey,
+    required String shoppingCard,
+    required String currencyCode,
+  }) async {
+    lastCurrencyShoppingCard = shoppingCard;
+    lastCurrencyCode = currencyCode;
+    if (mutationError != null) throw mutationError!;
+    return currencyCartResult ?? cartResult;
   }
 }

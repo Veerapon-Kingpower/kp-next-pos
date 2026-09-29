@@ -5,7 +5,10 @@ import '../../auth/domain/usecases/restore_session_usecase.dart';
 import '../../customer/domain/entities/privilege.dart';
 import '../domain/barcode_scan_input.dart';
 import '../domain/entities/cart.dart';
+import '../domain/entities/currency.dart';
 import '../domain/usecases/add_item_to_cart_usecase.dart';
+import '../domain/usecases/change_order_currency_usecase.dart';
+import '../domain/usecases/list_currencies_usecase.dart';
 import '../domain/usecases/lookup_article_by_barcode_usecase.dart';
 import '../domain/usecases/remove_cart_item_usecase.dart';
 import '../domain/usecases/update_cart_item_quantity_usecase.dart';
@@ -21,21 +24,90 @@ class SaleCartViewModel extends GetxController {
   final UpdateCartItemQuantityUseCase _updateCartItemQuantity;
   final RemoveCartItemUseCase _removeCartItem;
 
+  final ListCurrenciesUseCase _listCurrencies;
+  final ChangeOrderCurrencyUseCase _changeOrderCurrency;
+
   SaleCartViewModel({
     required RestoreSessionUseCase restoreSession,
     required LookupArticleByBarcodeUseCase lookupArticle,
     required AddItemToCartUseCase addItemToCart,
     required UpdateCartItemQuantityUseCase updateCartItemQuantity,
     required RemoveCartItemUseCase removeCartItem,
+    required ListCurrenciesUseCase listCurrencies,
+    required ChangeOrderCurrencyUseCase changeOrderCurrency,
   }) : _restoreSession = restoreSession,
        _lookupArticle = lookupArticle,
        _addItemToCart = addItemToCart,
        _updateCartItemQuantity = updateCartItemQuantity,
-       _removeCartItem = removeCartItem;
+       _removeCartItem = removeCartItem,
+       _listCurrencies = listCurrencies,
+       _changeOrderCurrency = changeOrderCurrency;
 
   Cart? cart;
   bool isBusy = false;
   String? scanError;
+
+  /// The attached customer's shopping card — legacy's Sale page always
+  /// runs against one and sends it as `Row` on `change_currency`.
+  String shoppingCard = '';
+
+  void attachShoppingCard(String card) {
+    shoppingCard = card;
+    update();
+  }
+
+  /// Why the last currency change failed, if it did.
+  String? currencyError;
+
+  /// Legacy `AuthorizeCode.ChangeCurrency`.
+  static const changeCurrencyAuthCode = 'actCurrency';
+  static const noCurrencyPermission = "Sorry, you don't have permission.";
+
+  /// The branch rate table for the currency picker.
+  Future<List<Currency>> listCurrencies() => _listCurrencies();
+
+  /// Legacy `SalePage.changeCurrency()`'s gate, checked before the picker
+  /// opens.
+  Future<bool> canChangeCurrency() async {
+    final session = await _restoreSession();
+    return session?.hasAuthCode(changeCurrencyAuthCode) ?? false;
+  }
+
+  /// Ports `CurrencyPickerPage.onChange()`: the sale engine recalculates
+  /// the whole order in [currencyCode] and returns it.
+  Future<bool> changeCurrency(String currencyCode) async {
+    currencyError = null;
+    final session = await _restoreSession();
+    if (session == null) {
+      currencyError = 'No active session.';
+      update();
+      return false;
+    }
+    if (!session.hasAuthCode(changeCurrencyAuthCode)) {
+      currencyError = noCurrencyPermission;
+      update();
+      return false;
+    }
+    if (shoppingCard.isEmpty) {
+      currencyError = 'Attach a customer before changing the currency.';
+      update();
+      return false;
+    }
+    isBusy = true;
+    update();
+    try {
+      cart = await _changeOrderCurrency(
+        sessionKey: session.sessionKey,
+        shoppingCard: shoppingCard,
+        currencyCode: currencyCode,
+      );
+    } on ApiException catch (e) {
+      currencyError = e.messageDesc;
+    }
+    isBusy = false;
+    update();
+    return currencyError == null;
+  }
 
   /// The privilege chosen on the Customers tab before switching here, if
   /// the customer has any (see `HomePage._goToSale`'s picker). Client-side

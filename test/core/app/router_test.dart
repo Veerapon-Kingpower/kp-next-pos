@@ -24,6 +24,8 @@ import 'package:kp_pos/features/home/presentation/home_view_model.dart';
 import 'package:kp_pos/features/nationality/domain/usecases/list_nationalities_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/add_item_to_cart_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/lookup_article_by_barcode_usecase.dart';
+import 'package:kp_pos/features/sale/domain/usecases/change_order_currency_usecase.dart';
+import 'package:kp_pos/features/sale/domain/usecases/list_currencies_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/remove_cart_item_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/update_cart_item_quantity_usecase.dart';
 import 'package:kp_pos/features/sale/presentation/sale_cart_view_model.dart';
@@ -91,6 +93,8 @@ SaleCartViewModel _saleCartViewModel() {
     addItemToCart: AddItemToCartUseCase(FakeSaleRepository()),
     updateCartItemQuantity: UpdateCartItemQuantityUseCase(FakeSaleRepository()),
     removeCartItem: RemoveCartItemUseCase(FakeSaleRepository()),
+    listCurrencies: ListCurrenciesUseCase(FakeSaleRepository()),
+    changeOrderCurrency: ChangeOrderCurrencyUseCase(FakeSaleRepository()),
   );
 }
 

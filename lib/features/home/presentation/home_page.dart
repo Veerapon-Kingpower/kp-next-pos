@@ -253,6 +253,7 @@ class _HomePageState extends State<HomePage> {
       await _showSaleBlockedDialog('ShoppingCard is not register');
       return;
     }
+    _saleCartViewModel.attachShoppingCard(person.shoppingCard);
     if (person.privileges.isEmpty) {
       _saleCartViewModel.selectPrivilege(null);
       setState(() => _section = _HomeSection.sale);
@@ -305,6 +306,7 @@ class _HomePageState extends State<HomePage> {
       _section = _HomeSection.sale;
     });
     _saleCartViewModel.selectPrivilege(privilege);
+    _saleCartViewModel.attachShoppingCard(person.shoppingCard);
     return true;
   }
 

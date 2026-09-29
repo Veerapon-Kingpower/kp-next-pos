@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/error/app_exception.dart';
+import 'package:kp_pos/features/auth/domain/entities/authorized_action.dart';
 import 'package:kp_pos/features/auth/domain/entities/user_session.dart';
 import 'package:kp_pos/features/auth/domain/usecases/restore_session_usecase.dart';
 import 'package:kp_pos/features/customer/domain/entities/privilege.dart';
@@ -8,6 +9,8 @@ import 'package:kp_pos/features/sale/domain/entities/cart.dart';
 import 'package:kp_pos/features/sale/domain/entities/cart_item.dart';
 import 'package:kp_pos/features/sale/domain/usecases/add_item_to_cart_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/lookup_article_by_barcode_usecase.dart';
+import 'package:kp_pos/features/sale/domain/usecases/change_order_currency_usecase.dart';
+import 'package:kp_pos/features/sale/domain/usecases/list_currencies_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/remove_cart_item_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/update_cart_item_quantity_usecase.dart';
 import 'package:kp_pos/features/sale/presentation/sale_cart_view_model.dart';
@@ -36,6 +39,8 @@ void main() {
       addItemToCart: AddItemToCartUseCase(sale),
       updateCartItemQuantity: UpdateCartItemQuantityUseCase(sale),
       removeCartItem: RemoveCartItemUseCase(sale),
+      listCurrencies: ListCurrenciesUseCase(sale),
+      changeOrderCurrency: ChangeOrderCurrencyUseCase(sale),
     );
   }
 
@@ -169,10 +174,99 @@ void main() {
 
   test('selectPrivilege(null) clears a previously chosen privilege', () {
     final viewModel = buildViewModel();
-    viewModel.selectPrivilege(const Privilege(name: 'Gold Member', discount: 10));
+    viewModel.selectPrivilege(
+      const Privilege(name: 'Gold Member', discount: 10),
+    );
 
     viewModel.selectPrivilege(null);
 
     expect(viewModel.selectedPrivilege, isNull);
+  });
+
+  group('change currency (legacy CurrencyPickerPage)', () {
+    const permitted = UserSession(
+      sessionKey: 'abc123',
+      branchNo: '03',
+      userCode: 'U001',
+      userName: 'Test User',
+      authorizedActions: [
+        AuthorizedAction(
+          moduleCode: 'SALE',
+          authCode: 'actCurrency',
+          action: 'Currency',
+        ),
+      ],
+    );
+    const usdCart = Cart(
+      guid: 'order-1',
+      isCheckOut: false,
+      items: [],
+      billing: CartBilling(
+        currencyCode: 'USD',
+        currencyDescription: 'US Dollar',
+        currencyRate: 35.5,
+        total: 100,
+        grand: 100,
+        discount: 0,
+        cashD: 0,
+        netPay: 100,
+        netPayBase: 3550,
+      ),
+    );
+
+    test('needs the actCurrency permission', () async {
+      final sale = FakeSaleRepository(currencyCartResult: usdCart);
+      final viewModel = buildViewModel(saleRepository: sale)
+        ..attachShoppingCard('CPX0001');
+
+      expect(await viewModel.canChangeCurrency(), isFalse);
+      expect(await viewModel.changeCurrency('USD'), isFalse);
+      expect(viewModel.currencyError, "Sorry, you don't have permission.");
+      expect(sale.lastCurrencyCode, isNull);
+    });
+
+    test('needs an attached shopping card', () async {
+      final sale = FakeSaleRepository(currencyCartResult: usdCart);
+      final viewModel = buildViewModel(
+        saleRepository: sale,
+        currentSessionResult: permitted,
+      );
+
+      expect(await viewModel.changeCurrency('USD'), isFalse);
+      expect(viewModel.currencyError, contains('Attach a customer'));
+      expect(sale.lastCurrencyCode, isNull);
+    });
+
+    test(
+      'sends the shopping card and code, and takes the repriced order',
+      () async {
+        final sale = FakeSaleRepository(currencyCartResult: usdCart);
+        final viewModel = buildViewModel(
+          saleRepository: sale,
+          currentSessionResult: permitted,
+        )..attachShoppingCard('CPX0001');
+
+        expect(await viewModel.canChangeCurrency(), isTrue);
+        expect(await viewModel.changeCurrency('USD'), isTrue);
+        expect(sale.lastCurrencyShoppingCard, 'CPX0001');
+        expect(sale.lastCurrencyCode, 'USD');
+        expect(viewModel.cart?.billing?.currencyCode, 'USD');
+        expect(viewModel.currencyError, isNull);
+      },
+    );
+
+    test('a sale engine refusal is shown', () async {
+      final sale = FakeSaleRepository(
+        mutationError: const ApiException(messageDesc: 'Rate not found.'),
+      );
+      final viewModel = buildViewModel(
+        saleRepository: sale,
+        currentSessionResult: permitted,
+      )..attachShoppingCard('CPX0001');
+
+      expect(await viewModel.changeCurrency('USD'), isFalse);
+      expect(viewModel.currencyError, 'Rate not found.');
+      expect(viewModel.isBusy, isFalse);
+    });
   });
 }

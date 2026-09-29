@@ -4,6 +4,7 @@ import '../../../../core/network/api_client.dart';
 import '../../../../core/storage/device_settings_storage.dart';
 import '../../domain/entities/article.dart';
 import '../../domain/entities/cart.dart';
+import '../../domain/entities/currency.dart';
 import '../../domain/repositories/sale_repository.dart';
 import '../datasources/sale_remote_data_source.dart';
 import '../local/article_local_data_source.dart';
@@ -105,6 +106,30 @@ class SaleRepositoryImpl implements SaleRepository {
       saleEngineEndpoint: settings.saleEngineEndpoint,
       sessionKey: sessionKey,
       row: row,
+    );
+  }
+
+  @override
+  Future<List<Currency>> listCurrencies() async {
+    final settings = await _deviceSettingsStorage.read();
+    return _remote.getCurrencies(
+      saleEngineEndpoint: settings.saleEngineEndpoint,
+      branchNo: settings.branch,
+    );
+  }
+
+  @override
+  Future<Cart> changeOrderCurrency({
+    required String sessionKey,
+    required String shoppingCard,
+    required String currencyCode,
+  }) async {
+    final settings = await _deviceSettingsStorage.read();
+    return _remote.changeOrderCurrency(
+      saleEngineEndpoint: settings.saleEngineEndpoint,
+      sessionKey: sessionKey,
+      shoppingCard: shoppingCard,
+      currencyCode: currencyCode,
     );
   }
 

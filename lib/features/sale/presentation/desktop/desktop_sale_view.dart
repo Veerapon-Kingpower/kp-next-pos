@@ -10,9 +10,11 @@ import '../../../../core/presentation/widgets/app_dialogs.dart';
 import '../../../../core/presentation/widgets/test_id.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../customer/domain/entities/privilege.dart';
+import '../../domain/entities/cart.dart';
 import '../../domain/entities/cart_item.dart';
 import '../sale_cart_view_model.dart';
 import 'desktop_checkout_page.dart';
+import 'desktop_currency_picker.dart';
 import 'desktop_discount_overlay.dart';
 
 /// Desktop Sale (POS Desktop mockup screens 3 + 4): scan row, Buying /
@@ -99,6 +101,40 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
     if (mounted) _scanFocus.requestFocus();
   }
 
+  // Legacy `SalePage.changeCurrency()`: permission first, then the picker;
+  // the pick goes to the sale engine, which reprices the whole order.
+  Future<void> _changeCurrency() async {
+    final viewModel = widget.viewModel;
+    if (!await viewModel.canChangeCurrency()) {
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Oops !'),
+          content: const Text(SaleCartViewModel.noCurrencyPermission),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+    if (!mounted) return;
+    final current = viewModel.cart?.billing?.currencyCode ?? '';
+    final picked = await showDesktopCurrencyPicker(
+      context,
+      load: viewModel.listCurrencies,
+      current: current.isEmpty ? 'THB' : current,
+    );
+    if (picked != null && picked != current && mounted) {
+      await viewModel.changeCurrency(picked);
+    }
+    if (mounted) _scanFocus.requestFocus();
+  }
+
   Future<void> _takePayment() async {
     if (_lines.isEmpty) return;
     await openDesktopCheckoutPage(context, viewModel: widget.viewModel);
@@ -170,6 +206,13 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
                         color: AppColors.danger,
                         text: viewModel.scanError!,
                       ),
+                    if (viewModel.currencyError != null)
+                      _Notice(
+                        id: DesktopSaleIds.currencyError,
+                        icon: Icons.error_outline,
+                        color: AppColors.danger,
+                        text: viewModel.currencyError!,
+                      ),
                     if (viewModel.staleNotice != null)
                       _Notice(
                         id: SaleIds.staleNotice,
@@ -202,6 +245,10 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
                   total: _total,
                   privilege: viewModel.selectedPrivilege,
                   onTakePayment: lines.isEmpty ? null : _takePayment,
+                  billing: viewModel.cart?.billing,
+                  onCurrency: viewModel.shoppingCard.isEmpty || viewModel.isBusy
+                      ? null
+                      : _changeCurrency,
                 ),
               ),
             ],
@@ -386,7 +433,10 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _HeaderRow(compact: compact),
+          _HeaderRow(
+            compact: compact,
+            currency: viewModel.cart?.billing?.currencyCode ?? '',
+          ),
           Expanded(
             child: lines.isEmpty
                 ? const TestId(
@@ -508,17 +558,20 @@ const _compactFlex = [4, 38, 24, 14, 0, 16, 0];
 class _HeaderRow extends StatelessWidget {
   final bool compact;
 
-  const _HeaderRow({required this.compact});
+  /// The order's currency; amounts follow it after a `change_currency`.
+  final String currency;
+
+  const _HeaderRow({required this.compact, required this.currency});
 
   @override
   Widget build(BuildContext context) {
-    const labels = [
+    final labels = [
       '#',
       'Item',
       'Qty',
       'Unit price',
       'Discount',
-      'Net (THB)',
+      'Net (${currency.isEmpty ? 'THB' : currency})',
       'Fulfilment',
     ];
     return Container(
@@ -635,36 +688,36 @@ class _LineRow extends StatelessWidget {
                       fit: BoxFit.scaleDown,
                       alignment: Alignment.centerLeft,
                       child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TestId(
-                          DesktopSaleIds.qtyDecrease(line.row),
-                          child: IconButton(
-                            icon: const Icon(Icons.remove, size: 18),
-                            tooltip: 'Decrease quantity',
-                            onPressed: busy || line.quantity <= 1
-                                ? null
-                                : () => onQuantity(line.quantity - 1),
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TestId(
+                            DesktopSaleIds.qtyDecrease(line.row),
+                            child: IconButton(
+                              icon: const Icon(Icons.remove, size: 18),
+                              tooltip: 'Decrease quantity',
+                              onPressed: busy || line.quantity <= 1
+                                  ? null
+                                  : () => onQuantity(line.quantity - 1),
+                            ),
                           ),
-                        ),
-                        Text(
-                          '${line.quantity}',
-                          style: numbers.copyWith(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w500,
+                          Text(
+                            '${line.quantity}',
+                            style: numbers.copyWith(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
-                        ),
-                        TestId(
-                          DesktopSaleIds.qtyIncrease(line.row),
-                          child: IconButton(
-                            icon: const Icon(Icons.add, size: 18),
-                            tooltip: 'Increase quantity',
-                            onPressed: busy
-                                ? null
-                                : () => onQuantity(line.quantity + 1),
+                          TestId(
+                            DesktopSaleIds.qtyIncrease(line.row),
+                            child: IconButton(
+                              icon: const Icon(Icons.add, size: 18),
+                              tooltip: 'Increase quantity',
+                              onPressed: busy
+                                  ? null
+                                  : () => onQuantity(line.quantity + 1),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
                       ),
                     ),
                   ),
@@ -730,12 +783,31 @@ class _Summary extends StatelessWidget {
   final Privilege? privilege;
   final VoidCallback? onTakePayment;
 
+  /// The sale engine's own amounts, in the order's currency, when the order
+  /// carries them; otherwise the summary sums the lines in baht.
+  final CartBilling? billing;
+
+  /// Opens the currency picker; null (inert) until a customer — and so a
+  /// shopping card — is attached.
+  final VoidCallback? onCurrency;
+
   const _Summary({
     required this.lines,
     required this.total,
     required this.privilege,
     required this.onTakePayment,
+    required this.billing,
+    required this.onCurrency,
   });
+
+  String get _currencyCode {
+    final code = billing?.currencyCode ?? '';
+    return code.isEmpty ? 'THB' : code;
+  }
+
+  String _money(double value) => billing == null || billing!.isBaht
+      ? formatBaht(value)
+      : '$_currencyCode ${formatAmount(value)}';
 
   @override
   Widget build(BuildContext context) {
@@ -838,14 +910,70 @@ class _Summary extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Row(
+        Row(
           children: [
-            Expanded(
+            const Expanded(
               child: Text('Bill summary', style: DesktopText.sectionTitle),
             ),
-            Text(
-              'THB',
-              style: TextStyle(fontSize: 12.5, color: AppColors.mutedText),
+            // Legacy Sale's header currency button: order currency + rate,
+            // tap to change (sale engine `change_currency`).
+            Tooltip(
+              message: onCurrency == null
+                  ? 'Attach a customer to change the currency'
+                  : 'Change currency',
+              child: TestId(
+                DesktopSaleIds.currencyButton,
+                child: Semantics(
+                  button: true,
+                  enabled: onCurrency != null,
+                  child: Material(
+                    color: AppColors.cream,
+                    borderRadius: BorderRadius.circular(8),
+                    child: InkWell(
+                      onTap: onCurrency,
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _currencyCode,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.goldDark,
+                              ),
+                            ),
+                            if (billing != null) ...[
+                              const SizedBox(width: 6),
+                              Text(
+                                billing!.currencyRate.toStringAsFixed(5),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.mutedText,
+                                  fontFeatures: [FontFeature.tabularFigures()],
+                                ),
+                              ),
+                            ],
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.currency_exchange,
+                              size: 14,
+                              color: onCurrency == null
+                                  ? AppColors.hintText
+                                  : AppColors.goldDark,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ],
         ),
@@ -870,10 +998,28 @@ class _Summary extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        amount('Total', formatAmount(total)),
-        amount('Discount', '—'),
-        amount('Grand', formatAmount(total), id: DesktopSaleIds.grand),
-        amount('Cash-D subsidy', '—'),
+        ...billing == null
+            ? [
+                amount('Total', formatAmount(total)),
+                amount('Discount', '—'),
+                amount('Grand', formatAmount(total), id: DesktopSaleIds.grand),
+                amount('Cash-D subsidy', '—'),
+              ]
+            : [
+                amount('Total', formatAmount(billing!.total)),
+                amount('Discount', formatAmount(billing!.discount)),
+                amount(
+                  'Grand',
+                  formatAmount(billing!.grand),
+                  id: DesktopSaleIds.grand,
+                ),
+                amount('Cash-D subsidy', formatAmount(billing!.cashD)),
+                amount(
+                  'Rate',
+                  billing!.currencyRate.toStringAsFixed(5),
+                  id: DesktopSaleIds.currencyRate,
+                ),
+              ],
         const SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.all(14),
@@ -895,7 +1041,7 @@ class _Summary extends StatelessWidget {
                 child: TestId(
                   SaleIds.netPay,
                   child: Text(
-                    formatBaht(total),
+                    _money(billing?.netPay ?? total),
                     style: const TextStyle(
                       fontFamily: 'KingPowerHeadline',
                       fontSize: 36,
@@ -906,6 +1052,19 @@ class _Summary extends StatelessWidget {
                   ),
                 ),
               ),
+              if (billing != null && !billing!.isBaht) ...[
+                const SizedBox(height: 4),
+                TestId(
+                  DesktopSaleIds.netPayBase,
+                  child: Text(
+                    '= ${formatBaht(billing!.netPayBase)}',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.white.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

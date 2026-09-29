@@ -3,6 +3,7 @@ import '../../../../core/network/api_client.dart';
 import '../../../../core/network/return_object.dart';
 import '../models/article_model.dart';
 import '../models/cart_model.dart';
+import '../models/currency_model.dart';
 
 /// Sale Engine (`{saleEngineEndpoint}`) cart calls (`api-contracts.md`
 /// section 5b, ops 8-11 and 47).
@@ -108,6 +109,42 @@ class SaleRemoteDataSource {
       },
     );
     return _firstOrder(response);
+  }
+
+  Future<CartModel> changeOrderCurrency({
+    required String saleEngineEndpoint,
+    required String sessionKey,
+    required String shoppingCard,
+    required String currencyCode,
+  }) async {
+    final response = await _apiClient.post(
+      '$saleEngineEndpoint/SaleEngine/ActionItemToOrder',
+      data: {
+        'ActionItemValues': [
+          {'Action': 'change_currency', 'Value': currencyCode},
+        ],
+        'Row': shoppingCard,
+        'SessionKey': sessionKey,
+      },
+    );
+    return _firstOrder(response);
+  }
+
+  Future<List<CurrencyModel>> getCurrencies({
+    required String saleEngineEndpoint,
+    required String branchNo,
+  }) async {
+    final response = await _apiClient.post(
+      '$saleEngineEndpoint/SaleEngine/GetCurrency',
+      data: {'branch_no': branchNo},
+    );
+    final result = ReturnObject<List<CurrencyModel>>.fromJson(
+      response,
+      (data) => (data as List<dynamic>? ?? const [])
+          .map((c) => CurrencyModel.fromJson(c as Map<String, dynamic>))
+          .toList(growable: false),
+    );
+    return result.unwrap();
   }
 
   CartModel _firstOrder(Map<String, dynamic> response) {

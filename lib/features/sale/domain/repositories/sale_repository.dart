@@ -1,5 +1,6 @@
 import '../entities/article.dart';
 import '../entities/cart.dart';
+import '../entities/currency.dart';
 
 abstract class SaleRepository {
   /// `SaleEngine/GetMasterByBarcodeDLL` (`api-contracts.md` op 47).
@@ -23,6 +24,19 @@ abstract class SaleRepository {
   Future<Cart> removeCartItem({
     required String sessionKey,
     required String row,
+  });
+
+  /// `SaleEngine/GetCurrency` (op 13) for this device's branch.
+  Future<List<Currency>> listCurrencies();
+
+  /// `SaleEngine/ActionItemToOrder` with `Action: "change_currency"` —
+  /// ports legacy `CurrencyPickerPage.onChange()`, which sends the order's
+  /// shopping card as `Row`. The sale engine recalculates the whole order
+  /// in [currencyCode].
+  Future<Cart> changeOrderCurrency({
+    required String sessionKey,
+    required String shoppingCard,
+    required String currencyCode,
   });
 
   /// `SaleEngine/GetOrder` (op 8).

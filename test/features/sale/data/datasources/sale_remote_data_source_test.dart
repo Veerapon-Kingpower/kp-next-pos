@@ -217,4 +217,61 @@ void main() {
       );
     },
   );
+
+  test('getCurrencies posts branch_no to SaleEngine/GetCurrency', () async {
+    apiClient.response = {
+      'isCompleted': true,
+      'Data': [
+        {
+          'branch_no': '03',
+          'curr_code': 'USD',
+          'curr_desc': 'US Dollar',
+          'curr_rate': 35.5,
+          'curr_short': r'$',
+        },
+      ],
+      'Message': [],
+    };
+
+    final result = await dataSource.getCurrencies(
+      saleEngineEndpoint: 'https://sale-engine',
+      branchNo: '03',
+    );
+
+    expect(apiClient.lastUrl, 'https://sale-engine/SaleEngine/GetCurrency');
+    expect(apiClient.lastData, {'branch_no': '03'});
+    expect(result.single.code, 'USD');
+    expect(result.single.rate, 35.5);
+  });
+
+  test('changeOrderCurrency sends change_currency with the shopping card '
+      'as Row (legacy CurrencyPickerPage)', () async {
+    apiClient.response = {
+      'isCompleted': true,
+      'Data': [
+        {'Guid': 'g1', 'isCheckOut': false, 'OrderDetails': []},
+      ],
+      'Message': [],
+    };
+
+    final cart = await dataSource.changeOrderCurrency(
+      saleEngineEndpoint: 'https://sale-engine',
+      sessionKey: 'abc123',
+      shoppingCard: 'CPX0001',
+      currencyCode: 'USD',
+    );
+
+    expect(
+      apiClient.lastUrl,
+      'https://sale-engine/SaleEngine/ActionItemToOrder',
+    );
+    expect(apiClient.lastData, {
+      'ActionItemValues': [
+        {'Action': 'change_currency', 'Value': 'USD'},
+      ],
+      'Row': 'CPX0001',
+      'SessionKey': 'abc123',
+    });
+    expect(cart.guid, 'g1');
+  });
 }

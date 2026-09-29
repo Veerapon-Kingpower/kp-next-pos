@@ -327,6 +327,15 @@ abstract class DesktopSaleIds {
   static const suspendButton = 'desktop.sale.suspendButton';
   static const printBasketButton = 'desktop.sale.printBasketButton';
   static const claimCheckButton = 'desktop.sale.claimCheckButton';
+  static const currencyButton = 'desktop.sale.currencyButton';
+  static const currencyRate = 'desktop.sale.currencyRate';
+  static const netPayBase = 'desktop.sale.netPayBase';
+  static const currencyPicker = 'desktop.sale.currencyPicker';
+  static const currencySearch = 'desktop.sale.currencySearch';
+  static const currencyError = 'desktop.sale.currencyError';
+
+  static String currencyOption(String code) =>
+      'desktop.sale.currencyOption.$code';
 
   static String qtyDecrease(String row) => 'desktop.sale.line.$row.qtyDecrease';
   static String qtyIncrease(String row) => 'desktop.sale.line.$row.qtyIncrease';

@@ -4,6 +4,8 @@ import 'package:kp_pos/features/sale/domain/entities/cart.dart';
 import 'package:kp_pos/features/sale/domain/entities/cart_item.dart';
 import 'package:kp_pos/features/sale/domain/usecases/add_item_to_cart_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/lookup_article_by_barcode_usecase.dart';
+import 'package:kp_pos/features/sale/domain/usecases/change_order_currency_usecase.dart';
+import 'package:kp_pos/features/sale/domain/usecases/list_currencies_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/remove_cart_item_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/update_cart_item_quantity_usecase.dart';
 import 'package:kp_pos/features/sale/presentation/sale_cart_view_model.dart';
@@ -43,15 +45,21 @@ const sampleCart = Cart(
   items: [chanel, johnnie],
 );
 
-SaleCartViewModel buildSaleViewModel(FakeSaleRepository sale, {Cart? cart}) {
+SaleCartViewModel buildSaleViewModel(
+  FakeSaleRepository sale, {
+  Cart? cart,
+  UserSession session = testSession,
+}) {
   final viewModel = SaleCartViewModel(
     restoreSession: RestoreSessionUseCase(
-      FakeAuthRepository(currentSessionResult: testSession),
+      FakeAuthRepository(currentSessionResult: session),
     ),
     lookupArticle: LookupArticleByBarcodeUseCase(sale),
     addItemToCart: AddItemToCartUseCase(sale),
     updateCartItemQuantity: UpdateCartItemQuantityUseCase(sale),
     removeCartItem: RemoveCartItemUseCase(sale),
+    listCurrencies: ListCurrenciesUseCase(sale),
+    changeOrderCurrency: ChangeOrderCurrencyUseCase(sale),
   );
   viewModel.cart = cart;
   return viewModel;

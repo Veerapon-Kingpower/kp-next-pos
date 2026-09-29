@@ -20,7 +20,8 @@ void main() {
     Cart? cart = sampleCart,
     Cart cartAfterMutation = sampleCart,
     Size size = compactSize,
-    SaleOrderType orderType = SaleOrderType.shopping,
+    SaleOrderType orderType = SaleOrderType.normal,
+    bool isAirportMpos = false,
     VoidCallback? onExit,
     VoidCallback? onCustomer,
   }) async {
@@ -33,6 +34,7 @@ void main() {
           body: HandheldSaleView(
             viewModel: viewModel,
             orderType: orderType,
+            isAirportMpos: isAirportMpos,
             onExit: onExit ?? () {},
             onCustomer: onCustomer ?? () {},
           ),
@@ -54,7 +56,7 @@ void main() {
       tester,
     ) async {
       await pump(tester);
-      expect(find.text('Sale · Normal'), findsOneWidget);
+      expect(find.text('Sale · NORMAL'), findsOneWidget);
       expect(textIn(tester, SaleIds.netPay), '฿21,500.00');
       expect(textIn(tester, SaleIds.totalLine), 'Total 21,500.00 · 3 units');
       expect(
@@ -67,8 +69,9 @@ void main() {
     });
 
     for (final (type, title, color) in [
-      (SaleOrderType.shopping, 'Sale · Normal', AppColors.goldDark),
-      (SaleOrderType.delivery, 'Sale · Delivery', Color(0xFF165FA9)),
+      (SaleOrderType.normal, 'Sale · NORMAL', AppColors.goldDark),
+      (SaleOrderType.delivery, 'Sale · DELIVERY', Color(0xFF165FA9)),
+      (SaleOrderType.deposit, 'Sale · DEPOSIT', Color(0xFF165FA9)),
       (SaleOrderType.preOrder, 'Sale · Pre-order', Color(0xFFBF4D0D)),
     ]) {
       testWidgets('${type.name} uses its own header colour', (tester) async {
@@ -293,7 +296,7 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('More lists order types, only Shopping is available', (
+    testWidgets('More lists legacy order types, only NORMAL is available', (
       tester,
     ) async {
       final handle = tester.ensureSemantics();
@@ -302,11 +305,18 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(byTestId(SaleIds.moreSheet), findsOneWidget);
+      expect(find.text('NORMAL'), findsOneWidget);
+      expect(find.text('DELIVERY'), findsOneWidget);
+      expect(find.text('Pre-order'), findsOneWidget);
+      expect(byTestId(SaleIds.orderType('deposit')), findsNothing);
       expect(
-        tester.getSemantics(byTestId(SaleIds.orderTypeShopping)),
+        tester.getSemantics(byTestId(SaleIds.orderType('normal'))),
         isSemantics(isSelected: true),
       );
-      for (final id in [SaleIds.orderTypeDelivery, SaleIds.orderTypePreOrder]) {
+      for (final id in [
+        SaleIds.orderType('delivery'),
+        SaleIds.orderType('preOrder'),
+      ]) {
         expect(
           tester.getSemantics(byTestId(id)),
           isSemantics(hasEnabledState: true, isEnabled: false),
@@ -314,6 +324,19 @@ void main() {
         );
       }
       handle.dispose();
+    });
+
+    testWidgets('airport mPOS offers NORMAL / DEPOSIT, as legacy', (
+      tester,
+    ) async {
+      await pump(tester, isAirportMpos: true);
+      await tester.tap(byTestId(SaleIds.moreButton));
+      await tester.pumpAndSettle();
+
+      expect(find.text('NORMAL'), findsOneWidget);
+      expect(find.text('DEPOSIT'), findsOneWidget);
+      expect(byTestId(SaleIds.orderType('delivery')), findsNothing);
+      expect(byTestId(SaleIds.orderType('preOrder')), findsNothing);
     });
 
     testWidgets('all bar actions expose semantics ids', (tester) async {

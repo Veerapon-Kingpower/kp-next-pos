@@ -30,12 +30,17 @@ class HandheldSaleView extends StatefulWidget {
   final VoidCallback onExit;
   final VoidCallback onCustomer;
 
+  /// Airport mPOS offers NORMAL / DEPOSIT instead of NORMAL / DELIVERY /
+  /// Pre-order (legacy `setDefaultShopping`).
+  final bool isAirportMpos;
+
   const HandheldSaleView({
     super.key,
     required this.viewModel,
     required this.onExit,
     required this.onCustomer,
-    this.orderType = SaleOrderType.shopping,
+    this.orderType = SaleOrderType.normal,
+    this.isAirportMpos = false,
   });
 
   @override
@@ -95,19 +100,18 @@ class _HandheldSaleViewState extends State<HandheldSaleView> {
           const Text('Order type', style: HandheldText.sectionTitle),
           const SizedBox(height: 4),
           const Text(
-            'Delivery and pre-order bills are not available yet.',
+            'Other order types are not available yet.',
             style: HandheldText.bodySmall,
           ),
           const SizedBox(height: 12),
-          // TODO(pos-handheld): enable Delivery / Pre-order once the sale
-          // engine accepts an order type (and pickup / delivery details).
-          for (final (type, id) in [
-            (SaleOrderType.shopping, SaleIds.orderTypeShopping),
-            (SaleOrderType.delivery, SaleIds.orderTypeDelivery),
-            (SaleOrderType.preOrder, SaleIds.orderTypePreOrder),
-          ]) ...[
+          // TODO(pos-handheld): enable Delivery / Pre-order / Deposit once
+          // the sale engine accepts an order type (and pickup / delivery
+          // details; Deposit also follows the AllowDeposit config).
+          for (final type in SaleOrderType.optionsFor(
+            isAirportMpos: widget.isAirportMpos,
+          )) ...[
             HandheldChoiceChip(
-              id: id,
+              id: SaleIds.orderType(type.name),
               label: type.label,
               icon: type.icon,
               height: 48,

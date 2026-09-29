@@ -427,9 +427,9 @@ class _HomePageState extends State<HomePage> {
         ),
       ],
       // The Sale screen names its order type, as in the mockup; the app
-      // only runs Normal (shopping) bills today (see SaleOrderType).
+      // only runs NORMAL bills today (see SaleOrderType).
       title: section == _HomeSection.sale
-          ? 'Sale · ${SaleOrderType.shopping.label}'
+          ? 'Sale · ${SaleOrderType.normal.label}'
           : destinations[selectedIndex].label,
       contextItems: [
         DesktopContextItem(label: 'Store', value: orDash(settings.location)),
@@ -539,6 +539,7 @@ class _HomePageState extends State<HomePage> {
         onExit: _showHandheldHome,
         // Customer lookup lives on Home's scan field.
         onCustomer: _showHandheldHome,
+        isAirportMpos: viewModel.settings.isAirportMpos,
       );
     }
     if (section != _HomeSection.home) {

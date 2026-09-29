@@ -79,9 +79,9 @@ abstract class SaleIds {
   static const saveButton = 'sale.saveButton';
   static const moreButton = 'sale.moreButton';
   static const moreSheet = 'sale.moreSheet';
-  static const orderTypeShopping = 'sale.orderType.shopping';
-  static const orderTypeDelivery = 'sale.orderType.delivery';
-  static const orderTypePreOrder = 'sale.orderType.preOrder';
+  /// An order-type option in the More sheet, by `SaleOrderType.name`
+  /// (`normal`, `delivery`, `preOrder`, `deposit`).
+  static String orderType(String name) => 'sale.orderType.$name';
   static const voidConfirm = 'sale.voidConfirm';
 
   /// One cart line, keyed by its cart `row`.

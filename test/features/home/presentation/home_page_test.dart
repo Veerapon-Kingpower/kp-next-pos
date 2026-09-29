@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/app/session_state.dart';
 import 'package:kp_pos/core/config/device_settings.dart';
+import 'package:kp_pos/core/presentation/test_ids.dart';
 import 'package:kp_pos/core/startup/startup_validator.dart';
 import 'package:kp_pos/features/auth/domain/entities/user_session.dart';
 import 'package:kp_pos/features/auth/domain/usecases/logout_usecase.dart';
@@ -29,6 +30,7 @@ import 'package:kp_pos/features/settings/domain/usecases/save_device_settings_us
 import 'package:kp_pos/features/settings/presentation/settings_view_model.dart';
 
 import '../../../core/storage/fakes.dart';
+import '../../../helpers/test_id_finders.dart';
 import '../../auth/fake_auth_repository.dart';
 import '../../customer/fake_customer_repository.dart';
 import '../../flight/fake_flight_repository.dart';
@@ -58,7 +60,9 @@ void main() {
         .platformDispatcher
         .views
         .first;
-    view.physicalSize = const Size(800, 2400);
+    // Desktop width by default: the Customer-search tests below exercise the
+    // desktop Customer tab. Handheld (< 840) tests set their own size.
+    view.physicalSize = const Size(1200, 2400);
     view.devicePixelRatio = 1.0;
     addTearDown(view.resetPhysicalSize);
     addTearDown(view.resetDevicePixelRatio);
@@ -132,27 +136,26 @@ void main() {
     );
   }
 
-  testWidgets(
-    'Customers is the default-active tab, showing the search UI',
-    (tester) async {
-      await tester.pumpWidget(MaterialApp(home: buildPage()));
-      await tester.pumpAndSettle();
+  /// Pumps [page] at the default desktop width and opens the Customer tab,
+  /// where the full customer search section (search button, register card,
+  /// result card) lives.
+  Future<void> pumpCustomerTab(WidgetTester tester, HomePage page) async {
+    await tester.pumpWidget(MaterialApp(home: page));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Customer').last);
+    await tester.pumpAndSettle();
+  }
 
-      expect(find.text('Search customer'), findsOneWidget);
-    },
-  );
+  testWidgets('the header shows the signed-in user, module, and branch', (
+    tester,
+  ) async {
+    await tester.pumpWidget(MaterialApp(home: buildPage()));
+    await tester.pumpAndSettle();
 
-  testWidgets(
-    'the header shows the signed-in user, module, and branch',
-    (tester) async {
-      await tester.pumpWidget(MaterialApp(home: buildPage()));
-      await tester.pumpAndSettle();
-
-      expect(find.textContaining('Somchai P.'), findsOneWidget);
-      expect(find.textContaining('PosKpi'), findsOneWidget);
-      expect(find.textContaining('03'), findsOneWidget);
-    },
-  );
+    expect(find.textContaining('Somchai P.'), findsOneWidget);
+    expect(find.textContaining('PosKpi'), findsOneWidget);
+    expect(find.textContaining('03'), findsOneWidget);
+  });
 
   testWidgets('tapping Sale shows the barcode scan field', (tester) async {
     await tester.pumpWidget(MaterialApp(home: buildPage()));
@@ -169,19 +172,6 @@ void main() {
       findsOneWidget,
     );
   });
-
-  testWidgets(
-    'tapping Settings pushes the settings page without changing tabs',
-    (tester) async {
-      await tester.pumpWidget(MaterialApp(home: buildPage()));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Settings').last);
-      await tester.pumpAndSettle();
-
-      expect(find.text('Device settings'), findsOneWidget);
-    },
-  );
 
   testWidgets('tapping the logout icon asks for confirmation first', (
     tester,
@@ -215,9 +205,7 @@ void main() {
     expect(authRepository.logoutCallCount, 1);
   });
 
-  testWidgets('cancelling the logout dialog does not log out', (
-    tester,
-  ) async {
+  testWidgets('cancelling the logout dialog does not log out', (tester) async {
     final authRepository = FakeAuthRepository();
     await tester.pumpWidget(
       MaterialApp(home: buildPage(logoutRepository: authRepository)),
@@ -253,10 +241,7 @@ void main() {
         isMember: true,
       );
 
-      await tester.pumpWidget(
-        MaterialApp(home: buildPage(searchResult: const [customer])),
-      );
-      await tester.pumpAndSettle();
+      await pumpCustomerTab(tester, buildPage(searchResult: const [customer]));
 
       expect(find.text('Search customer'), findsOneWidget);
       final searchField = find.widgetWithText(
@@ -280,8 +265,7 @@ void main() {
   testWidgets(
     'the Customers tab shows an empty state when the search finds nothing',
     (tester) async {
-      await tester.pumpWidget(MaterialApp(home: buildPage()));
-      await tester.pumpAndSettle();
+      await pumpCustomerTab(tester, buildPage());
 
       final searchField = find.widgetWithText(
         TextField,
@@ -325,10 +309,7 @@ void main() {
         isMember: true,
       );
 
-      await tester.pumpWidget(
-        MaterialApp(home: buildPage(searchResult: const [customer])),
-      );
-      await tester.pumpAndSettle();
+      await pumpCustomerTab(tester, buildPage(searchResult: const [customer]));
 
       final searchField = find.widgetWithText(
         TextField,
@@ -381,10 +362,7 @@ void main() {
         isMember: false,
       );
 
-      await tester.pumpWidget(
-        MaterialApp(home: buildPage(searchResult: const [customer])),
-      );
-      await tester.pumpAndSettle();
+      await pumpCustomerTab(tester, buildPage(searchResult: const [customer]));
 
       final searchField = find.widgetWithText(
         TextField,
@@ -440,10 +418,7 @@ void main() {
         isMember: false,
       );
 
-      await tester.pumpWidget(
-        MaterialApp(home: buildPage(searchResult: const [customer])),
-      );
-      await tester.pumpAndSettle();
+      await pumpCustomerTab(tester, buildPage(searchResult: const [customer]));
 
       final searchField = find.widgetWithText(
         TextField,
@@ -464,89 +439,79 @@ void main() {
     },
   );
 
-  testWidgets(
-    'starting a new search clears a previously selected privilege',
-    (tester) async {
-      const customer = Customer(
-        action: 'found',
-        isFound: true,
-        person: CustomerPerson(
-          englishName: 'Jane Doe',
-          passportNo: 'P1234567',
-          nationality: 'THA',
-          contacts: [],
-          privileges: [
-            Privilege(name: 'Gold Member', discount: 10),
-          ],
-          walletMembers: [],
-          isActivate: false,
-        ),
-        tour: {},
-        agentCode: '',
-        isMember: false,
-      );
+  testWidgets('starting a new search clears a previously selected privilege', (
+    tester,
+  ) async {
+    const customer = Customer(
+      action: 'found',
+      isFound: true,
+      person: CustomerPerson(
+        englishName: 'Jane Doe',
+        passportNo: 'P1234567',
+        nationality: 'THA',
+        contacts: [],
+        privileges: [Privilege(name: 'Gold Member', discount: 10)],
+        walletMembers: [],
+        isActivate: false,
+      ),
+      tour: {},
+      agentCode: '',
+      isMember: false,
+    );
 
-      await tester.pumpWidget(
-        MaterialApp(home: buildPage(searchResult: const [customer])),
-      );
-      await tester.pumpAndSettle();
+    await pumpCustomerTab(tester, buildPage(searchResult: const [customer]));
 
-      final searchField = find.widgetWithText(
-        TextField,
-        'Search by shopping card, passport, or ID card number',
-      );
-      await tester.enterText(searchField, 'CPX0001');
-      await tester.tap(find.widgetWithText(FilledButton, 'Search'));
-      await tester.pumpAndSettle();
+    final searchField = find.widgetWithText(
+      TextField,
+      'Search by shopping card, passport, or ID card number',
+    );
+    await tester.enterText(searchField, 'CPX0001');
+    await tester.tap(find.widgetWithText(FilledButton, 'Search'));
+    await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('privilegeCard_0')));
-      await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('privilegeCard_0')));
+    await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.check_circle), findsOneWidget);
+    expect(find.byIcon(Icons.check_circle), findsOneWidget);
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Search'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Search'));
+    await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.check_circle), findsNothing);
-      expect(find.byIcon(Icons.radio_button_unchecked), findsOneWidget);
-    },
-  );
+    expect(find.byIcon(Icons.check_circle), findsNothing);
+    expect(find.byIcon(Icons.radio_button_unchecked), findsOneWidget);
+  });
 
-  testWidgets(
-    'a customer with no extra data shows only the no-flight bar',
-    (tester) async {
-      const customer = Customer(
-        action: 'found',
-        isFound: true,
-        person: CustomerPerson(
-          englishName: 'John Smith',
-          passportNo: '',
-          nationality: '',
-          contacts: [],
-          privileges: [],
-          walletMembers: [],
-        ),
-        tour: {},
-        agentCode: '',
-        isMember: false,
-      );
+  testWidgets('a customer with no extra data shows only the no-flight bar', (
+    tester,
+  ) async {
+    const customer = Customer(
+      action: 'found',
+      isFound: true,
+      person: CustomerPerson(
+        englishName: 'John Smith',
+        passportNo: '',
+        nationality: '',
+        contacts: [],
+        privileges: [],
+        walletMembers: [],
+      ),
+      tour: {},
+      agentCode: '',
+      isMember: false,
+    );
 
-      await tester.pumpWidget(
-        MaterialApp(home: buildPage(searchResult: const [customer])),
-      );
-      await tester.pumpAndSettle();
+    await pumpCustomerTab(tester, buildPage(searchResult: const [customer]));
 
-      final searchField = find.widgetWithText(
-        TextField,
-        'Search by shopping card, passport, or ID card number',
-      );
-      await tester.enterText(searchField, 'CPX0002');
-      await tester.tap(find.widgetWithText(FilledButton, 'Search'));
-      await tester.pumpAndSettle();
+    final searchField = find.widgetWithText(
+      TextField,
+      'Search by shopping card, passport, or ID card number',
+    );
+    await tester.enterText(searchField, 'CPX0002');
+    await tester.tap(find.widgetWithText(FilledButton, 'Search'));
+    await tester.pumpAndSettle();
 
-      expect(find.text('Flight: Not available'), findsOneWidget);
-    },
-  );
+    expect(find.text('Flight: Not available'), findsOneWidget);
+  });
 
   testWidgets(
     'shows the shopping card number and registered status in the header',
@@ -569,10 +534,7 @@ void main() {
         isMember: false,
       );
 
-      await tester.pumpWidget(
-        MaterialApp(home: buildPage(searchResult: const [customer])),
-      );
-      await tester.pumpAndSettle();
+      await pumpCustomerTab(tester, buildPage(searchResult: const [customer]));
 
       final searchField = find.widgetWithText(
         TextField,
@@ -612,10 +574,7 @@ void main() {
         isMember: false,
       );
 
-      await tester.pumpWidget(
-        MaterialApp(home: buildPage(searchResult: const [customer])),
-      );
-      await tester.pumpAndSettle();
+      await pumpCustomerTab(tester, buildPage(searchResult: const [customer]));
 
       final searchField = find.widgetWithText(
         TextField,
@@ -629,95 +588,86 @@ void main() {
     },
   );
 
-  testWidgets(
-    'shows customer type and guide in the always-visible header',
-    (tester) async {
-      const customer = Customer(
-        action: 'found',
-        isFound: true,
-        person: CustomerPerson(
-          englishName: 'Jane Doe',
-          passportNo: 'P1234567',
-          nationality: 'THA',
-          contacts: [],
-          privileges: [],
-          walletMembers: [],
-          customerTypeCode: 'VIP',
-          customerTypeDetail: 'VIP Member',
-        ),
-        tour: {},
-        agentCode: '',
-        subAgentCode: 'GD1',
-        isMember: false,
-      );
+  testWidgets('shows customer type and guide in the always-visible header', (
+    tester,
+  ) async {
+    const customer = Customer(
+      action: 'found',
+      isFound: true,
+      person: CustomerPerson(
+        englishName: 'Jane Doe',
+        passportNo: 'P1234567',
+        nationality: 'THA',
+        contacts: [],
+        privileges: [],
+        walletMembers: [],
+        customerTypeCode: 'VIP',
+        customerTypeDetail: 'VIP Member',
+      ),
+      tour: {},
+      agentCode: '',
+      subAgentCode: 'GD1',
+      isMember: false,
+    );
 
-      await tester.pumpWidget(
-        MaterialApp(home: buildPage(searchResult: const [customer])),
-      );
-      await tester.pumpAndSettle();
+    await pumpCustomerTab(tester, buildPage(searchResult: const [customer]));
 
-      final searchField = find.widgetWithText(
-        TextField,
-        'Search by shopping card, passport, or ID card number',
-      );
-      await tester.enterText(searchField, 'CPX0001');
-      await tester.tap(find.widgetWithText(FilledButton, 'Search'));
-      await tester.pumpAndSettle();
+    final searchField = find.widgetWithText(
+      TextField,
+      'Search by shopping card, passport, or ID card number',
+    );
+    await tester.enterText(searchField, 'CPX0001');
+    await tester.tap(find.widgetWithText(FilledButton, 'Search'));
+    await tester.pumpAndSettle();
 
-      expect(find.textContaining('VIP'), findsWidgets);
-      expect(find.textContaining('VIP Member'), findsOneWidget);
-      expect(find.textContaining('GD1'), findsOneWidget);
-    },
-  );
+    expect(find.textContaining('VIP'), findsWidgets);
+    expect(find.textContaining('VIP Member'), findsOneWidget);
+    expect(find.textContaining('GD1'), findsOneWidget);
+  });
 
-  testWidgets(
-    'shows flight info attached to the customer info when present',
-    (tester) async {
-      const customer = Customer(
-        action: 'found',
-        isFound: true,
-        person: CustomerPerson(
-          englishName: 'Jane Doe',
-          passportNo: 'P1234567',
-          nationality: 'THA',
-          contacts: [],
-          privileges: [],
-          walletMembers: [],
-          flightCode: 'TG101',
-          flightDate: '2026-08-18',
-          flightTime: '10:00',
-          flightRouteDetail: 'BKK - NRT',
-          flightPickup: 'Gate A1',
-        ),
-        tour: {},
-        agentCode: '',
-        isMember: false,
-      );
+  testWidgets('shows flight info attached to the customer info when present', (
+    tester,
+  ) async {
+    const customer = Customer(
+      action: 'found',
+      isFound: true,
+      person: CustomerPerson(
+        englishName: 'Jane Doe',
+        passportNo: 'P1234567',
+        nationality: 'THA',
+        contacts: [],
+        privileges: [],
+        walletMembers: [],
+        flightCode: 'TG101',
+        flightDate: '2026-08-18',
+        flightTime: '10:00',
+        flightRouteDetail: 'BKK - NRT',
+        flightPickup: 'Gate A1',
+      ),
+      tour: {},
+      agentCode: '',
+      isMember: false,
+    );
 
-      await tester.pumpWidget(
-        MaterialApp(home: buildPage(searchResult: const [customer])),
-      );
-      await tester.pumpAndSettle();
+    await pumpCustomerTab(tester, buildPage(searchResult: const [customer]));
 
-      final searchField = find.widgetWithText(
-        TextField,
-        'Search by shopping card, passport, or ID card number',
-      );
-      await tester.enterText(searchField, 'CPX0001');
-      await tester.tap(find.widgetWithText(FilledButton, 'Search'));
-      await tester.pumpAndSettle();
+    final searchField = find.widgetWithText(
+      TextField,
+      'Search by shopping card, passport, or ID card number',
+    );
+    await tester.enterText(searchField, 'CPX0001');
+    await tester.tap(find.widgetWithText(FilledButton, 'Search'));
+    await tester.pumpAndSettle();
 
-      expect(find.textContaining('TG101'), findsOneWidget);
-      expect(find.textContaining('BKK - NRT'), findsOneWidget);
-      expect(find.textContaining('Gate A1'), findsOneWidget);
-    },
-  );
+    expect(find.textContaining('TG101'), findsOneWidget);
+    expect(find.textContaining('BKK - NRT'), findsOneWidget);
+    expect(find.textContaining('Gate A1'), findsOneWidget);
+  });
 
   testWidgets(
     'a "Register new customer" card sits separately below Search and opens the registration page',
     (tester) async {
-      await tester.pumpWidget(MaterialApp(home: buildPage()));
-      await tester.pumpAndSettle();
+      await pumpCustomerTab(tester, buildPage());
 
       // Physically separate from the search row (not the Search button
       // itself), per the "own card below Search" placement decision.
@@ -760,10 +710,7 @@ void main() {
         isMember: false,
       );
 
-      await tester.pumpWidget(
-        MaterialApp(home: buildPage(searchResult: const [customer])),
-      );
-      await tester.pumpAndSettle();
+      await pumpCustomerTab(tester, buildPage(searchResult: const [customer]));
 
       // Not searched yet — still shown.
       expect(find.text('Register new customer'), findsOneWidget);
@@ -784,8 +731,7 @@ void main() {
     '"Register new customer" is still shown after a search that finds nothing — '
     'only an actual result hides it',
     (tester) async {
-      await tester.pumpWidget(MaterialApp(home: buildPage()));
-      await tester.pumpAndSettle();
+      await pumpCustomerTab(tester, buildPage());
 
       final searchField = find.widgetWithText(
         TextField,
@@ -821,10 +767,7 @@ void main() {
         isMember: false,
       );
 
-      await tester.pumpWidget(
-        MaterialApp(home: buildPage(searchResult: const [customer])),
-      );
-      await tester.pumpAndSettle();
+      await pumpCustomerTab(tester, buildPage(searchResult: const [customer]));
 
       final searchField = find.widgetWithText(
         TextField,
@@ -842,7 +785,8 @@ void main() {
         tester
             .widget<TextField>(
               find.byWidgetPredicate(
-                (w) => w is TextField && w.decoration?.labelText == 'Passport no.',
+                (w) =>
+                    w is TextField && w.decoration?.labelText == 'Passport no.',
               ),
             )
             .controller
@@ -891,49 +835,242 @@ void main() {
     },
   );
 
-  testWidgets(
-    'at desktop width, tapping Customer shows customer search',
-    (tester) async {
-      tester.view.physicalSize = const Size(1200, 900);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.reset);
+  testWidgets('at desktop width, tapping Customer shows customer search', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
 
-      await tester.pumpWidget(MaterialApp(home: buildPage()));
+    await tester.pumpWidget(MaterialApp(home: buildPage()));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Customer').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Search customer'), findsOneWidget);
+  });
+
+  testWidgets('at desktop width, tapping Setup pushes the settings page', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(MaterialApp(home: buildPage()));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Setup').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Device settings'), findsOneWidget);
+  });
+
+  group('handheld layout (below desktop width)', () {
+    const jane = Customer(
+      action: 'found',
+      isFound: true,
+      person: CustomerPerson(
+        englishName: 'Jane Doe',
+        passportNo: 'P1234567',
+        nationality: 'THA',
+        contacts: [],
+        privileges: [
+          Privilege(
+            name: 'Gold Member',
+            discount: 10,
+            typeCode: 'VIP',
+            promoCode: 'PROMO123',
+          ),
+        ],
+        walletMembers: [],
+        isActivate: true,
+      ),
+      tour: {},
+      agentCode: '',
+      isMember: false,
+    );
+
+    Future<void> pumpHandheld(
+      WidgetTester tester,
+      HomePage page, {
+      Size size = compactSize,
+    }) async {
+      setDeviceSize(tester, size);
+      await tester.pumpWidget(MaterialApp(home: page));
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> scan(WidgetTester tester, String code) async {
+      await tester.enterText(
+        find.descendant(
+          of: byTestId(HomeIds.scanField),
+          matching: find.byType(TextField),
+        ),
+        code,
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+    }
+
+    for (final entry in {
+      'phone': compactSize,
+      'iPad portrait': mediumSize,
+    }.entries) {
+      testWidgets(
+        '${entry.key}: lands on Home with the Home/Sale/Enquiry/Menu nav',
+        (tester) async {
+          final handle = tester.ensureSemantics();
+          await pumpHandheld(tester, buildPage(), size: entry.value);
+
+          for (final id in [
+            NavIds.home,
+            NavIds.sale,
+            NavIds.enquiry,
+            NavIds.menu,
+          ]) {
+            expect(find.bySemanticsIdentifier(id), findsOneWidget, reason: id);
+          }
+          expect(byTestId(HomeIds.scanField), findsOneWidget);
+          expect(
+            tester.getSemantics(byTestId(NavIds.home)),
+            isSemantics(isSelected: true),
+          );
+          expect(find.byType(NavigationRail), findsNothing);
+          expect(find.text('Setup'), findsNothing);
+          expect(find.text('Home dashboard — coming soon'), findsNothing);
+          handle.dispose();
+        },
+      );
+    }
+
+    testWidgets('the Home header shows the signed-in user, module, branch', (
+      tester,
+    ) async {
+      await pumpHandheld(tester, buildPage());
+      expect(find.text('PosKpi · Branch 03 · Somchai P.'), findsOneWidget);
+    });
+
+    testWidgets('scanning a shopping card on Home shows the customer card', (
+      tester,
+    ) async {
+      await pumpHandheld(tester, buildPage(searchResult: const [jane]));
+      await scan(tester, 'CPX0001');
+
+      expect(find.text('Jane Doe'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: byTestId(HomeIds.customerResult),
+          matching: find.text('Gold Member'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a scan that finds nothing shows the empty state', (
+      tester,
+    ) async {
+      await pumpHandheld(tester, buildPage());
+      await scan(tester, 'CPX9999');
+      expect(find.text('No customer found.'), findsOneWidget);
+    });
+
+    testWidgets('a privilege picked on Home carries over to the Sale tab', (
+      tester,
+    ) async {
+      await pumpHandheld(tester, buildPage(searchResult: const [jane]));
+      await scan(tester, 'CPX0001');
+      await tester.tap(find.byKey(const Key('privilegeCard_0')));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Customer').last);
+      await tester.tap(byTestId(NavIds.sale));
       await tester.pumpAndSettle();
 
-      expect(find.text('Search customer'), findsOneWidget);
-    },
-  );
+      expect(find.text('[VIP]:PROMO123'), findsOneWidget);
+    });
 
-  testWidgets(
-    'at desktop width, tapping Setup pushes the settings page',
-    (tester) async {
-      tester.view.physicalSize = const Size(1200, 900);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.reset);
+    testWidgets('the Sale tile and the Sale nav item open the Sale tab', (
+      tester,
+    ) async {
+      const barcodeHint = 'Scan or type barcode (e.g. 5*8850012345678)';
+      await pumpHandheld(tester, buildPage());
 
-      await tester.pumpWidget(MaterialApp(home: buildPage()));
+      await tester.tap(byTestId(HomeIds.tileSale));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(TextField, barcodeHint), findsOneWidget);
+
+      await tester.tap(byTestId(NavIds.home));
+      await tester.pumpAndSettle();
+      await tester.tap(byTestId(NavIds.sale));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(TextField, barcodeHint), findsOneWidget);
+    });
+
+    testWidgets('the Register tile opens the registration page', (
+      tester,
+    ) async {
+      await pumpHandheld(tester, buildPage());
+      await tester.tap(byTestId(HomeIds.tileRegister));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Setup').last);
+      expect(
+        find.byWidgetPredicate(
+          (w) => w is TextField && w.decoration?.labelText == 'English name',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('the Enquiry nav item and tile open Enquiry', (tester) async {
+      await pumpHandheld(tester, buildPage());
+      await tester.tap(byTestId(HomeIds.tileEnquiry));
+      await tester.pumpAndSettle();
+      expect(find.text('Enquiry — coming soon'), findsOneWidget);
+      expect(
+        tester.getSemantics(byTestId(NavIds.enquiry)),
+        isSemantics(isSelected: true),
+      );
+    });
+
+    testWidgets('Menu opens a sheet whose Settings item pushes settings', (
+      tester,
+    ) async {
+      await pumpHandheld(tester, buildPage());
+      await tester.tap(byTestId(NavIds.menu));
+      await tester.pumpAndSettle();
+
+      expect(byTestId(MenuIds.sheet), findsOneWidget);
+      await tester.tap(byTestId(MenuIds.settings));
       await tester.pumpAndSettle();
 
       expect(find.text('Device settings'), findsOneWidget);
-    },
-  );
+    });
 
-  testWidgets(
-    'below desktop width, still shows the original Customers/Sale/Settings nav landing on Customers',
-    (tester) async {
-      await tester.pumpWidget(MaterialApp(home: buildPage()));
+    testWidgets('Menu → Log out confirms, then logs out', (tester) async {
+      final authRepository = FakeAuthRepository();
+      await pumpHandheld(tester, buildPage(logoutRepository: authRepository));
+      await tester.tap(byTestId(NavIds.menu));
+      await tester.pumpAndSettle();
+      await tester.tap(byTestId(MenuIds.logout));
       await tester.pumpAndSettle();
 
-      expect(find.text('Search customer'), findsOneWidget);
-      expect(find.text('Home dashboard — coming soon'), findsNothing);
-      expect(find.text('Enquiry'), findsNothing);
-    },
-  );
+      expect(find.text('Are you sure you want to log out?'), findsOneWidget);
+      expect(authRepository.logoutCallCount, 0);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Log out'));
+      await tester.pumpAndSettle();
+      expect(authRepository.logoutCallCount, 1);
+    });
+
+    testWidgets('Menu on iPad portrait opens as a dialog, not a sheet', (
+      tester,
+    ) async {
+      await pumpHandheld(tester, buildPage(), size: mediumSize);
+      await tester.tap(byTestId(NavIds.menu));
+      await tester.pumpAndSettle();
+      expect(find.byType(Dialog), findsOneWidget);
+      expect(byTestId(MenuIds.settings), findsOneWidget);
+    });
+  });
 }

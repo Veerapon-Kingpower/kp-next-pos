@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kp_pos/core/presentation/test_ids.dart';
 import 'package:kp_pos/core/app/app.dart';
 import 'package:kp_pos/core/app/router.dart';
 import 'package:kp_pos/core/app/session_state.dart';
@@ -39,6 +40,7 @@ import '../../features/flight/fake_flight_repository.dart';
 import '../../features/nationality/fake_nationality_repository.dart';
 import '../../features/sale/fake_sale_repository.dart';
 import '../../features/settings/fake_settings_repository.dart';
+import '../../helpers/test_id_finders.dart';
 
 const _completeSettings = DeviceSettings(
   saleEngineEndpoint: 'https://sale',
@@ -305,8 +307,8 @@ void main() {
 
     await tester.pumpWidget(KpPosApp(router: router));
     await tester.pumpAndSettle();
-    // Customers is the default-active tab post-login.
-    expect(find.text('Search customer'), findsOneWidget);
+    // Handheld Home (scan-to-find-customer) is the landing tab post-login.
+    expect(byTestId(HomeIds.scanField), findsOneWidget);
 
     sessionState.signedOut();
     await tester.pumpAndSettle();

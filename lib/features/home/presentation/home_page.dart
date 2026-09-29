@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../../core/app/session_state.dart';
+import '../../../core/presentation/handheld/handheld.dart';
+import '../../../core/presentation/test_ids.dart';
+import '../../../core/presentation/widgets/test_id.dart';
 import '../../../core/presentation/widgets/app_buttons.dart';
 import '../../../core/presentation/widgets/app_card.dart';
 import '../../../core/presentation/widgets/app_dialogs.dart';
@@ -24,6 +27,7 @@ import '../../sale/presentation/sale_cart_view_model.dart';
 import '../../sale/presentation/widgets/sale_page.dart';
 import '../../settings/presentation/settings_page.dart';
 import '../../settings/presentation/settings_view_model.dart';
+import 'handheld/handheld_home_view.dart';
 import 'home_dashboard_page.dart';
 import 'home_view_model.dart';
 
@@ -35,18 +39,23 @@ const _customerSearchHint =
     'Search by shopping card, passport, or ID card number';
 
 /// The body sections `HomePage` can show, independent of which nav
-/// destinations are visible at the current breakpoint (mobile shows only
-/// `customers`/`sale`; desktop shows all four — see `_HomePageState`'s
-/// `_mobileSections`/`_desktopSections`).
+/// destinations are visible at the current breakpoint (handheld shows
+/// `home`/`sale`/`enquiry`, with customer lookup on Home's scan field;
+/// desktop shows all four — see `_HomePageState`'s
+/// `_handheldSections`/`_desktopSections`).
 enum _HomeSection { home, customers, sale, enquiry }
 
-/// App shell with the primary POS navigation — Customers (default-active on
-/// landing here, including right after login), Sale, and Settings — per
-/// design.md's nav scope. Customers/Sale swap in place via [IndexedStack]
-/// so cart/search state survives switching tabs; Settings is a full page,
-/// pushed rather than swapped in, matching how it's already reached from
-/// Login. The header shows the signed-in user, module, and branch so the
-/// cashier always has that context on screen.
+enum _MenuChoice { settings, logout }
+
+/// App shell with the primary POS navigation. Below
+/// [AppBreakpoints.wide] it is the handheld layout
+/// (docs/superpowers/specs/2026-09-29-pos-handheld-design.md): Home /
+/// Sale / Enquiry / Menu bottom nav, landing on Home, where the scan field
+/// looks up a customer; Menu opens a sheet with Settings and Log out. At
+/// desktop width it is the 5-item rail. Sections swap in place via
+/// [IndexedStack] so cart/search state survives switching tabs; Settings
+/// is a full page, pushed rather than swapped in, matching how it's
+/// already reached from Login.
 class HomePage extends StatefulWidget {
   final HomeViewModel viewModel;
   final SessionState sessionState;
@@ -75,17 +84,29 @@ class _HomePageState extends State<HomePage> {
   // (via `.values.indexOf`) must stay stable regardless of breakpoint, so
   // switching width mid-session doesn't recreate (and lose the state of)
   // any of these pages.
-  static const _mobileDestinations = [
-    AppNavDestination(icon: Icons.people, label: 'Customers'),
-    AppNavDestination(icon: Icons.point_of_sale, label: 'Sale'),
-    AppNavDestination(icon: Icons.settings, label: 'Settings'),
+  // Handheld's 4-item nav (handheld spec decision 4). "Menu" is not a
+  // section — it opens a sheet — so it sits past the end of
+  // `_handheldSections`.
+  static const _handheldNavItems = [
+    HandheldNavItem(id: NavIds.home, icon: Icons.home_outlined, label: 'Home'),
+    HandheldNavItem(
+      id: NavIds.sale,
+      icon: Icons.shopping_bag_outlined,
+      label: 'Sale',
+    ),
+    HandheldNavItem(id: NavIds.enquiry, icon: Icons.search, label: 'Enquiry'),
+    HandheldNavItem(id: NavIds.menu, icon: Icons.menu, label: 'Menu'),
   ];
-  static const _mobileSections = [_HomeSection.customers, _HomeSection.sale];
+  static const _handheldSections = [
+    _HomeSection.home,
+    _HomeSection.sale,
+    _HomeSection.enquiry,
+  ];
 
   // Desktop's 5-item nav from the POS Desktop mockup (see
   // docs/superpowers/specs/2026-08-27-pos-desktop-design.md, decision 2) —
-  // "Customer"/"Setup" reuse the same underlying screens as mobile's
-  // "Customers"/"Settings"; "Home" and "Enquiry" are new.
+  // "Customer" is the full customer search section, "Setup" pushes
+  // Settings.
   static const _desktopDestinations = [
     AppNavDestination(icon: Icons.dashboard_outlined, label: 'Home'),
     AppNavDestination(icon: Icons.point_of_sale, label: 'Sale'),
@@ -219,9 +240,7 @@ class _HomePageState extends State<HomePage> {
     setState(() => _section = _HomeSection.sale);
   }
 
-  Future<_PrivilegeSelection?> _choosePrivilege(
-    List<Privilege> privileges,
-  ) {
+  Future<_PrivilegeSelection?> _choosePrivilege(List<Privilege> privileges) {
     return showDialog<_PrivilegeSelection>(
       context: context,
       builder: (context) => AlertDialog(
@@ -245,7 +264,10 @@ class _HomePageState extends State<HomePage> {
                 ),
               ListTile(
                 key: const Key('noPrivilegeOption'),
-                leading: const Icon(Icons.block, color: AppColors.textSecondary),
+                leading: const Icon(
+                  Icons.block,
+                  color: AppColors.textSecondary,
+                ),
                 title: const Text('No privilege'),
                 onTap: () =>
                     Navigator.of(context).pop(const _PrivilegeSelection(null)),
@@ -306,9 +328,12 @@ class _HomePageState extends State<HomePage> {
       return const AppShell(title: 'Home', body: LoadingView());
     }
 
-    final isWide = AppBreakpoints.isWide(context);
-    final destinations = isWide ? _desktopDestinations : _mobileDestinations;
-    final sections = isWide ? _desktopSections : _mobileSections;
+    if (!AppBreakpoints.isWide(context)) {
+      return _buildHandheld(context, viewModel);
+    }
+
+    const destinations = _desktopDestinations;
+    const sections = _desktopSections;
     final section = (_section != null && sections.contains(_section))
         ? _section!
         : sections.first;
@@ -318,8 +343,7 @@ class _HomePageState extends State<HomePage> {
       title: destinations[selectedIndex].label,
       destinations: destinations,
       selectedIndex: selectedIndex,
-      onDestinationSelected: (index) =>
-          _onDestinationSelected(index, sections),
+      onDestinationSelected: (index) => _onDestinationSelected(index, sections),
       actions: [
         _sessionInfo(viewModel),
         IconButton(
@@ -336,11 +360,129 @@ class _HomePageState extends State<HomePage> {
       // keeps every child mounted regardless of which index is showing.
       body: IndexedStack(
         index: selectedIndex,
+        children: [for (final s in sections) _pageFor(s, context, viewModel)],
+      ),
+    );
+  }
+
+  /// Handheld layout (phones, Sunmi, tablets / iPads in portrait) — see
+  /// the handheld spec. Same sections, same view-models as desktop; only
+  /// the chrome and the Home body differ.
+  Widget _buildHandheld(BuildContext context, HomeViewModel viewModel) {
+    const sections = _handheldSections;
+    final section = (_section != null && sections.contains(_section))
+        ? _section!
+        : sections.first;
+    final selectedIndex = sections.indexOf(section);
+
+    return HandheldScaffold(
+      header: _handheldHeaderFor(section, viewModel),
+      body: IndexedStack(
+        index: selectedIndex,
         children: [
-          for (final s in sections) _pageFor(s, context, viewModel),
+          for (final s in sections) _handheldPageFor(s, context, viewModel),
+        ],
+      ),
+      navBar: HandheldNavBar(
+        items: _handheldNavItems,
+        selectedIndex: selectedIndex,
+        onSelected: (index) {
+          if (index >= sections.length) {
+            _openHandheldMenu(viewModel);
+            return;
+          }
+          setState(() => _section = sections[index]);
+        },
+      ),
+    );
+  }
+
+  Widget _handheldHeaderFor(_HomeSection section, HomeViewModel viewModel) {
+    switch (section) {
+      case _HomeSection.home:
+        final settings = viewModel.settings;
+        return HandheldHomeHeader(
+          userName: viewModel.session?.userName ?? '',
+          module: settings.moduleKey.isEmpty ? '—' : settings.moduleKey,
+          branch: settings.branch.isEmpty ? '—' : settings.branch,
+          offlineMode: settings.forceOfflineMode,
+          now: DateTime.now(),
+        );
+      case _HomeSection.sale:
+        // TODO(pos-handheld): H2 replaces this with the bill header (order
+        // type, bill no., rate, totals) from mockup screens 3 / 16 / 17.
+        return const HandheldHeader(title: 'Sale');
+      case _HomeSection.enquiry:
+        return const HandheldHeader(
+          title: 'Enquiry',
+          subtitle: 'Bills, claim checks, refunds',
+        );
+      case _HomeSection.customers:
+        return const HandheldHeader(title: 'Customer');
+    }
+  }
+
+  Widget _handheldPageFor(
+    _HomeSection section,
+    BuildContext context,
+    HomeViewModel viewModel,
+  ) {
+    if (section != _HomeSection.home) {
+      return _pageFor(section, context, viewModel);
+    }
+    return HandheldHomeView(
+      searchController: _customerSearchController,
+      onSearch: (_) => _searchCustomer(),
+      searchResults: _customerSearchResults(context, viewModel),
+      onRegister: () => _openRegistration(),
+      onSale: () => setState(() => _section = _HomeSection.sale),
+      onEnquiry: () => setState(() => _section = _HomeSection.enquiry),
+    );
+  }
+
+  Future<void> _openHandheldMenu(HomeViewModel viewModel) async {
+    final session = viewModel.session;
+    final choice = await showHandheldSheet<_MenuChoice>(
+      context,
+      id: MenuIds.sheet,
+      builder: (sheetContext) => Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('Menu', style: HandheldText.sectionTitle),
+          if (session != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              '${session.userName} · ${session.userCode}',
+              style: HandheldText.bodySmall,
+            ),
+          ],
+          const SizedBox(height: 12),
+          _MenuRow(
+            id: MenuIds.settings,
+            icon: Icons.settings_outlined,
+            label: 'Settings',
+            onTap: () => Navigator.of(sheetContext).pop(_MenuChoice.settings),
+          ),
+          _MenuRow(
+            id: MenuIds.logout,
+            icon: Icons.logout,
+            label: 'Log out',
+            destructive: true,
+            onTap: () => Navigator.of(sheetContext).pop(_MenuChoice.logout),
+          ),
         ],
       ),
     );
+    if (!mounted) return;
+    switch (choice) {
+      case _MenuChoice.settings:
+        _openSettings();
+      case _MenuChoice.logout:
+        await _logOut();
+      case null:
+        break;
+    }
   }
 
   Widget _pageFor(
@@ -510,6 +652,38 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
+/// One tappable row of the handheld Menu sheet.
+class _MenuRow extends StatelessWidget {
+  final String id;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool destructive;
+
+  const _MenuRow({
+    required this.id,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.destructive = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = destructive ? AppColors.danger : AppColors.textPrimary;
+    return TestId(
+      id,
+      child: ListTile(
+        minTileHeight: HandheldMetrics.primaryActionHeight,
+        contentPadding: EdgeInsets.zero,
+        leading: Icon(icon, color: destructive ? color : AppColors.goldDark),
+        title: Text(label, style: HandheldText.body.copyWith(color: color)),
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
 /// Result of the "Select privilege" dialog — distinct from the dialog's
 /// `showDialog` future resolving to `null` on cancel (back/outside tap),
 /// since picking "No privilege" also carries a `null` [privilege].
@@ -600,7 +774,9 @@ class _CustomerCardFace extends StatelessWidget {
       width: 72,
       decoration: const BoxDecoration(
         color: Color(0x14C5A059), // AppColors.goldAccent at low opacity
-        border: Border(right: BorderSide(color: AppColors.goldAccent, width: 4)),
+        border: Border(
+          right: BorderSide(color: AppColors.goldAccent, width: 4),
+        ),
       ),
       child: customer.pathURLMemberCard.isEmpty
           ? _placeholder(context)
@@ -626,7 +802,11 @@ class _CustomerCardFace extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                           vertical: AppSpacing.xxs,
                         ),
-                        child: _badgeLabels(context, customer.person, onDark: true),
+                        child: _badgeLabels(
+                          context,
+                          customer.person,
+                          onDark: true,
+                        ),
                       ),
                     ),
                   ),
@@ -744,9 +924,15 @@ class _CustomerHeaderDetail extends StatelessWidget {
               ),
             ],
           ),
-          const Divider(color: AppColors.goldAccent, thickness: 2, height: AppSpacing.md),
+          const Divider(
+            color: AppColors.goldAccent,
+            thickness: 2,
+            height: AppSpacing.md,
+          ),
           Text(
-            person.englishName.isEmpty ? 'Unnamed customer' : person.englishName,
+            person.englishName.isEmpty
+                ? 'Unnamed customer'
+                : person.englishName,
             textAlign: TextAlign.right,
             style: textTheme.titleMedium,
             maxLines: 1,
@@ -1003,7 +1189,11 @@ class _FlightCard extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(AppSizing.cornerRadiusSm),
         boxShadow: const [
-          BoxShadow(color: Color(0x1F0A192F), blurRadius: 4, offset: Offset(0, 1)),
+          BoxShadow(
+            color: Color(0x1F0A192F),
+            blurRadius: 4,
+            offset: Offset(0, 1),
+          ),
         ],
       ),
       child: ClipRRect(
@@ -1019,11 +1209,17 @@ class _FlightCard extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.flight, color: Colors.white, size: AppSizing.iconSize),
+                    const Icon(
+                      Icons.flight,
+                      color: Colors.white,
+                      size: AppSizing.iconSize,
+                    ),
                     const SizedBox(height: AppSpacing.xxs),
                     Text(
                       person.flightCode,
-                      style: textTheme.labelMedium?.copyWith(color: Colors.white),
+                      style: textTheme.labelMedium?.copyWith(
+                        color: Colors.white,
+                      ),
                     ),
                   ],
                 ),
@@ -1042,19 +1238,20 @@ class _FlightCard extends StatelessWidget {
                         children: [
                           Text(
                             person.flightDate,
-                            style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+                            style: textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                           Text(
                             person.flightTime,
-                            style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+                            style: textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ],
                       ),
                       const SizedBox(height: AppSpacing.xxs),
-                      _FactRow(
-                        label: 'Route',
-                        value: person.flightRouteDetail,
-                      ),
+                      _FactRow(label: 'Route', value: person.flightRouteDetail),
                       if (!isAirportMpos)
                         _FactRow(label: 'PU', value: person.flightPickup),
                     ],
@@ -1089,7 +1286,11 @@ class _NoFlightBar extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(AppSizing.cornerRadiusSm),
         boxShadow: const [
-          BoxShadow(color: Color(0x1F0A192F), blurRadius: 4, offset: Offset(0, 1)),
+          BoxShadow(
+            color: Color(0x1F0A192F),
+            blurRadius: 4,
+            offset: Offset(0, 1),
+          ),
         ],
       ),
       child: Row(
@@ -1100,9 +1301,14 @@ class _NoFlightBar extends StatelessWidget {
             size: AppSizing.iconSize,
           ),
           const SizedBox(width: AppSpacing.sm),
-          Text(
-            'Flight: Not available',
-            style: textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
+          Expanded(
+            child: Text(
+              'Flight: Not available',
+              overflow: TextOverflow.ellipsis,
+              style: textTheme.bodyMedium?.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
           ),
         ],
       ),
@@ -1150,7 +1356,9 @@ class _PrivilegeRow extends StatelessWidget {
             children: [
               Text(
                 privilege.name.isEmpty ? 'Privilege' : privilege.name,
-                style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+                style: textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               if (code.isNotEmpty)
                 Text(

@@ -155,6 +155,9 @@ abstract class PaymentIds {
   static const chargeButton = 'payment.chargeButton';
   static const completeSaleButton = 'payment.completeSaleButton';
   static const chargeNotice = 'payment.chargeNotice';
+  static const cashReceivedField = 'payment.cashReceivedField';
+  static const cashApplied = 'payment.cashApplied';
+  static const cashChangeDue = 'payment.cashChangeDue';
 
   static String method(String name) => 'payment.method.$name';
   static String ledgerRow(int index) => 'payment.ledger.$index';

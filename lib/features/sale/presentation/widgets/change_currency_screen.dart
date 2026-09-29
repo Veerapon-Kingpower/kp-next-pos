@@ -6,9 +6,10 @@ import 'package:flutter/services.dart';
 import '../../../../core/error/app_exception.dart';
 import '../../../../core/presentation/desktop/desktop.dart';
 import '../../../../core/presentation/handheld/handheld.dart'
-    show formatAmount, formatBaht;
+    show formatAmount, formatBaht, showHandheldSheet;
 import '../../../../core/presentation/test_ids.dart';
 import '../../../../core/presentation/widgets/test_id.dart';
+import '../../../../core/theme/app_breakpoints.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../domain/entities/currency.dart';
 import '../../domain/entities/exchange_quote.dart';
@@ -38,6 +39,21 @@ Future<void> showChangeCurrencyScreen(
   required ExchangeChange exchange,
   String initialCurrency = 'THB',
 }) {
+  // Handheld: a bottom sheet on phones, a dialog on tablets (legacy's
+  // full-screen modal on the Sunmi).
+  if (!AppBreakpoints.isWide(context)) {
+    return showHandheldSheet<void>(
+      context,
+      id: CurrencyIds.changeScreen,
+      builder: (_) => _ChangeCurrencyScreen(
+        changeInBaht: changeInBaht,
+        loadCurrencies: loadCurrencies,
+        exchange: exchange,
+        initialCurrency: initialCurrency,
+        framed: false,
+      ),
+    );
+  }
   return showDialog<void>(
     context: context,
     barrierColor: AppColors.ink.withValues(alpha: 0.55),
@@ -51,6 +67,7 @@ Future<void> showChangeCurrencyScreen(
           loadCurrencies: loadCurrencies,
           exchange: exchange,
           initialCurrency: initialCurrency,
+          framed: true,
         ),
       ),
     ),
@@ -63,11 +80,15 @@ class _ChangeCurrencyScreen extends StatefulWidget {
   final ExchangeChange exchange;
   final String initialCurrency;
 
+  /// Desktop dialog: own surface and id. Handheld sheet: bare content.
+  final bool framed;
+
   const _ChangeCurrencyScreen({
     required this.changeInBaht,
     required this.loadCurrencies,
     required this.exchange,
     required this.initialCurrency,
+    required this.framed,
   });
 
   @override
@@ -196,178 +217,170 @@ class _ChangeCurrencyScreenState extends State<_ChangeCurrencyScreen> {
           ),
         );
 
-    return TestId(
-      CurrencyIds.changeScreen,
-      child: CallbackShortcuts(
-        bindings: {const SingleActivator(LogicalKeyboardKey.escape): _close},
-        child: Focus(
-          autofocus: true,
-          child: Material(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(14),
-            clipBehavior: Clip.antiAlias,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(28, 18, 20, 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.currency_exchange,
-                        color: AppColors.goldDark,
+    final body = SingleChildScrollView(
+      padding: widget.framed
+          ? const EdgeInsets.fromLTRB(28, 18, 20, 24)
+          : EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.currency_exchange, color: AppColors.goldDark),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text('Change', style: DesktopText.sectionTitle),
+              ),
+              IconButton(
+                tooltip: 'Close',
+                onPressed: _close,
+                icon: const Icon(Icons.close, size: 18),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (_currencies.isNotEmpty)
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final c in _currencies)
+                  TestId(
+                    CurrencyIds.changeCurrency(c.code),
+                    child: ChoiceChip(
+                      label: Text(
+                        c.symbol.isEmpty ? c.code : '${c.code} ${c.symbol}',
                       ),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Text('Change', style: DesktopText.sectionTitle),
-                      ),
-                      IconButton(
-                        tooltip: 'Close',
-                        onPressed: _close,
-                        icon: const Icon(Icons.close, size: 18),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  if (_currencies.isNotEmpty)
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final c in _currencies)
-                          TestId(
-                            CurrencyIds.changeCurrency(c.code),
-                            child: ChoiceChip(
-                              label: Text(
-                                c.symbol.isEmpty
-                                    ? c.code
-                                    : '${c.code} ${c.symbol}',
-                              ),
-                              selected: c.code == _currency,
-                              selectedColor: AppColors.cream,
-                              onSelected: (_) => _pick(c.code),
-                            ),
-                          ),
-                      ],
+                      selected: c.code == _currency,
+                      selectedColor: AppColors.cream,
+                      onSelected: (_) => _pick(c.code),
                     ),
-                  const SizedBox(height: 12),
-                  if (_loading) const LinearProgressIndicator(minHeight: 2),
-                  row(
-                    CurrencyIds.changeRate,
-                    'Currency rate',
-                    quote == null ? '—' : quote.rate.toStringAsFixed(3),
                   ),
-                  row(
-                    CurrencyIds.changeAmountThb,
-                    'Change amount (THB)',
-                    formatAmount(widget.changeInBaht),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'CURRENCY CHANGE ($_currency)',
-                    style: DesktopText.fieldLabel,
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Expanded(
-                        flex: 3,
-                        child: TestId(
-                          CurrencyIds.changeCurrencyField,
-                          child: TextField(
-                            controller: _amount,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            onChanged: _onAmountChanged,
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w700,
-                            ),
-                            decoration: InputDecoration(
-                              suffixText: _currency,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 2,
-                        child: TestId(
-                          CurrencyIds.changeCurrencyThb,
-                          child: Text(
-                            quote == null
-                                ? '—'
-                                : '= ${formatBaht(quote.currencyAmountInBaht)}',
-                            textAlign: TextAlign.right,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              color: AppColors.mutedText,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  row(
-                    CurrencyIds.changeLocal,
-                    'Local change (THB)',
-                    quote == null ? '—' : formatAmount(quote.localChange),
-                    strong: true,
-                  ),
-                  if (_error != null)
-                    TestId(
-                      CurrencyIds.changeError,
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Text(
-                          _error!,
-                          style: const TextStyle(color: AppColors.danger),
-                        ),
+              ],
+            ),
+          const SizedBox(height: 12),
+          if (_loading) const LinearProgressIndicator(minHeight: 2),
+          row(
+            CurrencyIds.changeRate,
+            'Currency rate',
+            quote == null ? '—' : quote.rate.toStringAsFixed(3),
+          ),
+          row(
+            CurrencyIds.changeAmountThb,
+            'Change amount (THB)',
+            formatAmount(widget.changeInBaht),
+          ),
+          const SizedBox(height: 10),
+          Text('CURRENCY CHANGE ($_currency)', style: DesktopText.fieldLabel),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: TestId(
+                  CurrencyIds.changeCurrencyField,
+                  child: TextField(
+                    controller: _amount,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    onChanged: _onAmountChanged,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    decoration: InputDecoration(
+                      suffixText: _currency,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Saving the exchange needs a recorded cash tender — not '
-                    'available yet on this station. Hand the change back as '
-                    'quoted above.',
-                    style: TextStyle(
-                      fontSize: 12.5,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: TestId(
+                  CurrencyIds.changeCurrencyThb,
+                  child: Text(
+                    quote == null
+                        ? '—'
+                        : '= ${formatBaht(quote.currencyAmountInBaht)}',
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(
+                      fontSize: 16,
                       color: AppColors.mutedText,
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: DesktopButton(
-                          id: CurrencyIds.changeSaveButton,
-                          label: 'Save',
-                          icon: Icons.check,
-                          height: 52,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: DesktopButton(
-                          id: CurrencyIds.changeCancelButton,
-                          label: 'Cancel',
-                          secondary: true,
-                          height: 52,
-                          onPressed: _close,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          row(
+            CurrencyIds.changeLocal,
+            'Local change (THB)',
+            quote == null ? '—' : formatAmount(quote.localChange),
+            strong: true,
+          ),
+          if (_error != null)
+            TestId(
+              CurrencyIds.changeError,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  _error!,
+                  style: const TextStyle(color: AppColors.danger),
+                ),
               ),
             ),
+          const SizedBox(height: 16),
+          const Text(
+            'Saving the exchange needs a recorded cash tender — not '
+            'available yet on this station. Hand the change back as '
+            'quoted above.',
+            style: TextStyle(fontSize: 12.5, color: AppColors.mutedText),
           ),
-        ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              const Expanded(
+                child: DesktopButton(
+                  id: CurrencyIds.changeSaveButton,
+                  label: 'Save',
+                  icon: Icons.check,
+                  height: 52,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: DesktopButton(
+                  id: CurrencyIds.changeCancelButton,
+                  label: 'Cancel',
+                  secondary: true,
+                  height: 52,
+                  onPressed: _close,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+    final keyboard = CallbackShortcuts(
+      bindings: {const SingleActivator(LogicalKeyboardKey.escape): _close},
+      child: Focus(autofocus: true, child: body),
+    );
+    // The handheld sheet already carries the id and the surface.
+    if (!widget.framed) return keyboard;
+    return TestId(
+      CurrencyIds.changeScreen,
+      child: Material(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        clipBehavior: Clip.antiAlias,
+        child: keyboard,
       ),
     );
   }

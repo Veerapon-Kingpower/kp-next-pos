@@ -5,6 +5,7 @@ import 'package:kp_pos/features/sale/presentation/desktop/desktop_checkout_page.
 import 'package:kp_pos/features/sale/presentation/desktop/desktop_payment_page.dart';
 import 'package:kp_pos/features/sale/presentation/handheld/handheld_sale_view.dart';
 import 'package:kp_pos/features/sale/presentation/handheld/payment/checkout_page.dart';
+import 'package:kp_pos/features/sale/presentation/handheld/payment/payment_page.dart';
 import 'package:kp_pos/features/sale/presentation/sale_cart_view_model.dart';
 
 import '../../../helpers/test_id_finders.dart';
@@ -25,11 +26,8 @@ void main() {
       currencyCartResult: usdCart,
       exchangeQuote: quoteAtBranchRates,
     );
-    return buildSaleViewModel(
-      repo,
-      cart: sampleCart,
-      session: currencySession,
-    )..attachShoppingCard(shoppingCard);
+    return buildSaleViewModel(repo, cart: sampleCart, session: currencySession)
+      ..attachShoppingCard(shoppingCard);
   }
 
   String textIn(WidgetTester tester, String id) => tester
@@ -261,5 +259,92 @@ void main() {
       expect(textIn(tester, PaymentIds.netPay), 'USD 166.20');
       expect(textIn(tester, PaymentIds.remaining), 'USD 166.20');
     });
+  });
+
+  group('CHANGE in another currency (handheld Payment)', () {
+    Future<void> pump(WidgetTester tester, {Size size = compactSize}) async {
+      setDeviceSize(tester, size);
+      final vm = viewModel();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PaymentPage(
+            netPay: 900,
+            loadCurrencies: vm.listCurrencies,
+            exchangeChange: vm.exchangeChange,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> cashReceived(WidgetTester tester, String amount) async {
+      await tester.tap(byTestId(PaymentIds.method('cash')));
+      await tester.pump();
+      final field = find.descendant(
+        of: byTestId(PaymentIds.cashReceivedField),
+        matching: find.byType(TextField),
+      );
+      await tester.ensureVisible(field);
+      await tester.enterText(field, amount);
+      await tester.pump();
+    }
+
+    testWidgets('the cash block appears only for Cash', (tester) async {
+      await pump(tester);
+      expect(byTestId(PaymentIds.cashReceivedField), findsNothing);
+      await cashReceived(tester, '500');
+      expect(textIn(tester, PaymentIds.cashApplied), '฿500.00');
+      expect(textIn(tester, PaymentIds.cashChangeDue), '฿0.00');
+    });
+
+    for (final (name, size) in [
+      ('phone sheet', compactSize),
+      ('tablet dialog', mediumSize),
+    ]) {
+      testWidgets('change due opens the CHANGE screen ($name) and quotes it', (
+        tester,
+      ) async {
+        final handle = tester.ensureSemantics();
+        await pump(tester, size: size);
+        await cashReceived(tester, '1000'); // ฿100 change due
+        expect(textIn(tester, PaymentIds.cashChangeDue), '฿100.00');
+
+        await tester.ensureVisible(byTestId(CurrencyIds.changeButton));
+        await tester.tap(byTestId(CurrencyIds.changeButton));
+        await tester.pumpAndSettle();
+
+        expect(byTestId(CurrencyIds.changeScreen), findsOneWidget);
+        expect(repo.exchangeCalls.first, (
+          code: 'THB',
+          amount: 100.0,
+          change: 100.0,
+          button: true,
+        ));
+
+        await tester.tap(byTestId(CurrencyIds.changeCurrency('USD')));
+        await tester.pumpAndSettle();
+        final field = find.descendant(
+          of: byTestId(CurrencyIds.changeCurrencyField),
+          matching: find.byType(TextField),
+        );
+        await tester.enterText(field, '2');
+        await tester.pump(const Duration(milliseconds: 450));
+        await tester.pumpAndSettle();
+
+        expect(repo.exchangeCalls.last, (
+          code: 'USD',
+          amount: 2.0,
+          change: 100.0,
+          button: false,
+        ));
+        expect(textIn(tester, CurrencyIds.changeLocal), '29.00');
+        expect(
+          tester.getSemantics(byTestId(CurrencyIds.changeSaveButton)),
+          isSemantics(isButton: true, hasEnabledState: true, isEnabled: false),
+        );
+        expect(tester.takeException(), isNull);
+        handle.dispose();
+      });
+    }
   });
 }

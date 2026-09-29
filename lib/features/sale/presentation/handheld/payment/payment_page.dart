@@ -5,6 +5,8 @@ import '../../../../../core/presentation/handheld/handheld.dart';
 import '../../../../../core/presentation/test_ids.dart';
 import '../../../../../core/presentation/widgets/test_id.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../domain/entities/currency.dart';
+import '../../widgets/change_currency_screen.dart';
 import 'payment_models.dart';
 import 'payment_widgets.dart';
 import 'wallet_query_page.dart';
@@ -16,10 +18,19 @@ Future<void> openPaymentPage(
   BuildContext context, {
   required double netPay,
   String currencyCode = 'THB',
+  double rateToBaht = 1,
+  Future<List<Currency>> Function()? loadCurrencies,
+  ExchangeChange? exchangeChange,
 }) {
   return Navigator.of(context).push(
     MaterialPageRoute<void>(
-      builder: (_) => PaymentPage(netPay: netPay, currencyCode: currencyCode),
+      builder: (_) => PaymentPage(
+        netPay: netPay,
+        currencyCode: currencyCode,
+        rateToBaht: rateToBaht,
+        loadCurrencies: loadCurrencies,
+        exchangeChange: exchangeChange,
+      ),
     ),
   );
 }
@@ -42,11 +53,22 @@ class PaymentPage extends StatefulWidget {
   /// The order's currency; amounts here are in it.
   final String currencyCode;
 
+  /// Baht per one unit of [currencyCode] — the CHANGE screen works in baht.
+  final double rateToBaht;
+
+  /// Feed the CHANGE screen (legacy `ChangePage`); without them "Change in
+  /// another currency" is inert.
+  final Future<List<Currency>> Function()? loadCurrencies;
+  final ExchangeChange? exchangeChange;
+
   const PaymentPage({
     super.key,
     required this.netPay,
     this.tenders = const [],
     this.currencyCode = 'THB',
+    this.rateToBaht = 1,
+    this.loadCurrencies,
+    this.exchangeChange,
   });
 
   @override
@@ -55,6 +77,7 @@ class PaymentPage extends StatefulWidget {
 
 class _PaymentPageState extends State<PaymentPage> {
   final _amount = TextEditingController();
+  final _cashReceived = TextEditingController();
 
   String _money(double value) => formatMoney(value, widget.currencyCode);
   TenderMethod _method = TenderMethod.card;
@@ -71,12 +94,68 @@ class _PaymentPageState extends State<PaymentPage> {
     super.initState();
     _setAmount(_remaining);
     _amount.addListener(() => setState(() {}));
+    _cashReceived.addListener(() => setState(() {}));
   }
 
   @override
   void dispose() {
     _amount.dispose();
+    _cashReceived.dispose();
     super.dispose();
+  }
+
+  // Cash received → applied to bill / change due (client-side, the same
+  // `previewCashTender` as desktop), and change handed back in another
+  // currency via the CHANGE screen (legacy `ChangePage`).
+  List<Widget> _cashBlock() {
+    final preview = previewCashTender(
+      remaining: _remaining,
+      tendered: double.tryParse(_cashReceived.text) ?? 0,
+    );
+    final canExchange =
+        preview.change > 0 &&
+        widget.loadCurrencies != null &&
+        widget.exchangeChange != null;
+    return [
+      const SizedBox(height: 18),
+      const PaymentBlockLabel('Cash received'),
+      _AmountField(
+        id: PaymentIds.cashReceivedField,
+        controller: _cashReceived,
+        currencyCode: widget.currencyCode,
+      ),
+      const SizedBox(height: 8),
+      PaymentCard(
+        child: Column(
+          children: [
+            PaymentValueRow(
+              id: PaymentIds.cashApplied,
+              label: 'Applied to bill',
+              value: _money(preview.applied),
+            ),
+            PaymentValueRow(
+              id: PaymentIds.cashChangeDue,
+              label: 'Change due',
+              value: _money(preview.change),
+              valueColor: preview.change > 0 ? AppColors.success : null,
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 8),
+      HandheldSecondaryButton(
+        id: CurrencyIds.changeButton,
+        label: 'Change in another currency',
+        onPressed: canExchange
+            ? () => showChangeCurrencyScreen(
+                context,
+                changeInBaht: preview.change * widget.rateToBaht,
+                loadCurrencies: widget.loadCurrencies!,
+                exchange: widget.exchangeChange!,
+              )
+            : null,
+      ),
+    ];
   }
 
   void _setAmount(double value) {
@@ -181,6 +260,7 @@ class _PaymentPageState extends State<PaymentPage> {
                   ),
                 ],
               ),
+              if (_method == TenderMethod.cash) ..._cashBlock(),
               const SizedBox(height: 18),
               const PaymentBlockLabel('Tender ledger'),
               TestId(
@@ -333,13 +413,18 @@ class _MethodGrid extends StatelessWidget {
 class _AmountField extends StatelessWidget {
   final TextEditingController controller;
   final String currencyCode;
+  final String id;
 
-  const _AmountField({required this.controller, required this.currencyCode});
+  const _AmountField({
+    required this.controller,
+    required this.currencyCode,
+    this.id = PaymentIds.amountField,
+  });
 
   @override
   Widget build(BuildContext context) {
     return TestId(
-      PaymentIds.amountField,
+      id,
       child: Container(
         height: 58,
         padding: const EdgeInsets.symmetric(horizontal: 16),

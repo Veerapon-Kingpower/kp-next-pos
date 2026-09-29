@@ -45,6 +45,7 @@ void main() {
     WidgetTester tester, {
     _Item? value,
     bool enabled = true,
+    VoidCallback? onCleared,
     Future<List<_Item>> Function(String)? searchFn,
   }) async {
     setDeviceSize(tester, const Size(1280, 800));
@@ -68,6 +69,7 @@ void main() {
                     code: (i) => i.code,
                     name: (i) => i.name,
                     onSelected: picked.add,
+                    onCleared: onCleared,
                   ),
                 ),
                 const SizedBox(width: 420, child: TextField(key: Key('next'))),
@@ -200,6 +202,29 @@ void main() {
     await pump(tester, enabled: false);
     expect(find.text('Choose an agent first'), findsOneWidget);
     expect(tester.widget<TextField>(input()).enabled, isFalse);
+  });
+
+  testWidgets('the clear button drops the value and closes the list', (
+    tester,
+  ) async {
+    var cleared = 0;
+    await pump(tester, value: _items[0], onCleared: () => cleared++);
+    final clear = byTestId(FieldIds.clear(_fieldId));
+    expect(clear, findsOneWidget);
+
+    await typeAndWait(tester, 'tg9');
+    expect(option(0), findsOneWidget);
+    await tester.tap(clear);
+    await tester.pump();
+
+    expect(cleared, 1);
+    expect(tester.widget<TextField>(input()).controller!.text, isEmpty);
+    expect(option(0), findsNothing);
+  });
+
+  testWidgets('no clear button without onCleared', (tester) async {
+    await pump(tester, value: _items[0]);
+    expect(byTestId(FieldIds.clear(_fieldId)), findsNothing);
   });
 
   testWidgets('a new value from the parent replaces the text', (tester) async {

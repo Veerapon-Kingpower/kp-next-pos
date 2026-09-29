@@ -235,6 +235,10 @@ abstract class RegisterIds {
   static const emailField = 'register.emailField';
   static const mobileField = 'register.mobileField';
   static const weChatField = 'register.weChatField';
+  static const nationalityField = 'register.nationalityField';
+  static const flightField = 'register.flightField';
+  static const agentField = 'register.agentField';
+  static const guideField = 'register.guideField';
   static const scanPassportButton = 'register.scanPassportButton';
   static const travellerSection = 'register.travellerSection';
   static const contactSection = 'register.contactSection';

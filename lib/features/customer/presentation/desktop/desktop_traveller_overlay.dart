@@ -312,6 +312,7 @@ class _TravellerOverlayState extends State<_TravellerOverlay> {
                 code: (n) => n.countryCode,
                 name: (n) => n.countryName,
                 onSelected: (n) => setState(() => _nationality = n),
+                onCleared: () => setState(() => _nationality = null),
               ),
               const SizedBox(height: 22),
               const Text('BOARDING PASS', style: DesktopText.fieldLabel),

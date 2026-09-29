@@ -27,6 +27,10 @@ class DesktopLookupField<T> extends StatefulWidget {
   final String Function(T item) name;
   final String Function(T item)? trailing;
   final ValueChanged<T> onSelected;
+
+  /// Called when the clear (✕) button empties the field — the owner drops
+  /// its committed value. Without it there is no clear button.
+  final VoidCallback? onCleared;
   final bool enabled;
 
   /// Shown under the field while it is disabled, e.g. why it is.
@@ -42,6 +46,7 @@ class DesktopLookupField<T> extends StatefulWidget {
     required this.code,
     required this.name,
     required this.onSelected,
+    this.onCleared,
     this.value,
     this.trailing,
     this.required = false,
@@ -59,6 +64,7 @@ class _DesktopLookupFieldState<T> extends State<DesktopLookupField<T>> {
   final _controller = TextEditingController();
   late final _focusNode = FocusNode(onKeyEvent: _onKey);
   final _magnifierFocus = FocusNode(skipTraversal: true);
+  final _clearFocus = FocusNode(skipTraversal: true);
   final _overlay = OverlayPortalController();
   final _link = LayerLink();
   Timer? _debounce;
@@ -73,6 +79,8 @@ class _DesktopLookupFieldState<T> extends State<DesktopLookupField<T>> {
     super.initState();
     _controller.text = _committedText;
     _focusNode.addListener(_onFocusChange);
+    // Rebuild so the clear button tracks whether there is text.
+    _controller.addListener(_onTextChange);
   }
 
   @override
@@ -92,6 +100,7 @@ class _DesktopLookupFieldState<T> extends State<DesktopLookupField<T>> {
     _debounce?.cancel();
     _focusNode.dispose();
     _magnifierFocus.dispose();
+    _clearFocus.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -99,6 +108,23 @@ class _DesktopLookupFieldState<T> extends State<DesktopLookupField<T>> {
   String get _committedText {
     final value = widget.value;
     return value == null ? '' : widget.code(value);
+  }
+
+  bool _hadText = false;
+
+  void _onTextChange() {
+    final hasText = _controller.text.isNotEmpty;
+    if (hasText != _hadText && mounted) setState(() => _hadText = hasText);
+  }
+
+  // The ✕: empty the text, drop the list, tell the owner to drop its value.
+  void _clear() {
+    _debounce?.cancel();
+    _request++;
+    _controller.clear();
+    _close();
+    widget.onCleared?.call();
+    _focusNode.requestFocus();
   }
 
   void _onFocusChange() {
@@ -267,27 +293,50 @@ class _DesktopLookupFieldState<T> extends State<DesktopLookupField<T>> {
                         enabledBorder: _border(const Color(0xFFD8DDE5), 1),
                         disabledBorder: _border(AppColors.line, 1),
                         focusedBorder: _border(AppColors.goldMuted, 2),
-                        // Out of the tab order, so Enter-to-pick moves on
-                        // to the next field rather than to this button.
-                        suffixIcon: TestId(
-                          DesktopLookupIds.open(widget.id),
-                          child: IconButton(
-                            focusNode: _magnifierFocus,
-                            tooltip: 'Search ${widget.label.toLowerCase()}',
-                            icon: Icon(
-                              Icons.search,
-                              size: 18,
-                              color: focused
-                                  ? AppColors.goldDark
-                                  : AppColors.hintText,
+                        // Both buttons are out of the tab order, so
+                        // Enter-to-pick moves on to the next field rather
+                        // than to them.
+                        suffixIcon: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (enabled &&
+                                widget.onCleared != null &&
+                                (_controller.text.isNotEmpty ||
+                                    widget.value != null))
+                              TestId(
+                                FieldIds.clear(widget.id),
+                                child: IconButton(
+                                  focusNode: _clearFocus,
+                                  tooltip: 'Clear',
+                                  icon: const Icon(
+                                    Icons.cancel,
+                                    size: 18,
+                                    color: AppColors.hintText,
+                                  ),
+                                  onPressed: _clear,
+                                ),
+                              ),
+                            TestId(
+                              DesktopLookupIds.open(widget.id),
+                              child: IconButton(
+                                focusNode: _magnifierFocus,
+                                tooltip: 'Search ${widget.label.toLowerCase()}',
+                                icon: Icon(
+                                  Icons.search,
+                                  size: 18,
+                                  color: focused
+                                      ? AppColors.goldDark
+                                      : AppColors.hintText,
+                                ),
+                                onPressed: enabled
+                                    ? () {
+                                        _focusNode.requestFocus();
+                                        _runSearch(_controller.text);
+                                      }
+                                    : null,
+                              ),
                             ),
-                            onPressed: enabled
-                                ? () {
-                                    _focusNode.requestFocus();
-                                    _runSearch(_controller.text);
-                                  }
-                                : null,
-                          ),
+                          ],
                         ),
                       ),
                     ),

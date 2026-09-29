@@ -505,6 +505,14 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
     }
   }
 
+  // Clearing the flight drops everything resolved from it.
+  void _clearFlight() => setState(() {
+    _flight = null;
+    _flightDates = [];
+    _selectedFlightDate = null;
+    _airlineCode = '';
+  });
+
   // Changing the agent clears the sub agent (guide) picked under it.
   void _onAgentSelected(Agent agent) {
     setState(() {
@@ -672,6 +680,7 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
                 return departs == null ? '' : _wireFlightTime(departs);
               },
               onSelected: _onFlightSelected,
+              onCleared: _clearFlight,
             ),
             _desktopFlightDateField(required: international),
           ),
@@ -702,6 +711,7 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
               code: (n) => n.countryCode,
               name: (n) => n.countryName,
               onSelected: (n) => setState(() => _nationality = n),
+              onCleared: () => setState(() => _nationality = null),
             ),
           ),
           pair(
@@ -747,6 +757,7 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
               name: (a) => a.customerTypeDesc,
               onSelected: (a) =>
                   setState(() => _customerTypeController.text = a.customerType),
+              onCleared: () => setState(_customerTypeController.clear),
             ),
           ),
           pair(
@@ -758,6 +769,10 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
               code: (a) => a.agentCode,
               name: (a) => a.agentDesc,
               onSelected: _onAgentSelected,
+              onCleared: () => setState(() {
+                _agent = null;
+                _guide = null;
+              }),
             ),
             DesktopLookupField<Agent>(
               id: DesktopCustomerIds.subAgentCode,
@@ -769,6 +784,7 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
               code: (a) => a.subAgentCode,
               name: (a) => a.subAgentDesc,
               onSelected: (a) => setState(() => _guide = a),
+              onCleared: () => setState(() => _guide = null),
             ),
           ),
           TestId(
@@ -1176,6 +1192,8 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
         search: viewModel.searchNationalities,
         itemLabel: (n) => '${n.countryCode} - ${n.countryName}',
         onSelected: (n) => setState(() => _nationality = n),
+        onCleared: () => setState(() => _nationality = null),
+        id: RegisterIds.nationalityField,
       );
 
   Widget _flightField(CustomerRegistrationViewModel viewModel) =>
@@ -1188,6 +1206,8 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
             ? f.flightCode
             : '${f.flightCode} — ${f.flightDescription}',
         onSelected: _onFlightSelected,
+        onCleared: _clearFlight,
+        id: RegisterIds.flightField,
       );
 
   Widget _flightDateField() => InkWell(
@@ -1238,6 +1258,8 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
         search: viewModel.searchAgents,
         itemLabel: (a) => a.agentDesc.isEmpty ? a.agentCode : a.agentDesc,
         onSelected: (a) => setState(() => _agent = a),
+        onCleared: () => setState(() => _agent = null),
+        id: RegisterIds.agentField,
       );
 
   Widget _guideField(CustomerRegistrationViewModel viewModel) =>
@@ -1249,6 +1271,8 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
         itemLabel: (a) =>
             a.subAgentDesc.isEmpty ? a.subAgentCode : a.subAgentDesc,
         onSelected: (a) => setState(() => _guide = a),
+        onCleared: () => setState(() => _guide = null),
+        id: RegisterIds.guideField,
       );
 
   Widget _customerTypeField() => AppTextField(

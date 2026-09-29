@@ -716,6 +716,35 @@ void main() {
       expect(find.text('Mobile number in invalid format.'), findsOneWidget);
     });
 
+    testWidgets('handheld: clearing the flight search drops the flight and '
+        'its date', (tester) async {
+      await tester.pumpWidget(buildHarness());
+      await openPage(tester);
+      await enterByLabel(tester, 'Flight', 'TG');
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump();
+      await tester.tap(find.text('TG101 — Bangkok - Tokyo'));
+      await tester.pump();
+      expect(find.text('18-08-2026 10:00'), findsOneWidget);
+
+      await tester.tap(byTestId(FieldIds.clear(RegisterIds.flightField)));
+      await tester.pump();
+
+      expect(find.text('18-08-2026 10:00'), findsNothing);
+      expect(
+        tester
+            .widget<TextField>(
+              find.descendant(
+                of: byTestId(RegisterIds.flightField),
+                matching: find.byType(TextField),
+              ),
+            )
+            .controller!
+            .text,
+        isEmpty,
+      );
+    });
+
     testWidgets('the clear button shows with text and empties the field', (
       tester,
     ) async {
@@ -1038,6 +1067,43 @@ void main() {
       expect(find.text('PASSPORT NO.'), findsOneWidget);
       // Customer type stays required off Airport mode.
       expect(find.text('CUSTOMER TYPE *'), findsOneWidget);
+    });
+
+    testWidgets('clearing a lookup drops its value — the flight takes its '
+        'date along, the agent its sub agent', (tester) async {
+      await openDesktop(tester);
+      await lookup(tester, DesktopCustomerIds.flightCode, 'TG');
+      expect(flightDateText(tester), 'Tue 18 Aug 2026 10:00');
+      await lookup(tester, DesktopCustomerIds.agentCode, 'AG');
+      await lookup(tester, DesktopCustomerIds.subAgentCode, 'GD');
+      await lookup(tester, DesktopCustomerIds.nationality, 'tha');
+
+      await tester.tap(byTestId(FieldIds.clear(DesktopCustomerIds.flightCode)));
+      await tester.pumpAndSettle();
+      expect(textOf(tester, DesktopCustomerIds.flightCode), isEmpty);
+      expect(flightDateText(tester), 'Pick a flight first');
+
+      await tester.tap(byTestId(FieldIds.clear(DesktopCustomerIds.agentCode)));
+      await tester.pumpAndSettle();
+      expect(textOf(tester, DesktopCustomerIds.agentCode), isEmpty);
+      expect(textOf(tester, DesktopCustomerIds.subAgentCode), isEmpty);
+      expect(
+        tester
+            .widget<TextField>(input(DesktopCustomerIds.subAgentCode))
+            .enabled,
+        isFalse,
+      );
+
+      await tester.tap(
+        byTestId(FieldIds.clear(DesktopCustomerIds.nationality)),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(input(DesktopCustomerIds.passportNo), 'P1');
+      await tester.enterText(input(DesktopCustomerIds.englishName), 'A');
+      await tester.tap(byTestId(RegisterIds.submitButton));
+      await tester.pumpAndSettle();
+      // Legacy order: nationality is checked before the flight.
+      expect(find.text('Please input nationality.'), findsOneWidget);
     });
 
     testWidgets('sub agent waits for an agent; changing the agent clears it', (

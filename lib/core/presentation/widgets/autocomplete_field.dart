@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../theme/app_spacing.dart';
+import '../test_ids.dart';
+import 'test_id.dart';
 import '../../theme/app_sizing.dart';
 
 /// Inline autocomplete — a labelled text field that, after a short pause in
@@ -18,6 +20,13 @@ class AutocompleteField<T> extends StatefulWidget {
   final ValueChanged<T> onSelected;
   final Duration debounce;
 
+  /// Called when the clear (✕) button empties the field — the owner drops
+  /// its picked value. Without it there is no clear button.
+  final VoidCallback? onCleared;
+
+  /// Automation id for the field (the clear button is `FieldIds.clear(id)`).
+  final String? id;
+
   const AutocompleteField({
     super.key,
     required this.label,
@@ -27,6 +36,8 @@ class AutocompleteField<T> extends StatefulWidget {
     this.hintText = 'Search…',
     this.initialText,
     this.debounce = const Duration(milliseconds: 300),
+    this.onCleared,
+    this.id,
   });
 
   @override
@@ -75,6 +86,16 @@ class _AutocompleteFieldState<T> extends State<AutocompleteField<T>> {
     });
   }
 
+  void _clear() {
+    _debounceTimer?.cancel();
+    _controller.clear();
+    setState(() {
+      _isLoading = false;
+      _suggestions = const [];
+    });
+    widget.onCleared?.call();
+  }
+
   void _select(T item) {
     _debounceTimer?.cancel();
     final label = widget.itemLabel(item);
@@ -88,16 +109,31 @@ class _AutocompleteFieldState<T> extends State<AutocompleteField<T>> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    final id = widget.id;
+    final column = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         TextField(
           controller: _controller,
-          onChanged: _onChanged,
+          onChanged: (query) {
+            setState(() {}); // the clear button follows the text
+            _onChanged(query);
+          },
           decoration: InputDecoration(
             labelText: widget.label,
             hintText: widget.hintText,
             border: const OutlineInputBorder(),
+            suffixIcon: widget.onCleared == null || _controller.text.isEmpty
+                ? null
+                : TestId(
+                    FieldIds.clear(id ?? widget.label),
+                    child: IconButton(
+                      tooltip: 'Clear',
+                      icon: const Icon(Icons.cancel, size: 18),
+                      color: const Color(0xFF9AA2AE),
+                      onPressed: _clear,
+                    ),
+                  ),
           ),
         ),
         if (_isLoading || _suggestions.isNotEmpty)
@@ -135,5 +171,6 @@ class _AutocompleteFieldState<T> extends State<AutocompleteField<T>> {
           ),
       ],
     );
+    return id == null ? column : TestId(id, child: column);
   }
 }

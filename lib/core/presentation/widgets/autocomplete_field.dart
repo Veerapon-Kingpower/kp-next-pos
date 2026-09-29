@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../theme/app_spacing.dart';
+import '../form_inputs.dart';
 import '../test_ids.dart';
 import 'test_id.dart';
 import '../../theme/app_sizing.dart';
@@ -115,6 +116,8 @@ class _AutocompleteFieldState<T> extends State<AutocompleteField<T>> {
       children: [
         TextField(
           controller: _controller,
+          textCapitalization: TextCapitalization.characters,
+          inputFormatters: FormInputs.upperCase,
           onChanged: (query) {
             setState(() {}); // the clear button follows the text
             _onChanged(query);

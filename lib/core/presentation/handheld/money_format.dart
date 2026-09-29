@@ -20,6 +20,13 @@ String formatAmount(double value) {
 String formatBaht(double value) =>
     value < 0 ? '−฿${formatAmount(-value)}' : '฿${formatAmount(value)}';
 
+/// A member's Carat balance — `1,475.00`; "—" when there's no Carat wallet.
+String formatCarat(double? value) => value == null ? '—' : formatAmount(value);
+
+/// A member's e-Purse (cash wallet) balance — `฿0.00`; "—" when there's no
+/// cash wallet.
+String formatEPurse(double? value) => value == null ? '—' : formatBaht(value);
+
 /// An amount in [currencyCode]: baht keeps the `฿` form ([formatBaht]),
 /// any other currency is prefixed with its code — `USD 166.20`, as legacy
 /// shows an order that was switched to another currency.

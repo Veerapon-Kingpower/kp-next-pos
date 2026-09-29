@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../theme/app_colors.dart';
+import '../form_inputs.dart';
 import '../test_ids.dart';
 import '../widgets/test_id.dart';
 import 'desktop_tokens.dart';
@@ -276,6 +277,7 @@ class _DesktopLookupFieldState<T> extends State<DesktopLookupField<T>> {
                       enabled: enabled,
                       onChanged: _onChanged,
                       textCapitalization: TextCapitalization.characters,
+                      inputFormatters: FormInputs.upperCase,
                       style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,

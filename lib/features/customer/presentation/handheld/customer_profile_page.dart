@@ -7,33 +7,31 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../flight/domain/entities/flight.dart';
 import '../../domain/entities/customer.dart';
 import '../../domain/entities/privilege.dart';
+import '../widgets/privilege_radio_list.dart';
 import 'traveller_details_page.dart';
 
 /// Customer profile (mockup screen 8), opened from a Home lookup result.
 ///
 /// Real: name, member badge, shopping card, nationality, registration
-/// status, e-Purse (first wallet member's balance), linked flight,
-/// privileges (single-select), customer type / agent / guide. Not available
-/// from `GetCustomer` yet, so shown as "—" / a notice: points, spend YTD,
-/// visits, recent purchases, delivery address.
+/// status, Carat / e-Purse (the `CARAT` / `CASHW` wallet balances), linked
+/// flight, privileges (radio list), customer type / agent / guide. Recent
+/// purchases aren't on `GetCustomer` yet, so shown as a notice.
 ///
-/// [onAttach] runs the page owner's Go-to-Sale guards with the chosen
-/// privilege and resolves true when the customer was attached — the page
-/// then closes; false (blocked) keeps it open.
-// TODO(pos-handheld): points / spend / visits / recent purchases once a
-// member-profile API exists.
+/// Every privilege pick is reported through [onPrivilegeChanged] straight
+/// away (as on desktop); [onEdit] opens the Update customer form.
+// TODO(pos-handheld): recent purchases once a member-profile API exists.
 class CustomerProfilePage extends StatefulWidget {
   final Customer customer;
   final Privilege? initialPrivilege;
   final Future<List<Flight>> Function(String query) searchFlights;
-  final Future<bool> Function(Privilege? privilege) onAttach;
+  final ValueChanged<Privilege?> onPrivilegeChanged;
   final VoidCallback onEdit;
 
   const CustomerProfilePage({
     super.key,
     required this.customer,
     required this.searchFlights,
-    required this.onAttach,
+    required this.onPrivilegeChanged,
     required this.onEdit,
     this.initialPrivilege,
   });
@@ -47,17 +45,9 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
 
   CustomerPerson get _person => widget.customer.person;
 
-  String get _ePurse {
-    for (final member in _person.walletMembers) {
-      final balance = double.tryParse('${member['balance'] ?? ''}');
-      if (balance != null) return formatBaht(balance);
-    }
-    return '—';
-  }
-
-  Future<void> _attach() async {
-    final attached = await widget.onAttach(_privilege);
-    if (attached && mounted) Navigator.of(context).pop();
+  void _selectPrivilege(Privilege? privilege) {
+    setState(() => _privilege = privilege);
+    widget.onPrivilegeChanged(privilege);
   }
 
   @override
@@ -87,9 +77,9 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                 children: [
                   Expanded(
                     child: _StatTile(
-                      id: ProfileIds.pointsStat,
-                      label: 'Points',
-                      value: '—',
+                      id: ProfileIds.caratStat,
+                      label: 'Carat',
+                      value: formatCarat(person.caratBalance),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -97,27 +87,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                     child: _StatTile(
                       id: ProfileIds.ePurseStat,
                       label: 'e-Purse',
-                      value: _ePurse,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              const Row(
-                children: [
-                  Expanded(
-                    child: _StatTile(
-                      id: ProfileIds.spendStat,
-                      label: 'Spend YTD',
-                      value: '—',
-                    ),
-                  ),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: _StatTile(
-                      id: ProfileIds.visitsStat,
-                      label: 'Visits',
-                      value: '—',
+                      value: formatEPurse(person.ePurseBalance),
                     ),
                   ),
                 ],
@@ -135,33 +105,10 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                 ),
               ),
               const SizedBox(height: 14),
-              HandheldSection(
-                id: ProfileIds.privileges,
-                title: 'Privileges',
-                count: person.privileges.isEmpty
-                    ? null
-                    : '${person.privileges.length}',
-                children: [
-                  if (person.privileges.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Text(
-                        'No privileges on this card.',
-                        style: HandheldText.bodySmall,
-                      ),
-                    ),
-                  for (var i = 0; i < person.privileges.length; i++)
-                    _PrivilegeTile(
-                      id: ProfileIds.privilege(i),
-                      privilege: person.privileges[i],
-                      selected: identical(_privilege, person.privileges[i]),
-                      onTap: () => setState(() {
-                        _privilege = identical(_privilege, person.privileges[i])
-                            ? null
-                            : person.privileges[i];
-                      }),
-                    ),
-                ],
+              PrivilegeRadioList(
+                privileges: person.privileges,
+                selected: _privilege,
+                onChanged: _selectPrivilege,
               ),
               const SizedBox(height: 14),
               HandheldSection(
@@ -204,14 +151,9 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
         ),
         actionBar: HandheldActionBar(
           primary: HandheldPrimaryButton(
-            id: ProfileIds.attachButton,
-            label: 'Attach to bill',
-            icon: Icons.check,
-            onPressed: _attach,
-          ),
-          secondary: HandheldSecondaryButton(
             id: ProfileIds.editButton,
-            label: 'Edit',
+            label: 'Update customer',
+            icon: Icons.edit_outlined,
             onPressed: widget.onEdit,
           ),
         ),
@@ -488,79 +430,6 @@ class _FlightCard extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _PrivilegeTile extends StatelessWidget {
-  final String id;
-  final Privilege privilege;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _PrivilegeTile({
-    required this.id,
-    required this.privilege,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final code = privilege.typeCode.isEmpty && privilege.promoCode.isEmpty
-        ? ''
-        : '[${privilege.typeCode}]:${privilege.promoCode}';
-    return TestId(
-      id,
-      child: Semantics(
-        button: true,
-        selected: selected,
-        inMutuallyExclusiveGroup: true,
-        child: InkWell(
-          onTap: onTap,
-          child: Container(
-            color: selected ? AppColors.cream : null,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                Icon(
-                  selected ? Icons.check_circle : Icons.radio_button_unchecked,
-                  size: 18,
-                  color: selected ? AppColors.goldDark : AppColors.hintText,
-                ),
-                const SizedBox(width: 10),
-                const Icon(
-                  Icons.card_giftcard,
-                  size: 16,
-                  color: AppColors.goldDark,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        privilege.name.isEmpty ? 'Privilege' : privilege.name,
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      if (code.isNotEmpty)
-                        Text(
-                          code,
-                          style: HandheldText.bodySmall.copyWith(
-                            fontSize: 11.5,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }

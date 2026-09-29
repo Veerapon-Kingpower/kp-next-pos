@@ -432,6 +432,7 @@ class _TravellerOverlayState extends State<_TravellerOverlay> {
                 focusNode: _queryFocus,
                 onChanged: _onQueryChanged,
                 textCapitalization: TextCapitalization.characters,
+                inputFormatters: FormInputs.upperCase,
                 decoration: InputDecoration(
                   prefixIcon: const Icon(Icons.search, size: 18),
                   hintText: 'Search flight code, e.g. TG916',

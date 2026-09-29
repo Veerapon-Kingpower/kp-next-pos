@@ -437,7 +437,7 @@ void main() {
   });
 
   test(
-    'searchAgents delegates to ListAgentsUseCase with typeSearch "agent"',
+    'searchAgents delegates to ListAgentsUseCase with typeSearch "A"',
     () async {
       final repo = FakeCustomerRepository();
       final viewModel = buildViewModel(repo);
@@ -445,12 +445,12 @@ void main() {
       await viewModel.searchAgents('AG');
 
       expect(repo.lastAgentsInput, 'AG');
-      expect(repo.lastAgentsTypeSearch, 'agent');
+      expect(repo.lastAgentsTypeSearch, 'A');
     },
   );
 
   test(
-    'searchGuides delegates to ListGuidesUseCase with typeSearch "guide"',
+    'searchGuides delegates to ListGuidesUseCase with typeSearch "S"',
     () async {
       final repo = FakeCustomerRepository();
       final viewModel = buildViewModel(repo);
@@ -458,12 +458,12 @@ void main() {
       await viewModel.searchGuides('GD');
 
       expect(repo.lastAgentsInput, 'GD');
-      expect(repo.lastAgentsTypeSearch, 'guide');
+      expect(repo.lastAgentsTypeSearch, 'S');
     },
   );
 
   test(
-    'searchCustomerTypes delegates with typeSearch "customertype"',
+    'searchCustomerTypes delegates with typeSearch "C"',
     () async {
       final repo = FakeCustomerRepository();
       final viewModel = buildViewModel(repo);
@@ -471,7 +471,7 @@ void main() {
       await viewModel.searchCustomerTypes('TOU');
 
       expect(repo.lastAgentsInput, 'TOU');
-      expect(repo.lastAgentsTypeSearch, 'customertype');
+      expect(repo.lastAgentsTypeSearch, 'C');
     },
   );
 
@@ -568,7 +568,8 @@ void main() {
     },
   );
 
-  test('submit omits contacts that are left blank', () async {
+  test('submit always sends all three contacts, blank ones included '
+      '(legacy addDatatoModel)', () async {
     final repo = FakeCustomerRepository();
     final viewModel = buildViewModel(repo);
 
@@ -585,6 +586,36 @@ void main() {
 
     final listPersonal =
         repo.lastRegisterCall!['listPersonal'] as List<Map<String, dynamic>>;
-    expect(listPersonal.single['listContact'], isEmpty);
+    expect(listPersonal.single['listContact'], [
+      {'contactType': 'E-MAIL', 'contactValue': ''},
+      {'contactType': 'MOBILE', 'contactValue': ''},
+      {'contactType': 'WECHAT', 'contactValue': ''},
+    ]);
+    expect(listPersonal.single['dateOfBirth'], isNull);
+    expect(listPersonal.single, containsPair('order_date', null));
+    expect(repo.lastRegisterCall!['tour'], isEmpty);
+  });
+
+  test('submit echoes the found customer\'s tour and dateOfBirth', () async {
+    final repo = FakeCustomerRepository();
+    final viewModel = buildViewModel(repo);
+
+    await viewModel.submit(
+      englishName: 'Jane Doe',
+      passportNo: 'P1234567',
+      nationality: 'THA',
+      gender: 'F',
+      customerTypeCode: 'VIP',
+      allowTakeAway: false,
+      isAirportMpos: false,
+      userCode: 'U001',
+      dateOfBirth: '1990-01-02T00:00:00',
+      tour: const {'tourCode': 'T1'},
+    );
+
+    final listPersonal =
+        repo.lastRegisterCall!['listPersonal'] as List<Map<String, dynamic>>;
+    expect(listPersonal.single['dateOfBirth'], '1990-01-02T00:00:00');
+    expect(repo.lastRegisterCall!['tour'], {'tourCode': 'T1'});
   });
 }

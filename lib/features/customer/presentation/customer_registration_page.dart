@@ -83,6 +83,7 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
   List<Map<String, dynamic>> _listIdentity = const [];
   String _provinceCode = '';
   String _cityCode = '';
+  Object? _dateOfBirth;
 
   // Whether this submits as an edit is driven by the found customer's own
   // `action` field from `GetCustomer` — NOT by "did the user tap the edit
@@ -94,6 +95,15 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
   // `REGISTER_EDIT` for that card gets rejected server-side as a duplicate
   // shopping card (confirmed via a real `M076` response during testing).
   bool get _isEdit => widget.existingCustomer?.action == 'REGISTER_EDIT';
+
+  // A found customer the server already reports as registered
+  // (`isActivate`) — shown as a status banner.
+  bool get _isRegistered =>
+      widget.existingCustomer?.person.isActivate ?? false;
+
+  // Labels say "Update" for an edit or an already-registered customer; the
+  // wire `action` still follows [_isEdit] exactly as legacy does.
+  bool get _isUpdate => _isEdit || _isRegistered;
 
   @override
   void initState() {
@@ -122,6 +132,7 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
     _listIdentity = const [];
     _provinceCode = '';
     _cityCode = '';
+    _dateOfBirth = null;
     if (customer == null) return;
     final person = customer.person;
 
@@ -138,6 +149,7 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
       _listIdentity = person.listIdentity;
       _provinceCode = person.provinceCode;
       _cityCode = person.cityCode;
+      _dateOfBirth = person.dateOfBirth;
     }
     if (person.nationality.isNotEmpty) {
       _nationality = Nationality(
@@ -541,9 +553,11 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
     }
 
     // Never sent empty — legacy falls back to today's date/time when no
-    // flight was picked (see [_wireFlightDate]'s doc comment).
+    // flight was picked or the flight is `OP000` (see [_wireFlightDate]'s
+    // doc comment).
+    final flightCode = _flight?.flightCode ?? '';
     final wireDateTime =
-        (_selectedFlightDate == null
+        (_selectedFlightDate == null || flightCode == 'OP000'
             ? null
             : _parseDisplayedDateTime(_selectedFlightDate!)) ??
         DateTime.now();
@@ -556,7 +570,7 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
       customerTypeCode: _customerTypeController.text.trim(),
       agentCode: _agent?.agentCode ?? '',
       subAgentCode: _guide?.subAgentCode ?? '',
-      flightCode: _flight?.flightCode ?? '',
+      flightCode: flightCode,
       flightDate: _wireFlightDate(wireDateTime),
       flightTime: _wireFlightTime(wireDateTime),
       airlineCode: _airlineCode,
@@ -575,6 +589,8 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
       listIdentity: _listIdentity,
       provinceCode: _provinceCode,
       cityCode: _cityCode,
+      dateOfBirth: _dateOfBirth,
+      tour: widget.existingCustomer?.tour,
     );
     if (!mounted || !success) return;
 
@@ -584,7 +600,7 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(_isEdit ? 'Customer updated' : 'Customer registered'),
+        title: Text(_isUpdate ? 'Customer updated' : 'Customer registered'),
         content: Text('Shopping card: $shoppingCard'),
         actions: [
           TextButton(
@@ -623,7 +639,7 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
     final form = _desktopForm(viewModel);
     if (widget.embedded) return form;
     return DesktopPageFrame(
-      title: _isEdit ? 'Customer profile' : 'Register new customer',
+      title: _isUpdate ? 'Customer profile' : 'Register new customer',
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(DesktopMetrics.pagePadding),
         child: Center(
@@ -656,7 +672,7 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
 
     return DesktopPanel(
       id: DesktopCustomerIds.form,
-      title: _isEdit ? 'Edit customer' : 'New customer',
+      title: _isUpdate ? 'Update customer' : 'New customer',
       trailing: const Text(
         '* required for international flight',
         style: TextStyle(fontSize: 12, color: AppColors.mutedText),
@@ -665,6 +681,7 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          ?_statusBanner(bottom: 16),
           pair(
             DesktopLookupField<Flight>(
               id: DesktopCustomerIds.flightCode,
@@ -737,6 +754,7 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
               DesktopCustomerIds.weChat,
               'WeChat',
               _weChatController,
+              inputFormatters: FormInputs.weChat,
             ),
             DesktopLookupField<Agent>(
               id: DesktopCustomerIds.customerType,
@@ -813,7 +831,7 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
                   // which always allows tapping Save/Update and validates
                   // on tap via [_validateRegister] instead. Only in-flight
                   // submission blocks a repeat tap.
-                  label: _isEdit ? 'Update customer' : 'Register customer',
+                  label: _isUpdate ? 'Update customer' : 'Register customer',
                   icon: Icons.check,
                   height: 56,
                   onPressed: _isSubmitting(viewModel) ? null : _submit,
@@ -896,6 +914,7 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
           controller: controller,
           keyboardType: keyboardType,
           inputFormatters: inputFormatters,
+          textCapitalization: TextCapitalization.characters,
           onChanged: (_) => setState(() {}),
           style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
           decoration: _desktopDecoration(errorText: errorText).copyWith(
@@ -1037,8 +1056,8 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
       RegisterIds.page,
       child: HandheldScaffold(
         header: HandheldHeader(
-          title: _isEdit ? 'Customer profile' : 'Register customer',
-          subtitle: _isEdit
+          title: _isUpdate ? 'Update customer' : 'Register customer',
+          subtitle: _isUpdate
               ? 'Update this shopping card'
               : 'New shopping card · attaches to this sale',
           leading: const BackButton(color: Colors.white),
@@ -1048,6 +1067,7 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              ?_statusBanner(bottom: AppSpacing.md),
               // TODO(pos-handheld): MRZ / boarding-pass scan (deferred —
               // see project memory); inert until a reader is wired.
               TestId(
@@ -1118,7 +1138,7 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
         actionBar: HandheldActionBar(
           primary: HandheldPrimaryButton(
             id: RegisterIds.submitButton,
-            label: _isEdit ? 'Update' : 'Register',
+            label: _isUpdate ? 'Update customer' : 'Register',
             icon: Icons.check,
             onPressed: _isSubmitting(viewModel) ? null : _submit,
           ),
@@ -1126,6 +1146,68 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
             id: RegisterIds.cancelButton,
             label: 'Cancel',
             onPressed: () => Navigator.of(context).maybePop(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Registration status of the found customer — green "Registered" with
+  /// the shopping card, or amber "Not registered yet". Null for a brand-new
+  /// customer (nothing to report).
+  Widget? _statusBanner({required double bottom}) {
+    final customer = widget.existingCustomer;
+    if (customer == null) return null;
+    final registered = _isRegistered;
+    final color = registered ? AppColors.success : AppColors.warning;
+    final card = customer.person.shoppingCard;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottom),
+      child: TestId(
+        RegisterIds.statusBanner,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: color),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                registered ? Icons.verified : Icons.error_outline,
+                color: color,
+                size: 22,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      registered ? 'Registered' : 'Not registered yet',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: color,
+                      ),
+                    ),
+                    Text(
+                      [
+                        if (card.isNotEmpty) 'Shopping card $card',
+                        registered
+                            ? 'Saving updates this customer'
+                            : 'Saving completes the registration',
+                      ].join(' · '),
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        color: AppColors.mutedText,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1230,6 +1312,7 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
     keyboardType: TextInputType.emailAddress,
     errorText: _emailError,
     inputFormatters: FormInputs.email,
+    textCapitalization: TextCapitalization.characters,
     onChanged: (_) => setState(() {}),
   );
 
@@ -1247,6 +1330,8 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
     id: RegisterIds.weChatField,
     controller: _weChatController,
     label: 'WeChat',
+    inputFormatters: FormInputs.weChat,
+    textCapitalization: TextCapitalization.characters,
     onChanged: (_) => setState(() {}),
   );
 
@@ -1278,6 +1363,8 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
   Widget _customerTypeField() => AppTextField(
     controller: _customerTypeController,
     label: 'Customer type',
+    inputFormatters: FormInputs.upperCase,
+    textCapitalization: TextCapitalization.characters,
     onChanged: (_) => setState(() {}),
   );
 

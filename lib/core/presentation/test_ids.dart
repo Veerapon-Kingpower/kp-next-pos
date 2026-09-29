@@ -245,6 +245,7 @@ abstract class RegisterIds {
   static const agentSection = 'register.agentSection';
   static const submitButton = 'register.submitButton';
   static const cancelButton = 'register.cancelButton';
+  static const statusBanner = 'register.statusBanner';
 }
 
 abstract class ProfileIds {
@@ -253,14 +254,12 @@ abstract class ProfileIds {
   static const badge = 'profile.badge';
   static const cardLine = 'profile.cardLine';
   static const status = 'profile.status';
-  static const pointsStat = 'profile.stat.points';
+  static const caratStat = 'profile.stat.carat';
   static const ePurseStat = 'profile.stat.ePurse';
-  static const spendStat = 'profile.stat.spend';
-  static const visitsStat = 'profile.stat.visits';
   static const flightCard = 'profile.flightCard';
   static const privileges = 'profile.privileges';
+  static const noPrivilege = 'profile.privilege.none';
   static const recentPurchases = 'profile.recentPurchases';
-  static const attachButton = 'profile.attachButton';
   static const editButton = 'profile.editButton';
   static const travellerButton = 'profile.travellerButton';
 

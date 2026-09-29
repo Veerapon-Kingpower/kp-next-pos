@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/presentation/form_inputs.dart';
 import '../../../../core/presentation/handheld/handheld.dart';
 import '../../../../core/presentation/test_ids.dart';
 import '../../../../core/presentation/widgets/test_id.dart';
@@ -170,6 +171,7 @@ class _TravellerDetailsPageState extends State<TravellerDetailsPage> {
                   controller: _query,
                   textInputAction: TextInputAction.search,
                   textCapitalization: TextCapitalization.characters,
+                  inputFormatters: FormInputs.upperCase,
                   onSubmitted: _search,
                   decoration: const InputDecoration(
                     prefixIcon: Icon(Icons.flight_takeoff),

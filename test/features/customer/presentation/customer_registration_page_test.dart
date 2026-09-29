@@ -539,11 +539,12 @@ void main() {
         // Lets the flight-date prefill's async getDatesForFlight resolve.
         await tester.pumpAndSettle();
 
-        expect(find.text('Customer profile'), findsOneWidget);
+        // Header title and submit button both read "Update customer".
+        expect(find.text('Update customer'), findsNWidgets(2));
         expect(
           find.descendant(
             of: byTestId(RegisterIds.submitButton),
-            matching: find.text('Update'),
+            matching: find.text('Update customer'),
           ),
           findsOneWidget,
         );
@@ -702,6 +703,38 @@ void main() {
       await tester.enterText(field(RegisterIds.mobileField), '+66 812345678');
       await tester.pump();
       expect(find.textContaining('Invalid mobile number'), findsNothing);
+    });
+
+    testWidgets('handheld: WeChat takes no Thai; every field is upper-case', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildHarness());
+      await openPage(tester);
+
+      await tester.enterText(field(RegisterIds.weChatField), 'jane_wc ไทย');
+      await tester.enterText(field(RegisterIds.emailField), 'jane@mail.com');
+      await tester.enterText(field(RegisterIds.nationalityField), 'tha');
+      await tester.pump();
+
+      expect(textOf(tester, RegisterIds.weChatField), 'JANE_WC');
+      expect(textOf(tester, RegisterIds.emailField), 'JANE@MAIL.COM');
+      expect(textOf(tester, RegisterIds.nationalityField), 'THA');
+      await tester.pump(const Duration(milliseconds: 350));
+    });
+
+    testWidgets('desktop: WeChat takes no Thai; every field is upper-case', (
+      tester,
+    ) async {
+      setDeviceSize(tester, const Size(1440, 1400));
+      await tester.pumpWidget(buildHarness());
+      await openPage(tester);
+
+      await tester.enterText(field(DesktopCustomerIds.weChat), 'jane_wc ไทย');
+      await tester.enterText(field(DesktopCustomerIds.email), 'jane@mail.com');
+      await tester.pump();
+
+      expect(textOf(tester, DesktopCustomerIds.weChat), 'JANE_WC');
+      expect(textOf(tester, DesktopCustomerIds.email), 'JANE@MAIL.COM');
     });
 
     testWidgets('Register rejects an invalid mobile number', (tester) async {
@@ -1136,7 +1169,7 @@ void main() {
       await lookup(tester, DesktopCustomerIds.nationality, 'tha');
       await lookup(tester, DesktopCustomerIds.customerType, 'tou');
       expect(textOf(tester, DesktopCustomerIds.customerType), 'TOURIST');
-      expect(repo.lastAgentsTypeSearch, 'customertype');
+      expect(repo.lastAgentsTypeSearch, 'C');
 
       await tester.tap(byTestId(RegisterIds.submitButton));
       await tester.pumpAndSettle();
@@ -1157,7 +1190,7 @@ void main() {
 
     testWidgets('editing: Undo restores the loaded customer', (tester) async {
       await openDesktop(tester, existingCustomer: editCustomer);
-      expect(find.text('EDIT CUSTOMER'), findsOneWidget);
+      expect(find.text('UPDATE CUSTOMER'), findsOneWidget);
       expect(textOf(tester, DesktopCustomerIds.passportNo), 'P1234567');
       expect(textOf(tester, DesktopCustomerIds.nationality), 'THA');
       expect(textOf(tester, DesktopCustomerIds.customerType), 'VIP');

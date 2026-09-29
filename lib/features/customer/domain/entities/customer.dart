@@ -2,9 +2,9 @@ import 'privilege.dart';
 
 /// Field-for-field port of the legacy `CustomerModel` returned by
 /// `Register/GetCustomer` (`api-contracts.md` section 6, op 2). The nested
-/// `person.listContact`/`listWalletMember` and `tour` shapes are not
-/// documented beyond their field names in the source material, so they are
-/// carried as raw JSON rather than guessed at — `listPrivilege` is the
+/// `person.listContact`/`listWalletMember` and `tour` shapes are carried as
+/// raw JSON (the wallets are read through [CustomerPerson.caratBalance] /
+/// [CustomerPerson.ePurseBalance]) — `listPrivilege` is the
 /// exception, since legacy's `PrivilegeModel` documents its real shape (see
 /// [Privilege]).
 class Customer {
@@ -80,6 +80,9 @@ class CustomerPerson {
   // string when there's no existing customer, matching that same default.
   final String provinceCode;
   final String cityCode;
+  // Raw `dateOfBirth` (legacy `PersonInfo.dateOfBirth`) — never displayed,
+  // only echoed back on submit alongside [provinceCode]/[cityCode].
+  final Object? dateOfBirth;
   // Gates "go to Sale" in legacy (`customer.ts`'s `isFastRegister` getter →
   // `checkConditionToSalePage()`'s first guard): a fast-registered card
   // can't be used to start a sale.
@@ -107,6 +110,29 @@ class CustomerPerson {
     this.listIdentity = const [],
     this.provinceCode = '',
     this.cityCode = '',
+    this.dateOfBirth,
     this.fastRegister = false,
   });
+
+  /// Carat balance — the `listWalletMember` entry whose `PaymentCode` is
+  /// `CARAT` (the `CARAT_WALLET`, legacy `PaymentType.CARAT`). Null when the
+  /// customer has no such wallet.
+  double? get caratBalance => _walletBalance('CARAT');
+
+  /// e-Purse balance — the member's cash wallet, `PaymentCode` `CASHW`
+  /// (`CASH_WALLET`, THB). Null when the customer has no such wallet.
+  double? get ePurseBalance => _walletBalance('CASHW');
+
+  // Legacy's `WalletMemberModel` keys are PascalCase (`PaymentCode`,
+  // `Balance`).
+  double? _walletBalance(String paymentCode) {
+    for (final wallet in walletMembers) {
+      if ('${wallet['PaymentCode'] ?? ''}'.toUpperCase() != paymentCode) {
+        continue;
+      }
+      final balance = wallet['Balance'];
+      return balance is num ? balance.toDouble() : double.tryParse('$balance');
+    }
+    return null;
+  }
 }

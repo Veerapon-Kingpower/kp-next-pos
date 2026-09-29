@@ -109,6 +109,8 @@ class CustomerRegistrationViewModel extends GetxController {
     List<Map<String, dynamic>> listIdentity = const [],
     String provinceCode = '',
     String cityCode = '',
+    Object? dateOfBirth,
+    Map<String, dynamic>? tour,
   }) async {
     status = CustomerRegistrationStatus.submitting;
     errorMessage = null;
@@ -123,7 +125,9 @@ class CustomerRegistrationViewModel extends GetxController {
         action: isEdit ? _registerEditAction : _registerAddAction,
         allowTakeAway: allowTakeAway,
         isAirport: isAirportMpos,
-        tour: const {},
+        // Legacy sends `model.tour = this.tourData` — the found customer's
+        // own `tour` (`customerParam.tour`); empty for a new one.
+        tour: tour ?? const {},
         listPersonal: [
           _buildPersonInfo(
             englishName: englishName,
@@ -147,6 +151,7 @@ class CustomerRegistrationViewModel extends GetxController {
             listIdentity: listIdentity,
             provinceCode: provinceCode,
             cityCode: cityCode,
+            dateOfBirth: dateOfBirth,
           ),
         ],
       );
@@ -180,6 +185,7 @@ class CustomerRegistrationViewModel extends GetxController {
     required List<Map<String, dynamic>> listIdentity,
     required String provinceCode,
     required String cityCode,
+    required Object? dateOfBirth,
   }) => {
     'runningNo': 1,
     'englishName': englishName,
@@ -226,27 +232,24 @@ class CustomerRegistrationViewModel extends GetxController {
     // (the previous behavior here) never matched legacy and had no effect
     // either way, since the server computes this itself.
     'isActivate': isActivate,
+    // Legacy: `null` for a new customer, the found customer's own value
+    // when one has a shopping card (same gate as `listIdentity`).
+    'dateOfBirth': dateOfBirth,
     'fast_register': false,
     'order_status': '',
+    'order_date': null,
   };
 
-  // Matches `customer-form.ts`'s `addDatatoModel()`: only non-empty contact
-  // values are pushed, using the same `contactType` strings it sends.
+  // Matches `customer-form.ts`'s `addDatatoModel()`: its `!= null` checks
+  // never fail (the fields default to `""`), so all three contacts are
+  // always sent — empty values included — in this order.
   List<Map<String, dynamic>> _buildListContact({
     required String email,
     required String mobile,
     required String weChat,
-  }) {
-    final contacts = <Map<String, dynamic>>[];
-    if (email.isNotEmpty) {
-      contacts.add({'contactType': 'E-MAIL', 'contactValue': email});
-    }
-    if (mobile.isNotEmpty) {
-      contacts.add({'contactType': 'MOBILE', 'contactValue': mobile});
-    }
-    if (weChat.isNotEmpty) {
-      contacts.add({'contactType': 'WECHAT', 'contactValue': weChat});
-    }
-    return contacts;
-  }
+  }) => [
+    {'contactType': 'E-MAIL', 'contactValue': email},
+    {'contactType': 'MOBILE', 'contactValue': mobile},
+    {'contactType': 'WECHAT', 'contactValue': weChat},
+  ];
 }

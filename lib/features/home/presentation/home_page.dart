@@ -22,6 +22,7 @@ import '../../customer/domain/entities/privilege.dart';
 import '../../customer/presentation/customer_registration_page.dart';
 import '../../customer/presentation/customer_registration_view_model.dart';
 import '../../customer/presentation/handheld/customer_profile_page.dart';
+import '../../customer/presentation/widgets/privilege_radio_list.dart';
 import '../../enquiry/presentation/enquiry_page.dart';
 import '../../enquiry/presentation/handheld_enquiry_view.dart';
 import '../../sale/presentation/handheld/handheld_sale_view.dart';
@@ -281,34 +282,14 @@ class _HomePageState extends State<HomePage> {
           searchFlights: widget
               .customerRegistrationViewModelFactory()
               .searchFlights,
-          onAttach: (privilege) => _attachToBill(customer, privilege),
+          onPrivilegeChanged: (privilege) {
+            setState(() => _selectedPrivilege = privilege);
+            _saleCartViewModel.selectPrivilege(privilege);
+          },
           onEdit: () => _openRegistration(existingCustomer: customer),
         ),
       ),
     );
-  }
-
-  /// Handheld "Attach to bill": the same data guards as [_goToSale], but
-  /// the privilege was already picked on the profile page, so no picker
-  /// dialog. Returns whether the customer was attached (the profile page
-  /// closes on true).
-  Future<bool> _attachToBill(Customer customer, Privilege? privilege) async {
-    final person = customer.person;
-    if (person.fastRegister) {
-      await _showSaleBlockedDialog('ShoppingCard is fast register');
-      return false;
-    }
-    if (!person.isActivate) {
-      await _showSaleBlockedDialog('ShoppingCard is not register');
-      return false;
-    }
-    setState(() {
-      _selectedPrivilege = privilege;
-      _section = _HomeSection.sale;
-    });
-    _saleCartViewModel.selectPrivilege(privilege);
-    _saleCartViewModel.attachShoppingCard(person.shoppingCard);
-    return true;
   }
 
   Future<_PrivilegeSelection?> _choosePrivilege(List<Privilege> privileges) {
@@ -356,17 +337,12 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // Tapping the already-selected card again deselects it — the simplest
-  // toggle affordance for a single-select list. Mirrors the choice through
-  // to [_saleCartViewModel] so it's still reflected on the Sale page (see
+  // Radio-list pick (null = "No privilege"). Mirrors the choice through to
+  // [_saleCartViewModel] so it's still reflected on the Sale page (see
   // `SalePage`'s `_SelectedPrivilegeRow`).
   void _selectPrivilege(Privilege? privilege) {
-    setState(() {
-      _selectedPrivilege = identical(_selectedPrivilege, privilege)
-          ? null
-          : privilege;
-    });
-    _saleCartViewModel.selectPrivilege(_selectedPrivilege);
+    setState(() => _selectedPrivilege = privilege);
+    _saleCartViewModel.selectPrivilege(privilege);
   }
 
   Future<void> _showSaleBlockedDialog(String message) {
@@ -969,20 +945,19 @@ class _HomePageState extends State<HomePage> {
           ),
           const SizedBox(height: 16),
         ],
-        // Points / spend / visits aren't on `GetCustomer` — shown as "—".
         Row(
           children: [
-            stat(ProfileIds.pointsStat, 'Points', '—'),
+            stat(
+              ProfileIds.caratStat,
+              'Carat',
+              formatCarat(customer.person.caratBalance),
+            ),
             const SizedBox(width: 10),
-            stat(ProfileIds.ePurseStat, 'e-Purse', _ePurse(customer)),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            stat(ProfileIds.spendStat, 'Spend YTD', '—'),
-            const SizedBox(width: 10),
-            stat(ProfileIds.visitsStat, 'Visits', '—'),
+            stat(
+              ProfileIds.ePurseStat,
+              'e-Purse',
+              formatEPurse(customer.person.ePurseBalance),
+            ),
           ],
         ),
         const SizedBox(height: 16),
@@ -994,14 +969,6 @@ class _HomePageState extends State<HomePage> {
           onSelectPrivilege: _selectPrivilege,
         ),
         const SizedBox(height: 16),
-        DesktopButton(
-          id: ProfileIds.attachButton,
-          label: 'Attach to bill',
-          icon: Icons.check,
-          height: 56,
-          onPressed: () => _attachToBill(customer, _selectedPrivilege),
-        ),
-        const SizedBox(height: 16),
         // TODO(pos-desktop): recent purchases once a member-history API
         // exists.
         const DesktopPanel(
@@ -1011,15 +978,6 @@ class _HomePageState extends State<HomePage> {
         ),
       ],
     );
-  }
-
-  // Same source as the handheld profile: the first wallet member's balance.
-  static String _ePurse(Customer customer) {
-    for (final member in customer.person.walletMembers) {
-      final balance = double.tryParse('${member['balance'] ?? ''}');
-      if (balance != null) return formatBaht(balance);
-    }
-    return '—';
   }
 
   /// Handheld Home lookup results: a tile per match; the full profile
@@ -1492,35 +1450,18 @@ class _CustomerDetails extends StatelessWidget {
     );
   }
 
-  // Rendered as tappable cards, not read-only rows — the customer's
-  // privileges (when any) are directly selectable from the search result
-  // now, rather than read-only display text. Tapping a card selects it
-  // (again to deselect); see `_HomePageState._selectPrivilege`.
+  // The same radio list as the handheld profile: "No privilege" (default)
+  // plus each privilege; see `_HomePageState._selectPrivilege`.
   List<Widget> _privilegeSection(
     BuildContext context,
     List<Privilege> privileges,
-  ) {
-    if (privileges.isEmpty) return const [];
-    final textTheme = Theme.of(context).textTheme;
-    return [
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Select privilege', style: textTheme.labelLarge),
-          for (var i = 0; i < privileges.length; i++)
-            Padding(
-              padding: const EdgeInsets.only(top: AppSpacing.xs),
-              child: _SelectablePrivilegeCard(
-                key: Key('privilegeCard_$i'),
-                privilege: privileges[i],
-                selected: identical(selectedPrivilege, privileges[i]),
-                onTap: () => onSelectPrivilege(privileges[i]),
-              ),
-            ),
-        ],
-      ),
-    ];
-  }
+  ) => [
+    PrivilegeRadioList(
+      privileges: privileges,
+      selected: selectedPrivilege,
+      onChanged: onSelectPrivilege,
+    ),
+  ];
 
   List<Widget> _mapListSection(
     BuildContext context,
@@ -1762,81 +1703,6 @@ class _PrivilegeRow extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// One privilege rendered as a tappable, single-select card — the "card
-/// privilege ให้เลือก" the customer's info now shows inline (previously,
-/// picking a privilege only happened via the `_choosePrivilege` dialog
-/// gated behind "Go to Sale", which is currently unreachable). Same
-/// Name/`[TypeCode]:PromoCode` display as [_PrivilegeRow], plus a
-/// selected/unselected visual state.
-class _SelectablePrivilegeCard extends StatelessWidget {
-  final Privilege privilege;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _SelectablePrivilegeCard({
-    super.key,
-    required this.privilege,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final code = privilege.typeCode.isEmpty && privilege.promoCode.isEmpty
-        ? ''
-        : '[${privilege.typeCode}]:${privilege.promoCode}';
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppSizing.cornerRadiusSm),
-      child: Container(
-        padding: const EdgeInsets.all(AppSpacing.sm),
-        decoration: BoxDecoration(
-          color: selected
-              ? const Color(0x1FC5A059) // AppColors.goldAccent at low opacity
-              : AppColors.surface,
-          border: Border.all(
-            color: selected ? AppColors.goldAccent : AppColors.divider,
-            width: selected ? 2 : 1,
-          ),
-          borderRadius: BorderRadius.circular(AppSizing.cornerRadiusSm),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              selected ? Icons.check_circle : Icons.radio_button_unchecked,
-              size: AppSizing.iconSize,
-              color: selected ? AppColors.goldAccent : AppColors.textSecondary,
-            ),
-            const SizedBox(width: AppSpacing.xs),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    privilege.name.isEmpty ? 'Privilege' : privilege.name,
-                    style: textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  if (code.isNotEmpty)
-                    Text(
-                      code,
-                      style: textTheme.bodySmall?.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

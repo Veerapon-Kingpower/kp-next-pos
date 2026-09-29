@@ -29,8 +29,8 @@ abstract class CustomerRepository {
   });
 
   /// Ports `saleEngine.getListAgent` (`SaleEngine/GetListAgent`).
-  /// [typeSearch] selects agent (`"agent"`), guide (`"guide"`), or
-  /// customer-type (`"customertype"`) results from the shared endpoint.
+  /// [typeSearch] selects agent (`"A"`), guide / sub agent (`"S"`), or
+  /// customer-type (`"C"`) results from the shared endpoint.
   Future<List<Agent>> agents({
     required String input,
     required String typeSearch,

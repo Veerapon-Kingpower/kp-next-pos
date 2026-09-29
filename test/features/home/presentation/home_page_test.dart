@@ -355,7 +355,7 @@ void main() {
   );
 
   testWidgets(
-    'tapping a privilege card selects it, tapping it again deselects it',
+    'privileges are a radio list with "No privilege" as the default',
     (tester) async {
       const customer = Customer(
         action: 'found',
@@ -394,22 +394,31 @@ void main() {
       await tester.tap(byTestId(DesktopCustomerIds.searchButton));
       await tester.pumpAndSettle();
 
-      final card = find.byKey(const Key('privilegeCard_0'));
+      bool checked(String id) => find
+          .descendant(
+            of: byTestId(id),
+            matching: find.byIcon(Icons.radio_button_checked),
+          )
+          .evaluate()
+          .isNotEmpty;
+
+      final card = byTestId(ProfileIds.privilege(0));
       expect(card, findsOneWidget);
-      expect(find.byIcon(Icons.check_circle), findsNothing);
-      expect(find.byIcon(Icons.radio_button_unchecked), findsOneWidget);
+      expect(checked(ProfileIds.noPrivilege), isTrue, reason: 'default');
+      expect(checked(ProfileIds.privilege(0)), isFalse);
 
+      await tester.ensureVisible(card);
       await tester.tap(card);
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.check_circle), findsOneWidget);
-      expect(find.byIcon(Icons.radio_button_unchecked), findsNothing);
+      expect(checked(ProfileIds.privilege(0)), isTrue);
+      expect(checked(ProfileIds.noPrivilege), isFalse);
 
-      await tester.tap(card);
+      await tester.tap(byTestId(ProfileIds.noPrivilege));
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.check_circle), findsNothing);
-      expect(find.byIcon(Icons.radio_button_unchecked), findsOneWidget);
+      expect(checked(ProfileIds.privilege(0)), isFalse);
+      expect(checked(ProfileIds.noPrivilege), isTrue);
     },
   );
 
@@ -450,7 +459,8 @@ void main() {
       await tester.tap(byTestId(DesktopCustomerIds.searchButton));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('privilegeCard_0')));
+      await tester.ensureVisible(byTestId(ProfileIds.privilege(0)));
+      await tester.tap(byTestId(ProfileIds.privilege(0)));
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Sale').last);
@@ -491,16 +501,22 @@ void main() {
     await tester.tap(byTestId(DesktopCustomerIds.searchButton));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('privilegeCard_0')));
+    Finder checkedIn(String id) => find.descendant(
+      of: byTestId(id),
+      matching: find.byIcon(Icons.radio_button_checked),
+    );
+
+    await tester.ensureVisible(byTestId(ProfileIds.privilege(0)));
+    await tester.tap(byTestId(ProfileIds.privilege(0)));
     await tester.pumpAndSettle();
 
-    expect(find.byIcon(Icons.check_circle), findsOneWidget);
+    expect(checkedIn(ProfileIds.privilege(0)), findsOneWidget);
 
     await tester.tap(byTestId(DesktopCustomerIds.searchButton));
     await tester.pumpAndSettle();
 
-    expect(find.byIcon(Icons.check_circle), findsNothing);
-    expect(find.byIcon(Icons.radio_button_unchecked), findsOneWidget);
+    expect(checkedIn(ProfileIds.privilege(0)), findsNothing);
+    expect(checkedIn(ProfileIds.noPrivilege), findsOneWidget);
   });
 
   testWidgets('a customer with no extra data shows only the no-flight bar', (
@@ -704,7 +720,8 @@ void main() {
           ),
         ],
         walletMembers: [
-          {'balance': 4200},
+          {'Code': 'CARAT_WALLET', 'PaymentCode': 'CARAT', 'Balance': 1475.0},
+          {'Code': 'CASH_WALLET', 'PaymentCode': 'CASHW', 'Balance': 4200.0},
         ],
         shoppingCard: 'CPX0001',
         isActivate: true,
@@ -757,7 +774,7 @@ void main() {
       await pumpCustomerTab(tester, buildPage(searchResult: const [found]));
       await search(tester, 'CPX0001');
 
-      expect(find.text('EDIT CUSTOMER'), findsOneWidget);
+      expect(find.text('UPDATE CUSTOMER'), findsOneWidget);
       expect(formText(tester, DesktopCustomerIds.passportNo), 'P1234567');
       expect(formText(tester, DesktopCustomerIds.englishName), 'Jane Doe');
       expect(inProfile(find.text('Jane Doe')), findsOneWidget);
@@ -777,8 +794,8 @@ void main() {
       expect(formLeft, lessThan(profileLeft));
     });
 
-    testWidgets('profile stats: e-Purse from the wallet, the rest not '
-        'available', (tester) async {
+    testWidgets('profile stats: Carat and e-Purse from the wallets; no '
+        'spend / visits / Attach to bill', (tester) async {
       await pumpCustomerTab(tester, buildPage(searchResult: const [found]));
       await search(tester, 'CPX0001');
 
@@ -787,33 +804,41 @@ void main() {
             find.descendant(of: byTestId(id), matching: find.byType(Text)),
           )
           .data!;
+      expect(stat(ProfileIds.caratStat), '1,475.00');
       expect(stat(ProfileIds.ePurseStat), '฿4,200.00');
-      expect(stat(ProfileIds.pointsStat), '—');
-      expect(stat(ProfileIds.spendStat), '—');
-      expect(stat(ProfileIds.visitsStat), '—');
+      expect(find.text('SPEND YTD'), findsNothing);
+      expect(find.text('VISITS'), findsNothing);
+      expect(find.text('Attach to bill'), findsNothing);
       expect(byTestId(ProfileIds.recentPurchases), findsOneWidget);
     });
 
-    testWidgets('Attach to bill carries the picked privilege to Sale', (
-      tester,
-    ) async {
+    testWidgets('a registered customer shows a Registered status and an '
+        'Update customer form', (tester) async {
       await pumpCustomerTab(tester, buildPage(searchResult: const [found]));
       await search(tester, 'CPX0001');
 
-      await tester.tap(find.byKey(const Key('privilegeCard_0')));
-      await tester.pump();
-      await tester.ensureVisible(byTestId(ProfileIds.attachButton));
-      await tester.tap(byTestId(ProfileIds.attachButton));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Sale · NORMAL'), findsOneWidget);
+      final banner = byTestId(RegisterIds.statusBanner);
       expect(
-        tester.getSemantics(byTestId(NavIds.sale)),
-        isSemantics(isSelected: true),
+        find.descendant(of: banner, matching: find.text('Registered')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: banner,
+          matching: find.textContaining('Shopping card CPX0001'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: byTestId(RegisterIds.submitButton),
+          matching: find.text('Update customer'),
+        ),
+        findsOneWidget,
       );
     });
 
-    testWidgets('Attach to bill is blocked for an unregistered card', (
+    testWidgets('an unregistered card shows "Not registered yet"', (
       tester,
     ) async {
       const unregistered = Customer(
@@ -837,11 +862,21 @@ void main() {
         buildPage(searchResult: const [unregistered]),
       );
       await search(tester, 'CPX0001');
-      await tester.ensureVisible(byTestId(ProfileIds.attachButton));
-      await tester.tap(byTestId(ProfileIds.attachButton));
-      await tester.pumpAndSettle();
 
-      expect(find.text('ShoppingCard is not register'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: byTestId(RegisterIds.statusBanner),
+          matching: find.text('Not registered yet'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: byTestId(RegisterIds.submitButton),
+          matching: find.text('Register customer'),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('New customer clears the lookup and resets the form', (
@@ -849,7 +884,7 @@ void main() {
     ) async {
       await pumpCustomerTab(tester, buildPage(searchResult: const [found]));
       await search(tester, 'CPX0001');
-      expect(find.text('EDIT CUSTOMER'), findsOneWidget);
+      expect(find.text('UPDATE CUSTOMER'), findsOneWidget);
 
       await tester.tap(byTestId(DesktopCustomerIds.newCustomerButton));
       await tester.pumpAndSettle();
@@ -917,7 +952,7 @@ void main() {
 
       expect(searchRepo.searchedShoppingCards, ['CPX0001']);
       expect(inProfile(find.text('Jane Doe')), findsOneWidget);
-      expect(find.text('EDIT CUSTOMER'), findsOneWidget);
+      expect(find.text('UPDATE CUSTOMER'), findsOneWidget);
     });
   });
 
@@ -1184,53 +1219,20 @@ void main() {
       expect(find.text('No customer found.'), findsOneWidget);
     });
 
-    testWidgets('Attach to bill carries the picked privilege to Sale', (
+    testWidgets('Update customer opens the form with the registered status', (
       tester,
     ) async {
       await pumpHandheld(tester, buildPage(searchResult: const [jane]));
       await scan(tester, 'CPX0001');
       await tester.tap(byTestId(HomeIds.customerTile(0)));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(byTestId(ProfileIds.privilege(0)));
-      await tester.tap(byTestId(ProfileIds.privilege(0)));
-      await tester.pump();
-      await tester.tap(byTestId(ProfileIds.attachButton));
+      expect(find.text('Attach to bill'), findsNothing);
+
+      await tester.tap(byTestId(ProfileIds.editButton));
       await tester.pumpAndSettle();
 
-      expect(byTestId(ProfileIds.page), findsNothing);
-      expect(byTestId(SaleIds.scanField), findsOneWidget);
-      expect(find.text('[VIP]:PROMO123'), findsOneWidget);
-    });
-
-    testWidgets('Attach to bill is blocked for an unregistered card', (
-      tester,
-    ) async {
-      const unregistered = Customer(
-        action: 'found',
-        isFound: true,
-        person: CustomerPerson(
-          englishName: 'Jane Doe',
-          passportNo: 'P1234567',
-          nationality: 'THA',
-          contacts: [],
-          privileges: [],
-          walletMembers: [],
-        ),
-        tour: {},
-        agentCode: '',
-        isMember: false,
-      );
-      await pumpHandheld(tester, buildPage(searchResult: const [unregistered]));
-      await scan(tester, 'CPX0001');
-      await tester.tap(byTestId(HomeIds.customerTile(0)));
-      await tester.pumpAndSettle();
-      await tester.tap(byTestId(ProfileIds.attachButton));
-      await tester.pumpAndSettle();
-
-      expect(find.text('ShoppingCard is not register'), findsOneWidget);
-      await tester.tap(find.text('Got it'));
-      await tester.pumpAndSettle();
-      expect(byTestId(ProfileIds.page), findsOneWidget);
+      expect(byTestId(RegisterIds.page), findsOneWidget);
+      expect(byTestId(RegisterIds.statusBanner), findsOneWidget);
     });
 
     testWidgets('the Sale tile and the Sale nav item open the Sale screen', (

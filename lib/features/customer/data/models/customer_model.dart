@@ -51,6 +51,7 @@ class CustomerPersonModel extends CustomerPerson {
     super.listIdentity,
     super.provinceCode,
     super.cityCode,
+    super.dateOfBirth,
     super.fastRegister,
   });
 
@@ -79,6 +80,7 @@ class CustomerPersonModel extends CustomerPerson {
       listIdentity: _rawList(json['listIdentity']),
       provinceCode: json['provinceCode'] as String? ?? '',
       cityCode: json['cityCode'] as String? ?? '',
+      dateOfBirth: json['dateOfBirth'],
       fastRegister: json['fast_register'] as bool? ?? false,
     );
   }

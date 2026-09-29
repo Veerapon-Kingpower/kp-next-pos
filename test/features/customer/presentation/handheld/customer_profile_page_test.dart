@@ -26,7 +26,8 @@ const sofia = Customer(
     contacts: [],
     privileges: [_gold, _birthday],
     walletMembers: [
-      {'balance': '4200'},
+      {'Code': 'CARAT_WALLET', 'PaymentCode': 'CARAT', 'Balance': 1475.0},
+      {'Code': 'CASH_WALLET', 'PaymentCode': 'CASHW', 'Balance': 4200.0},
     ],
     shoppingCard: '8823-4419-0027',
     typeCardMember: 'Elite',
@@ -62,14 +63,12 @@ const walkIn = Customer(
 );
 
 void main() {
-  late List<Privilege?> attached;
+  late List<Privilege?> picked;
   late int edits;
-  late bool attachAllowed;
 
   setUp(() {
-    attached = [];
+    picked = [];
     edits = 0;
-    attachAllowed = true;
   });
 
   Future<void> open(
@@ -90,10 +89,7 @@ void main() {
                     customer: customer,
                     initialPrivilege: selected,
                     searchFlights: (_) async => const <Flight>[],
-                    onAttach: (p) async {
-                      attached.add(p);
-                      return attachAllowed;
-                    },
+                    onPrivilegeChanged: picked.add,
                     onEdit: () => edits++,
                   ),
                 ),
@@ -126,14 +122,14 @@ void main() {
     expect(textIn(tester, ProfileIds.status), 'Registered');
   });
 
-  testWidgets('stats: e-Purse from the wallet, the rest unavailable', (
+  testWidgets('stats: Carat and e-Purse from their wallets only', (
     tester,
   ) async {
     await open(tester);
+    expect(textIn(tester, ProfileIds.caratStat), '1,475.00');
     expect(textIn(tester, ProfileIds.ePurseStat), '฿4,200.00');
-    expect(textIn(tester, ProfileIds.pointsStat), '—');
-    expect(textIn(tester, ProfileIds.spendStat), '—');
-    expect(textIn(tester, ProfileIds.visitsStat), '—');
+    expect(find.text('SPEND YTD'), findsNothing);
+    expect(find.text('VISITS'), findsNothing);
   });
 
   testWidgets('flight card shows the linked flight', (tester) async {
@@ -152,11 +148,14 @@ void main() {
     );
   });
 
-  testWidgets('privileges are single-select and carried into Attach', (
-    tester,
-  ) async {
+  testWidgets('privileges are a radio list, "No privilege" by default, '
+      'each pick reported', (tester) async {
     final handle = tester.ensureSemantics();
     await open(tester);
+    expect(
+      tester.getSemantics(byTestId(ProfileIds.noPrivilege)),
+      isSemantics(isSelected: true),
+    );
     await tester.ensureVisible(byTestId(ProfileIds.privilege(0)));
     await tester.tap(byTestId(ProfileIds.privilege(0)));
     await tester.pump();
@@ -164,40 +163,36 @@ void main() {
       tester.getSemantics(byTestId(ProfileIds.privilege(0))),
       isSemantics(isSelected: true),
     );
+    expect(
+      tester.getSemantics(byTestId(ProfileIds.noPrivilege)),
+      isSemantics(isSelected: false),
+    );
     await tester.tap(byTestId(ProfileIds.privilege(1)));
     await tester.pump();
     expect(
       tester.getSemantics(byTestId(ProfileIds.privilege(0))),
       isSemantics(isSelected: false),
     );
+    await tester.tap(byTestId(ProfileIds.noPrivilege));
+    await tester.pump();
 
-    await tester.tap(byTestId(ProfileIds.attachButton));
-    await tester.pumpAndSettle();
-    expect(attached, [_birthday]);
-    expect(byTestId(ProfileIds.page), findsNothing, reason: 'popped');
+    expect(picked, [_gold, _birthday, null]);
+    expect(find.text('[VIP]:PROMO123'), findsOneWidget);
     handle.dispose();
   });
 
-  testWidgets('tapping the selected privilege again clears it', (tester) async {
-    await open(tester, selected: _gold);
-    await tester.ensureVisible(byTestId(ProfileIds.privilege(0)));
-    await tester.tap(byTestId(ProfileIds.privilege(0)));
-    await tester.pump();
-    await tester.tap(byTestId(ProfileIds.attachButton));
-    await tester.pumpAndSettle();
-    expect(attached, [null]);
-  });
-
-  testWidgets('a blocked attach keeps the profile open', (tester) async {
-    attachAllowed = false;
+  testWidgets('no Attach to bill; Update customer is the main action', (
+    tester,
+  ) async {
     await open(tester);
-    await tester.tap(byTestId(ProfileIds.attachButton));
-    await tester.pumpAndSettle();
-    expect(byTestId(ProfileIds.page), findsOneWidget);
-  });
-
-  testWidgets('Edit calls back', (tester) async {
-    await open(tester);
+    expect(find.text('Attach to bill'), findsNothing);
+    expect(
+      find.descendant(
+        of: byTestId(ProfileIds.editButton),
+        matching: find.text('Update customer'),
+      ),
+      findsOneWidget,
+    );
     await tester.tap(byTestId(ProfileIds.editButton));
     expect(edits, 1);
   });
@@ -217,6 +212,7 @@ void main() {
     expect(textIn(tester, ProfileIds.status), 'Not registered');
     expect(byTestId(ProfileIds.badge), findsNothing);
     expect(textIn(tester, ProfileIds.ePurseStat), '—');
+    expect(textIn(tester, ProfileIds.caratStat), '—');
     expect(
       find.descendant(
         of: byTestId(ProfileIds.flightCard),
@@ -224,7 +220,7 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text('No privileges on this card.'), findsOneWidget);
+    expect(find.text('None on this card'), findsOneWidget);
   });
 
   testWidgets('recent purchases are marked unavailable', (tester) async {

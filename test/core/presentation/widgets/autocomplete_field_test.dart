@@ -69,7 +69,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 350));
     await tester.pump();
 
-    expect(queries, ['tha']);
+    expect(queries, ['THA']); // typed text is upper-cased
   });
 
   testWidgets(

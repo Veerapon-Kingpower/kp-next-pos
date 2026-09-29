@@ -102,7 +102,7 @@ void main() {
     await pump(tester);
     await typeAndWait(tester, 'tg9');
 
-    expect(queries, ['tg9']);
+    expect(queries, ['TG9']); // typed text is upper-cased
     expect(option(0), findsOneWidget);
     expect(option(2), findsOneWidget);
     expect(

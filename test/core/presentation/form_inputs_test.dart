@@ -27,8 +27,16 @@ void main() {
       );
     });
 
-    test('email drops whitespace', () {
-      expect(apply(FormInputs.email, 'jane @ mail.com'), 'jane@mail.com');
+    test('email drops whitespace, upper-cased', () {
+      expect(apply(FormInputs.email, 'jane @ mail.com'), 'JANE@MAIL.COM');
+    });
+
+    test('WeChat keeps A–Z, 0–9, _ and -, upper-cased; no Thai', () {
+      expect(apply(FormInputs.weChat, 'jane_wc-01 สวัสดี!'), 'JANE_WC-01');
+    });
+
+    test('upperCase upper-cases free text', () {
+      expect(apply(FormInputs.upperCase, 'tg916 bkk'), 'TG916 BKK');
     });
   });
 

@@ -34,10 +34,21 @@ abstract class FormInputs {
     FilteringTextInputFormatter.allow(RegExp(r'[0-9+\- ]')),
   ];
 
-  /// Email: no whitespace.
+  /// Email: no whitespace, upper case.
   static final email = <TextInputFormatter>[
     FilteringTextInputFormatter.deny(RegExp(r'\s')),
+    const UpperCaseTextFormatter(),
   ];
+
+  /// WeChat ID: A–Z, 0–9, `_` and `-` only (no Thai or other scripts),
+  /// upper case.
+  static final weChat = <TextInputFormatter>[
+    FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9_\-]')),
+    const UpperCaseTextFormatter(),
+  ];
+
+  /// Free text or a lookup query: upper case.
+  static const upperCase = <TextInputFormatter>[UpperCaseTextFormatter()];
 
   static final _englishName = RegExp(r'^[A-Za-z \-]*$');
   static final _passport = RegExp(r'^[A-Za-z0-9]+$');

@@ -14,6 +14,7 @@ class FakeCustomerRepository implements CustomerRepository {
 
   Map<String, dynamic>? lastRegisterCall;
   String? lastAgentsTypeSearch;
+  final List<String> searchedShoppingCards = [];
   String? lastAgentsInput;
 
   FakeCustomerRepository({
@@ -29,6 +30,7 @@ class FakeCustomerRepository implements CustomerRepository {
     required String shoppingCard,
     required bool isTour,
   }) async {
+    searchedShoppingCards.add(shoppingCard);
     if (searchError != null) throw searchError!;
     return searchResult;
   }

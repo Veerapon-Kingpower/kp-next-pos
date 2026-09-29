@@ -120,4 +120,17 @@ void main() {
     expect(viewModel.customerSearchError, 'Customer not found.');
     expect(viewModel.customerSearchResults, isEmpty);
   });
+
+  test('clearCustomerSearch returns to the not-yet-searched state', () async {
+    final viewModel = _buildViewModel(
+      searchError: const ApiException(messageDesc: 'Customer not found.'),
+    );
+    await viewModel.searchCustomer('CPX0001');
+
+    viewModel.clearCustomerSearch();
+
+    expect(viewModel.hasSearchedCustomer, isFalse);
+    expect(viewModel.customerSearchError, isNull);
+    expect(viewModel.customerSearchResults, isEmpty);
+  });
 }

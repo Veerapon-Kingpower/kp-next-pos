@@ -7,6 +7,7 @@ import 'package:kp_pos/features/customer/domain/entities/customer.dart';
 import 'package:kp_pos/features/customer/domain/entities/customer_registration.dart';
 import 'package:kp_pos/features/customer/domain/usecases/list_agents_usecase.dart';
 import 'package:kp_pos/features/customer/domain/usecases/list_guides_usecase.dart';
+import 'package:kp_pos/features/customer/domain/usecases/list_customer_types_usecase.dart';
 import 'package:kp_pos/features/customer/domain/usecases/register_customer_usecase.dart';
 import 'package:kp_pos/features/customer/presentation/customer_registration_page.dart';
 import 'package:kp_pos/features/customer/presentation/customer_registration_view_model.dart';
@@ -103,9 +104,10 @@ void main() {
         .platformDispatcher
         .views
         .first;
-    // Desktop width by default — these tests cover the shared form logic
-    // through the desktop layout; the handheld group sets its own size.
-    view.physicalSize = const Size(1200, 2400);
+    // Handheld width (tall, so nothing scrolls) by default — these tests
+    // cover the shared form logic through the handheld layout, which keeps
+    // the plain labelled fields; the desktop group sets its own size.
+    view.physicalSize = const Size(400, 2400);
     view.devicePixelRatio = 1.0;
     addTearDown(view.resetPhysicalSize);
     addTearDown(view.resetDevicePixelRatio);
@@ -147,6 +149,7 @@ void main() {
       ),
       listAgents: ListAgentsUseCase(repo),
       listGuides: ListGuidesUseCase(repo),
+      listCustomerTypes: ListCustomerTypesUseCase(repo),
       getFlightByCode: GetFlightByCodeUseCase(flightRepo),
       getDateByFlight: GetDateByFlightUseCase(flightRepo),
       registerCustomer: RegisterCustomerUseCase(repo),
@@ -199,7 +202,7 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('shows every form field in legacy order', (tester) async {
+  testWidgets('shows every form field', (tester) async {
     await tester.pumpWidget(buildHarness());
     await openPage(tester);
 
@@ -212,38 +215,12 @@ void main() {
     expect(find.text('Email'), findsOneWidget);
     expect(find.text('Mobile'), findsOneWidget);
     expect(find.text('WeChat'), findsOneWidget);
-    expect(find.text('Agent'), findsOneWidget);
+    // Handheld also titles its section "Agent".
+    expect(find.text('Agent'), findsNWidgets(2));
     expect(find.text('Guide'), findsOneWidget);
     expect(find.text('Customer type'), findsOneWidget);
     expect(find.text('Allow take-away'), findsOneWidget);
-    expect(find.widgetWithText(FilledButton, 'Register'), findsOneWidget);
-
-    // Order matches `customer-form.html:89-239` (non-airport branch): Flight
-    // (+ Flight date right after it) sits right after Nationality, and
-    // Agent/Guide come after the contact fields, right before Customer Type.
-    final labelOrder = [
-      'Passport no.',
-      'English name',
-      'Gender',
-      'Nationality',
-      'Flight',
-      'Flight date',
-      'Email',
-      'Mobile',
-      'WeChat',
-      'Agent',
-      'Guide',
-      'Customer type',
-      'Allow take-away',
-    ];
-    final positions = labelOrder
-        .map((label) => tester.getTopLeft(find.text(label)).dy)
-        .toList();
-    expect(
-      positions,
-      positions.toList()..sort(),
-      reason: 'fields must appear top-to-bottom in legacy order',
-    );
+    expect(byTestId(RegisterIds.submitButton), findsOneWidget);
   });
 
   testWidgets(
@@ -252,10 +229,8 @@ void main() {
       await tester.pumpWidget(buildHarness());
       await openPage(tester);
 
-      final registerButton = find.widgetWithText(FilledButton, 'Register');
+      final registerButton = byTestId(RegisterIds.submitButton);
       // Legacy's Save/Update is always tappable; it validates on tap.
-      expect(tester.widget<FilledButton>(registerButton).onPressed, isNotNull);
-
       await tester.tap(registerButton);
       await tester.pumpAndSettle();
 
@@ -331,7 +306,8 @@ void main() {
   );
 
   testWidgets(
-    "the calendar's selectable range is bounded by the resolved candidate dates, not an arbitrary window",
+    'picking another date keeps the first candidate\'s time — legacy never '
+    'lets the user edit the time',
     (tester) async {
       await tester.pumpWidget(buildHarness());
       await openPage(tester);
@@ -344,69 +320,13 @@ void main() {
 
       await tester.tap(find.byKey(const Key('flightDateField')));
       await tester.pumpAndSettle();
-
-      final dialog = tester.widget<DatePickerDialog>(
-        find.byType(DatePickerDialog),
-      );
-      // _flightDates: first candidate 2026-08-18, last candidate 2026-08-19.
-      expect(dialog.firstDate, DateTime(2026, 8, 18));
-      expect(dialog.lastDate, DateTime(2026, 8, 19));
-    },
-  );
-
-  testWidgets(
-    'only the exact dates the API resolved are selectable, not every day in the range',
-    (tester) async {
-      await tester.pumpWidget(buildHarness(flightDates: _flightDatesWithGap));
-      await openPage(tester);
-
-      await enterByLabel(tester, 'Flight', 'TG');
-      await tester.pump(const Duration(milliseconds: 350));
+      await tester.tap(byTestId(FlightPickerIds.day(DateTime(2026, 8, 19))));
       await tester.pump();
-      await tester.tap(find.text('TG101 — Bangkok - Tokyo'));
-      await tester.pump();
-
-      await tester.tap(find.byKey(const Key('flightDateField')));
+      await tester.tap(byTestId(FlightPickerIds.confirmButton));
       await tester.pumpAndSettle();
 
-      final dialog = tester.widget<DatePickerDialog>(
-        find.byType(DatePickerDialog),
-      );
-      final predicate = dialog.selectableDayPredicate;
-      expect(predicate, isNotNull);
-      // Candidates are 2026-08-18 and 2026-08-20; 2026-08-19 has no
-      // candidate even though it's inside [firstDate, lastDate].
-      expect(predicate!(DateTime(2026, 8, 18)), isTrue);
-      expect(predicate(DateTime(2026, 8, 19)), isFalse);
-      expect(predicate(DateTime(2026, 8, 20)), isTrue);
-    },
-  );
-
-  testWidgets(
-    'tapping Flight date opens only a date picker (no time picker) and keeps the auto-filled time when a new date is confirmed',
-    (tester) async {
-      await tester.pumpWidget(buildHarness());
-      await openPage(tester);
-
-      await enterByLabel(tester, 'Flight', 'TG');
-      await tester.pump(const Duration(milliseconds: 350));
-      await tester.pump();
-      await tester.tap(find.text('TG101 — Bangkok - Tokyo'));
-      await tester.pump();
-
-      expect(find.text('18-08-2026 10:00'), findsOneWidget);
-
-      await tester.tap(find.byKey(const Key('flightDateField')));
-      await tester.pumpAndSettle();
-
-      // A single OK confirms the date picker; there is no follow-up time
-      // picker dialog — legacy never lets the user edit the time.
-      await tester.tap(find.text('OK'));
-      await tester.pumpAndSettle();
-
-      // Confirming the initial date (the first candidate's date) leaves the
-      // auto-filled value — including its time — unchanged.
-      expect(find.text('18-08-2026 10:00'), findsOneWidget);
+      // The 19th's own candidate departs 14:00; handheld keeps 10:00.
+      expect(find.text('19-08-2026 10:00'), findsOneWidget);
     },
   );
 
@@ -420,7 +340,7 @@ void main() {
       // `_selectedFlightDate` stays null.
       await fillRequiredFields(tester);
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Register'));
+      await tester.tap(byTestId(RegisterIds.submitButton));
       await tester.pumpAndSettle();
 
       expect(find.text('Please input flightDate.'), findsOneWidget);
@@ -460,7 +380,7 @@ void main() {
       await openPage(tester);
       await fillRequiredFields(tester);
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Register'));
+      await tester.tap(byTestId(RegisterIds.submitButton));
       await tester.pumpAndSettle();
 
       expect(find.textContaining('CPX0099'), findsOneWidget);
@@ -495,7 +415,7 @@ void main() {
       await openPage(tester);
       await fillRequiredFields(tester);
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Register'));
+      await tester.tap(byTestId(RegisterIds.submitButton));
       await tester.pumpAndSettle();
 
       final listPersonal =
@@ -539,7 +459,7 @@ void main() {
       await enterByLabel(tester, 'Customer type', 'VIP');
       await tester.pump();
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Register'));
+      await tester.tap(byTestId(RegisterIds.submitButton));
       await tester.pumpAndSettle();
 
       final listPersonal =
@@ -564,11 +484,11 @@ void main() {
     await openPage(tester);
     await fillRequiredFields(tester);
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Register'));
+    await tester.tap(byTestId(RegisterIds.submitButton));
     await tester.pumpAndSettle();
 
     expect(find.text('Passport already registered.'), findsOneWidget);
-    expect(find.widgetWithText(FilledButton, 'Register'), findsOneWidget);
+    expect(byTestId(RegisterIds.submitButton), findsOneWidget);
   });
 
   group('editing an existing customer', () {
@@ -620,7 +540,13 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Customer profile'), findsOneWidget);
-        expect(find.widgetWithText(FilledButton, 'Update'), findsOneWidget);
+        expect(
+          find.descendant(
+            of: byTestId(RegisterIds.submitButton),
+            matching: find.text('Update'),
+          ),
+          findsOneWidget,
+        );
         expect(textOf(tester, 'Passport no.'), 'P1234567');
         expect(textOf(tester, 'English name'), 'Jane Doe');
         expect(textOf(tester, 'Customer type'), 'VIP');
@@ -662,7 +588,7 @@ void main() {
       await openPage(tester);
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Update'));
+      await tester.tap(byTestId(RegisterIds.submitButton));
       await tester.pumpAndSettle();
 
       expect(repo.lastRegisterCall!['action'], 'REGISTER_EDIT');
@@ -725,8 +651,8 @@ void main() {
         // Looks and behaves like a fresh registration, not an edit —
         // matches legacy's `action == "REGISTER_ADD"` branch in
         // `setFormCustomerData()`.
-        expect(find.text('Register new customer'), findsWidgets);
-        expect(find.widgetWithText(FilledButton, 'Register'), findsOneWidget);
+        expect(find.text('Register customer'), findsOneWidget);
+        expect(byTestId(RegisterIds.submitButton), findsOneWidget);
 
         // Not the focus of this test — skips flight/nationality
         // requiredness so the tap below reaches the register call.
@@ -735,7 +661,7 @@ void main() {
         );
         await tester.pump();
 
-        await tester.tap(find.widgetWithText(FilledButton, 'Register'));
+        await tester.tap(byTestId(RegisterIds.submitButton));
         await tester.pumpAndSettle();
 
         expect(repo.lastRegisterCall!['action'], 'REGISTER_ADD');
@@ -839,6 +765,360 @@ void main() {
       await openHandheld(tester, size: mediumSize);
       expect(tester.takeException(), isNull);
       expect(byTestId(RegisterIds.submitButton), findsOneWidget);
+    });
+  });
+
+  group('desktop layout (mockup screens 8, 12, 13)', () {
+    const typedAgents = [
+      Agent(
+        subAgentCode: 'GD1',
+        subAgentDesc: 'Guide One',
+        agentCode: 'AG1',
+        agentDesc: 'Agent One',
+        customerType: 'TOURIST',
+        customerTypeDesc: 'Duty-free eligible',
+      ),
+      Agent(
+        subAgentCode: 'GD2',
+        subAgentDesc: 'Guide Two',
+        agentCode: 'AG2',
+        agentDesc: 'Agent Two',
+        customerType: 'RESIDENT',
+        customerTypeDesc: 'Thai · VAT applies',
+      ),
+    ];
+    const saved = RegisterResult(
+      outputs: [
+        RegisterOutput(
+          runningNo: '1',
+          shoppingCard: 'CPX0099',
+          qrShoppingCard: 'QR-CPX0099',
+          coupons: [],
+        ),
+      ],
+      messages: [],
+      isComplete: true,
+    );
+    const editCustomer = Customer(
+      action: 'REGISTER_EDIT',
+      isFound: true,
+      person: CustomerPerson(
+        englishName: 'Jane Doe',
+        passportNo: 'P1234567',
+        nationality: 'THA',
+        contacts: [],
+        privileges: [],
+        walletMembers: [],
+        customerTypeCode: 'VIP',
+        gender: 'F',
+      ),
+      tour: {},
+      agentCode: 'AG1',
+      subAgentCode: 'GD1',
+      isMember: false,
+    );
+
+    Future<FakeCustomerRepository> openDesktop(
+      WidgetTester tester, {
+      Customer? existingCustomer,
+      List<Flight> flightDates = _flightDates,
+    }) async {
+      setDeviceSize(tester, const Size(1440, 1400));
+      final repo = FakeCustomerRepository(
+        agentsResult: typedAgents,
+        registerResult: saved,
+      );
+      await tester.pumpWidget(
+        buildHarness(
+          repository: repo,
+          existingCustomer: existingCustomer,
+          flightDates: flightDates,
+        ),
+      );
+      await openPage(tester);
+      await tester.pumpAndSettle();
+      return repo;
+    }
+
+    Finder input(String id) =>
+        find.descendant(of: byTestId(id), matching: find.byType(TextField));
+
+    String textOf(WidgetTester tester, String id) =>
+        tester.widget<TextField>(input(id)).controller!.text;
+
+    Future<void> lookup(
+      WidgetTester tester,
+      String id,
+      String text, {
+      int option = 0,
+    }) async {
+      await tester.tap(input(id));
+      await tester.enterText(input(id), text);
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump();
+      await tester.tap(byTestId(DesktopLookupIds.option(id, option)));
+      await tester.pumpAndSettle();
+    }
+
+    String flightDateText(WidgetTester tester) => tester
+        .widgetList<Text>(
+          find.descendant(
+            of: byTestId(DesktopCustomerIds.flightDate),
+            matching: find.byType(Text),
+          ),
+        )
+        .skip(1) // the label
+        .map((t) => t.data)
+        .join(' ');
+
+    testWidgets('pushed: page frame, two-column form, required markers', (
+      tester,
+    ) async {
+      await openDesktop(tester);
+      expect(tester.takeException(), isNull);
+      expect(find.text('Register new customer'), findsOneWidget);
+      expect(byTestId(DesktopCustomerIds.form), findsOneWidget);
+      expect(find.text('NEW CUSTOMER'), findsOneWidget);
+      for (final label in [
+        'FLIGHT CODE *',
+        'FLIGHT DATE & TIME *',
+        'PASSPORT NO. *',
+        'ENGLISH NAME *',
+        'NATIONALITY *',
+        'CUSTOMER TYPE *',
+        'AGENT CODE',
+        'SUB AGENT CODE',
+      ]) {
+        expect(find.text(label), findsOneWidget, reason: label);
+      }
+      expect(
+        tester.getTopLeft(byTestId(DesktopCustomerIds.flightDate)).dy,
+        tester.getTopLeft(byTestId(DesktopCustomerIds.flightCode)).dy,
+        reason: 'flight code and date share a row',
+      );
+      expect(
+        find.descendant(
+          of: byTestId(RegisterIds.submitButton),
+          matching: find.text('Register customer'),
+        ),
+        findsOneWidget,
+      );
+      expect(flightDateText(tester), 'Pick a flight first');
+    });
+
+    testWidgets('Register still validates on tap, like legacy', (tester) async {
+      await openDesktop(tester);
+      await tester.tap(byTestId(RegisterIds.submitButton));
+      await tester.pumpAndSettle();
+      expect(find.text('Please input passport.'), findsOneWidget);
+    });
+
+    testWidgets('a picked flight resolves its date; the picker offers only '
+        'operating days, each with its own departure time', (tester) async {
+      final handle = tester.ensureSemantics();
+      await openDesktop(tester, flightDates: _flightDatesWithGap);
+      await lookup(tester, DesktopCustomerIds.flightCode, 'TG');
+
+      expect(textOf(tester, DesktopCustomerIds.flightCode), 'TG101');
+      expect(flightDateText(tester), 'Tue 18 Aug 2026 10:00');
+
+      await tester.tap(byTestId(DesktopCustomerIds.flightDate));
+      await tester.pumpAndSettle();
+      expect(byTestId(DesktopCustomerIds.flightPicker), findsOneWidget);
+      expect(
+        tester.getSemantics(
+          byTestId(FlightPickerIds.day(DateTime(2026, 8, 19))),
+        ),
+        isSemantics(hasEnabledState: true, isEnabled: false),
+      );
+      await tester.tap(byTestId(FlightPickerIds.day(DateTime(2026, 8, 20))));
+      await tester.pump();
+      await tester.tap(byTestId(FlightPickerIds.confirmButton));
+      await tester.pumpAndSettle();
+
+      expect(flightDateText(tester), 'Thu 20 Aug 2026 09:00');
+      handle.dispose();
+    });
+
+    testWidgets('non-international clears the flight and its required '
+        'markers', (tester) async {
+      await openDesktop(tester);
+      await lookup(tester, DesktopCustomerIds.flightCode, 'TG');
+      expect(flightDateText(tester), 'Tue 18 Aug 2026 10:00');
+
+      await tester.tap(byTestId(DesktopCustomerIds.nonInternational));
+      await tester.pumpAndSettle();
+
+      expect(textOf(tester, DesktopCustomerIds.flightCode), isEmpty);
+      expect(flightDateText(tester), 'Pick a flight first');
+      expect(find.text('FLIGHT CODE'), findsOneWidget);
+      expect(find.text('PASSPORT NO.'), findsOneWidget);
+      // Customer type stays required off Airport mode.
+      expect(find.text('CUSTOMER TYPE *'), findsOneWidget);
+    });
+
+    testWidgets('sub agent waits for an agent; changing the agent clears it', (
+      tester,
+    ) async {
+      await openDesktop(tester);
+      expect(
+        tester
+            .widget<TextField>(input(DesktopCustomerIds.subAgentCode))
+            .enabled,
+        isFalse,
+      );
+      expect(find.text('Choose an agent code first'), findsOneWidget);
+
+      await lookup(tester, DesktopCustomerIds.agentCode, 'AG');
+      expect(textOf(tester, DesktopCustomerIds.agentCode), 'AG1');
+      await lookup(tester, DesktopCustomerIds.subAgentCode, 'GD');
+      expect(textOf(tester, DesktopCustomerIds.subAgentCode), 'GD1');
+
+      await lookup(tester, DesktopCustomerIds.agentCode, 'AG', option: 1);
+      expect(textOf(tester, DesktopCustomerIds.agentCode), 'AG2');
+      expect(textOf(tester, DesktopCustomerIds.subAgentCode), isEmpty);
+    });
+
+    testWidgets('registers with the looked-up values', (tester) async {
+      final repo = await openDesktop(tester);
+      await tester.enterText(input(DesktopCustomerIds.passportNo), 'P1234567');
+      await tester.enterText(input(DesktopCustomerIds.englishName), 'Jane Doe');
+      await lookup(tester, DesktopCustomerIds.flightCode, 'TG');
+      await lookup(tester, DesktopCustomerIds.nationality, 'tha');
+      await lookup(tester, DesktopCustomerIds.customerType, 'tou');
+      expect(textOf(tester, DesktopCustomerIds.customerType), 'TOURIST');
+      expect(repo.lastAgentsTypeSearch, 'customertype');
+
+      await tester.tap(byTestId(RegisterIds.submitButton));
+      await tester.pumpAndSettle();
+
+      final person =
+          (repo.lastRegisterCall!['listPersonal'] as List<Map<String, dynamic>>)
+              .single;
+      expect(person['nationality'], 'THA');
+      expect(person['customerTypeCode'], 'TOURIST');
+      expect(person['flightCode'], 'TG101');
+      expect(person['flightDate'], '2026-08-18');
+      expect(find.text('Customer registered'), findsOneWidget);
+
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+      expect(find.text('Open registration'), findsOneWidget);
+    });
+
+    testWidgets('editing: Undo restores the loaded customer', (tester) async {
+      await openDesktop(tester, existingCustomer: editCustomer);
+      expect(find.text('EDIT CUSTOMER'), findsOneWidget);
+      expect(textOf(tester, DesktopCustomerIds.passportNo), 'P1234567');
+      expect(textOf(tester, DesktopCustomerIds.nationality), 'THA');
+      expect(textOf(tester, DesktopCustomerIds.customerType), 'VIP');
+      expect(textOf(tester, DesktopCustomerIds.subAgentCode), 'GD1');
+      expect(find.text('Female'), findsOneWidget);
+
+      await tester.enterText(input(DesktopCustomerIds.passportNo), 'X999');
+      await lookup(tester, DesktopCustomerIds.agentCode, 'AG', option: 1);
+      expect(textOf(tester, DesktopCustomerIds.subAgentCode), isEmpty);
+
+      await tester.tap(byTestId(DesktopCustomerIds.undoButton));
+      await tester.pumpAndSettle();
+
+      expect(textOf(tester, DesktopCustomerIds.passportNo), 'P1234567');
+      expect(textOf(tester, DesktopCustomerIds.agentCode), 'AG1');
+      expect(textOf(tester, DesktopCustomerIds.subAgentCode), 'GD1');
+      expect(
+        find.descendant(
+          of: byTestId(RegisterIds.submitButton),
+          matching: find.text('Update customer'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('Flight & passport writes back into the form and resolves '
+        'the flight date', (tester) async {
+      await openDesktop(tester);
+      await tester.tap(byTestId(DesktopCustomerIds.travellerButton));
+      await tester.pumpAndSettle();
+      expect(byTestId(DesktopCustomerIds.traveller), findsOneWidget);
+
+      await tester.enterText(
+        find.descendant(
+          of: byTestId(DesktopCustomerIds.travellerPassportNo),
+          matching: find.byType(TextField),
+        ),
+        'CB912447',
+      );
+      await tester.enterText(
+        find.descendant(
+          of: byTestId(TravellerIds.flightSearch),
+          matching: find.byType(TextField),
+        ),
+        'TG',
+      );
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pumpAndSettle();
+      await tester.tap(byTestId(TravellerIds.flight(0)));
+      await tester.pump();
+      await tester.tap(byTestId(TravellerIds.saveButton));
+      await tester.pumpAndSettle();
+
+      expect(byTestId(DesktopCustomerIds.traveller), findsNothing);
+      expect(textOf(tester, DesktopCustomerIds.passportNo), 'CB912447');
+      expect(textOf(tester, DesktopCustomerIds.flightCode), 'TG101');
+      expect(flightDateText(tester), 'Tue 18 Aug 2026 10:00');
+    });
+
+    testWidgets('embedded: no page chrome, and saving reports the shopping '
+        'card instead of closing', (tester) async {
+      setDeviceSize(tester, const Size(1440, 1400));
+      final repo = FakeCustomerRepository(
+        agentsResult: typedAgents,
+        registerResult: saved,
+      );
+      final flightRepo = FakeFlightRepository(
+        searchResult: _flights,
+        dateResult: _flightDates,
+      );
+      final savedCards = <String>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: CustomerRegistrationPage(
+                embedded: true,
+                onSaved: savedCards.add,
+                viewModel: CustomerRegistrationViewModel(
+                  listNationalities: ListNationalitiesUseCase(
+                    FakeNationalityRepository(searchResult: _nationalities),
+                  ),
+                  listAgents: ListAgentsUseCase(repo),
+                  listGuides: ListGuidesUseCase(repo),
+                  listCustomerTypes: ListCustomerTypesUseCase(repo),
+                  getFlightByCode: GetFlightByCodeUseCase(flightRepo),
+                  getDateByFlight: GetDateByFlightUseCase(flightRepo),
+                  registerCustomer: RegisterCustomerUseCase(repo),
+                ),
+                userCode: 'U001',
+                isAirportMpos: false,
+                existingCustomer: editCustomer,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Customer profile'), findsNothing);
+
+      // Take-away skips the flight requirement for this test.
+      await tester.tap(byTestId(DesktopCustomerIds.nonInternational));
+      await tester.pump();
+      await tester.tap(byTestId(RegisterIds.submitButton));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+
+      expect(savedCards, ['CPX0099']);
+      expect(byTestId(DesktopCustomerIds.form), findsOneWidget);
     });
   });
 }

@@ -3,10 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../../core/presentation/desktop/desktop.dart';
 import '../../../core/presentation/handheld/handheld.dart';
 import '../../../core/presentation/test_ids.dart';
-import '../../../core/presentation/widgets/app_buttons.dart';
-import '../../../core/presentation/widgets/app_card.dart';
 import '../../../core/presentation/widgets/app_text_field.dart';
 import '../../../core/presentation/widgets/autocomplete_field.dart';
 import '../../../core/presentation/widgets/test_id.dart';
@@ -18,6 +17,8 @@ import '../../nationality/domain/entities/nationality.dart';
 import '../domain/entities/agent.dart';
 import '../domain/entities/customer.dart';
 import 'customer_registration_view_model.dart';
+import 'desktop/desktop_flight_date_picker.dart';
+import 'desktop/desktop_traveller_overlay.dart';
 import 'handheld/flight_date_picker.dart';
 
 /// Manual-entry "Register new customer" form, fields ordered to match
@@ -27,11 +28,18 @@ import 'handheld/flight_date_picker.dart';
 /// `REGISTER_EDIT`), which prefills every field from the found customer
 /// rather than using a separate page. Passport/MRZ scan is still deferred
 /// (see the `customer-register-deferred` project memory).
+///
+/// At desktop width it is the POS Desktop Customer form (mockup screens 8,
+/// 12, 13): pushed, inside a [DesktopPageFrame]; [embedded], just the form
+/// panel for the Customer tab, which then gets [onSaved] (the saved
+/// shopping card) instead of the page closing.
 class CustomerRegistrationPage extends StatefulWidget {
   final CustomerRegistrationViewModel viewModel;
   final String userCode;
   final bool isAirportMpos;
   final Customer? existingCustomer;
+  final bool embedded;
+  final ValueChanged<String>? onSaved;
 
   const CustomerRegistrationPage({
     super.key,
@@ -39,6 +47,8 @@ class CustomerRegistrationPage extends StatefulWidget {
     required this.userCode,
     required this.isAirportMpos,
     this.existingCustomer,
+    this.embedded = false,
+    this.onSaved,
   });
 
   @override
@@ -86,7 +96,30 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
   @override
   void initState() {
     super.initState();
-    final customer = widget.existingCustomer;
+    _load(widget.existingCustomer);
+  }
+
+  // Fills every field from [customer], or clears them for a new one — used
+  // on open and by desktop Undo.
+  void _load(Customer? customer) {
+    _passportNoController.clear();
+    _englishNameController.clear();
+    _customerTypeController.clear();
+    _emailController.clear();
+    _mobileController.clear();
+    _weChatController.clear();
+    _gender = 'M';
+    _nationality = null;
+    _agent = null;
+    _guide = null;
+    _flight = null;
+    _flightDates = [];
+    _selectedFlightDate = null;
+    _airlineCode = '';
+    _allowTakeAway = false;
+    _listIdentity = const [];
+    _provinceCode = '';
+    _cityCode = '';
     if (customer == null) return;
     final person = customer.person;
 
@@ -162,11 +195,12 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
   // Resolves candidate dates for a flight prefilled from an existing
   // customer, same as `_onFlightSelected` picking the first candidate — but
   // without that method's own `setState()` for `_flight`/reset, since
-  // [initState] already set `_flight` directly (before the first build, so
+  // [_load] already set `_flight` directly (before the first build, so
   // no `setState()` is needed — or safe to call — for that part yet).
   Future<void> _prefillFlightDates(String flightCode) async {
     final dates = await widget.viewModel.getDatesForFlight(flightCode);
-    if (!mounted) return;
+    // Dropped if Undo / a new pick replaced the flight meanwhile.
+    if (!mounted || _flight?.flightCode != flightCode) return;
     final firstCandidate = dates.isEmpty
         ? null
         : _parseFlightDate(dates.first.flightDate);
@@ -255,7 +289,7 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
       _airlineCode = '';
     });
     final dates = await widget.viewModel.getDatesForFlight(flight.flightCode);
-    if (!mounted) return;
+    if (!mounted || !identical(_flight, flight)) return;
     final firstCandidate = dates.isEmpty
         ? null
         : _parseFlightDate(dates.first.flightDate);
@@ -340,21 +374,21 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
   }
 
   // Ports `customer-form.ts`'s `openCalendar()`: legacy only lets the user
-  // change the DATE via its ion2-calendar modal (approximated here with
-  // Flutter's built-in Material date picker) — the TIME always stays
+  // change the DATE via its ion2-calendar modal — the TIME always stays
   // whatever the flight's first resolved candidate carries, so there is no
   // time-picking step. Only the exact dates `getDateByFlight` resolved are
   // selectable (legacy's `from: filghtDateFirst` plus its — functionally
   // inert — per-day `daysConfig` list, ported here as an actual
-  // restriction via `selectableDayPredicate`).
+  // restriction). Handheld (mockup screen 13) keeps that fixed time; the
+  // desktop picker (screen 12) takes each day's time from its own resolved
+  // departure instead — the same value whenever the flight departs at one
+  // time daily.
   Future<void> _pickFlightDate() async {
+    if (AppBreakpoints.isWide(context)) return _pickDesktopFlightDate();
     final anchor =
         _parseFlightDate(_flightDates.first.flightDate) ?? DateTime.now();
     final anchorDateOnly = _dateOnly(anchor);
     final allowedDates = _candidateDateOnlySet(_flightDates);
-    final lastDateOnly = allowedDates.isEmpty
-        ? anchorDateOnly
-        : allowedDates.reduce((a, b) => a.isAfter(b) ? a : b);
     final currentDateOnly = _selectedFlightDate == null
         ? null
         : _parseDisplayedDateOnly(_selectedFlightDate!);
@@ -363,33 +397,14 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
         ? currentDateOnly
         : anchorDateOnly;
 
-    // Handheld widths use the mockup's own picker (screen 13) with the same
-    // rules: fixed schedule time, first candidate date as the floor, only
-    // resolved candidate dates selectable.
-    final DateTime? picked;
-    if (AppBreakpoints.isWide(context)) {
-      picked = await showDatePicker(
-        context: context,
-        initialDate: initialDate,
-        firstDate: anchorDateOnly,
-        lastDate: lastDateOnly.isBefore(anchorDateOnly)
-            ? anchorDateOnly
-            : lastDateOnly,
-        selectableDayPredicate: allowedDates.isEmpty
-            ? null
-            : (day) => allowedDates.contains(_dateOnly(day)),
-      );
-    } else {
-      picked = await showFlightDatePicker(
-        context,
-        flightCode: _flight?.flightCode ?? '',
-        firstDate: anchorDateOnly,
-        initialDate: initialDate,
-        time: TimeOfDay(hour: anchor.hour, minute: anchor.minute),
-        allowedDates: allowedDates,
-      );
-    }
-    final chosen = picked;
+    final chosen = await showFlightDatePicker(
+      context,
+      flightCode: _flight?.flightCode ?? '',
+      firstDate: anchorDateOnly,
+      initialDate: initialDate,
+      time: TimeOfDay(hour: anchor.hour, minute: anchor.minute),
+      allowedDates: allowedDates,
+    );
     if (chosen == null || !mounted) return;
     setState(
       () => _selectedFlightDate = _formatFlightDate(
@@ -402,6 +417,83 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _pickDesktopFlightDate() async {
+    final departures = [
+      for (final f in _flightDates) ?_parseFlightDate(f.flightDate),
+    ];
+    if (departures.isEmpty) return;
+    final picked = await showDesktopFlightDatePicker(
+      context,
+      flightCode: _flight?.flightCode ?? '',
+      route: _flightRoute(_flight),
+      departures: departures,
+      initial: _selectedFlightDate == null
+          ? null
+          : _parseDisplayedDateTime(_selectedFlightDate!),
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _selectedFlightDate = _formatFlightDate(picked));
+  }
+
+  static String _flightRoute(Flight? flight) {
+    if (flight == null) return '';
+    if (flight.flightDescription.isNotEmpty) return flight.flightDescription;
+    if (flight.arrDepAirportName.isEmpty && flight.destAirportName.isEmpty) {
+      return '';
+    }
+    return '${flight.arrDepAirportName} → ${flight.destAirportName}';
+  }
+
+  // Desktop "Non-international flight (take away)": the same Allow
+  // take-away flag, but turning it on also clears the flight fields, as the
+  // mockup labels it.
+  void _setNonInternational(bool value) {
+    setState(() {
+      _allowTakeAway = value;
+      if (value) {
+        _flight = null;
+        _flightDates = [];
+        _selectedFlightDate = null;
+        _airlineCode = '';
+      }
+    });
+  }
+
+  // Screen 9 edits the same passport / name / nationality / flight fields;
+  // a newly picked flight resolves its dates exactly as the Flight code
+  // lookup does.
+  Future<void> _openTraveller(CustomerRegistrationViewModel viewModel) async {
+    final details = await showDesktopTravellerOverlay(
+      context,
+      initial: TravellerDetails(
+        passportNo: _passportNoController.text,
+        englishName: _englishNameController.text,
+        nationality: _nationality,
+        flight: _flight,
+      ),
+      searchFlights: viewModel.searchFlights,
+      searchNationalities: viewModel.searchNationalities,
+    );
+    if (details == null || !mounted) return;
+    setState(() {
+      _passportNoController.text = details.passportNo;
+      _englishNameController.text = details.englishName;
+      _nationality = details.nationality;
+    });
+    final flight = details.flight;
+    if (flight != null && flight.flightCode != _flight?.flightCode) {
+      await _onFlightSelected(flight);
+    }
+  }
+
+  // Changing the agent clears the sub agent (guide) picked under it.
+  void _onAgentSelected(Agent agent) {
+    setState(() {
+      if (agent.agentCode != _agent?.agentCode) _guide = null;
+      _agent = agent;
+    });
   }
 
   Future<void> _submit() async {
@@ -478,6 +570,10 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
       ),
     );
     if (!mounted) return;
+    if (widget.embedded) {
+      widget.onSaved?.call(shoppingCard);
+      return;
+    }
     Navigator.of(context).pop();
   }
 
@@ -499,57 +595,366 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
     BuildContext context,
     CustomerRegistrationViewModel viewModel,
   ) {
-    final textTheme = Theme.of(context).textTheme;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_isEdit ? 'Customer profile' : 'Register new customer'),
-      ),
+    final form = _desktopForm(viewModel);
+    if (widget.embedded) return form;
+    return DesktopPageFrame(
+      title: _isEdit ? 'Customer profile' : 'Register new customer',
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppSpacing.lg),
+        padding: const EdgeInsets.all(DesktopMetrics.pagePadding),
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 480),
-            child: AppCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _manualEntryNote,
-                    style: textTheme.bodySmall?.copyWith(
-                      color: AppColors.textSecondary,
+            constraints: const BoxConstraints(maxWidth: 980),
+            child: form,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Mockup screen 8's form: two-column fields, the five searchable ones as
+  /// [DesktopLookupField]s (screen 13), flight date via screen 12.
+  Widget _desktopForm(CustomerRegistrationViewModel viewModel) {
+    // Legacy's `validateRegister()` requires these only when take-away is
+    // off (international flight); Customer type only off Airport mode.
+    final international = !_allowTakeAway;
+    Widget pair(Widget left, Widget right) => Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: left),
+          const SizedBox(width: 16),
+          Expanded(child: right),
+        ],
+      ),
+    );
+
+    return DesktopPanel(
+      id: DesktopCustomerIds.form,
+      title: _isEdit ? 'Edit customer' : 'New customer',
+      trailing: const Text(
+        '* required for international flight',
+        style: TextStyle(fontSize: 12, color: AppColors.mutedText),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          pair(
+            DesktopLookupField<Flight>(
+              id: DesktopCustomerIds.flightCode,
+              label: 'Flight code',
+              required: international,
+              hint: 'e.g. TG916',
+              value: _flight,
+              search: viewModel.searchFlights,
+              code: (f) => f.flightCode,
+              name: _flightRoute,
+              trailing: (f) {
+                final departs = _parseFlightDate(f.flightDate);
+                return departs == null ? '' : _wireFlightTime(departs);
+              },
+              onSelected: _onFlightSelected,
+            ),
+            _desktopFlightDateField(required: international),
+          ),
+          pair(
+            _desktopTextField(
+              DesktopCustomerIds.passportNo,
+              'Passport no.',
+              _passportNoController,
+              required: international,
+            ),
+            _desktopTextField(
+              DesktopCustomerIds.englishName,
+              'English name',
+              _englishNameController,
+              required: international,
+            ),
+          ),
+          pair(
+            _desktopGenderField(),
+            DesktopLookupField<Nationality>(
+              id: DesktopCustomerIds.nationality,
+              label: 'Nationality',
+              required: international,
+              value: _nationality,
+              search: viewModel.searchNationalities,
+              code: (n) => n.countryCode,
+              name: (n) => n.countryName,
+              onSelected: (n) => setState(() => _nationality = n),
+            ),
+          ),
+          pair(
+            _desktopTextField(
+              DesktopCustomerIds.email,
+              'Email',
+              _emailController,
+              keyboardType: TextInputType.emailAddress,
+              errorText: _emailError,
+            ),
+            _desktopTextField(
+              DesktopCustomerIds.mobile,
+              'Mobile',
+              _mobileController,
+              keyboardType: TextInputType.phone,
+            ),
+          ),
+          pair(
+            _desktopTextField(
+              DesktopCustomerIds.weChat,
+              'WeChat',
+              _weChatController,
+            ),
+            DesktopLookupField<Agent>(
+              id: DesktopCustomerIds.customerType,
+              label: 'Customer type',
+              required: !widget.isAirportMpos,
+              value: _customerTypeController.text.isEmpty
+                  ? null
+                  : Agent(
+                      subAgentCode: '',
+                      subAgentDesc: '',
+                      agentCode: '',
+                      agentDesc: '',
+                      customerType: _customerTypeController.text,
+                      customerTypeDesc: '',
                     ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  ..._spaced([
-                    _passportField(),
-                    _englishNameField(),
-                    _genderField(),
-                    _nationalityField(viewModel),
-                    _flightField(viewModel),
-                    _flightDateField(),
-                    _emailField(),
-                    _mobileField(),
-                    _weChatField(),
-                    _agentField(viewModel),
-                    _guideField(viewModel),
-                    _customerTypeField(),
-                    _takeAwaySwitch(),
-                  ]),
-                  ?_errorText(viewModel),
-                  AppPrimaryButton(
-                    // Never disabled by field validity — matches legacy,
-                    // which always allows tapping Save/Update and
-                    // validates on tap via [_validateRegister] instead.
-                    // Only in-flight submission blocks a repeat tap.
-                    label: _isEdit ? 'Update' : 'Register',
-                    onPressed: _isSubmitting(viewModel) ? null : _submit,
-                  ),
-                ],
+              search: viewModel.searchCustomerTypes,
+              code: (a) => a.customerType,
+              name: (a) => a.customerTypeDesc,
+              onSelected: (a) =>
+                  setState(() => _customerTypeController.text = a.customerType),
+            ),
+          ),
+          pair(
+            DesktopLookupField<Agent>(
+              id: DesktopCustomerIds.agentCode,
+              label: 'Agent code',
+              value: _agent,
+              search: viewModel.searchAgents,
+              code: (a) => a.agentCode,
+              name: (a) => a.agentDesc,
+              onSelected: _onAgentSelected,
+            ),
+            DesktopLookupField<Agent>(
+              id: DesktopCustomerIds.subAgentCode,
+              label: 'Sub agent code',
+              enabled: _agent != null,
+              disabledHint: 'Choose an agent code first',
+              value: _guide,
+              search: viewModel.searchGuides,
+              code: (a) => a.subAgentCode,
+              name: (a) => a.subAgentDesc,
+              onSelected: (a) => setState(() => _guide = a),
+            ),
+          ),
+          TestId(
+            DesktopCustomerIds.nonInternational,
+            child: CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              activeColor: AppColors.goldDark,
+              value: _allowTakeAway,
+              onChanged: (value) => _setNonInternational(value ?? false),
+              title: const Text(
+                'Non-international flight (take away — clears flight fields)',
+                style: TextStyle(fontSize: 14),
               ),
             ),
           ),
+          ?_errorText(viewModel),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: DesktopButton(
+                  id: RegisterIds.submitButton,
+                  // Never disabled by field validity — matches legacy,
+                  // which always allows tapping Save/Update and validates
+                  // on tap via [_validateRegister] instead. Only in-flight
+                  // submission blocks a repeat tap.
+                  label: _isEdit ? 'Update customer' : 'Register customer',
+                  icon: Icons.check,
+                  height: 56,
+                  onPressed: _isSubmitting(viewModel) ? null : _submit,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: DesktopButton(
+                  id: DesktopCustomerIds.travellerButton,
+                  label: 'Flight & passport',
+                  icon: Icons.flight_takeoff,
+                  secondary: true,
+                  height: 56,
+                  onPressed: () => _openTraveller(viewModel),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: DesktopButton(
+                  id: DesktopCustomerIds.undoButton,
+                  label: 'Undo',
+                  icon: Icons.undo,
+                  secondary: true,
+                  height: 56,
+                  onPressed: () =>
+                      setState(() => _load(widget.existingCustomer)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            _manualEntryNote,
+            style: TextStyle(fontSize: 12, color: AppColors.mutedText),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static InputDecoration _desktopDecoration({String? errorText}) {
+    OutlineInputBorder border(Color color, double width) => OutlineInputBorder(
+      borderRadius: BorderRadius.circular(8),
+      borderSide: BorderSide(color: color, width: width),
+    );
+    return InputDecoration(
+      filled: true,
+      fillColor: AppColors.surface,
+      errorText: errorText,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
+      border: border(const Color(0xFFD8DDE5), 1),
+      enabledBorder: border(const Color(0xFFD8DDE5), 1),
+      focusedBorder: border(AppColors.goldMuted, 2),
+    );
+  }
+
+  static Widget _desktopLabel(String label, {bool required = false}) => Padding(
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Text(
+      '${label.toUpperCase()}${required ? ' *' : ''}',
+      style: DesktopText.fieldLabel,
+    ),
+  );
+
+  Widget _desktopTextField(
+    String id,
+    String label,
+    TextEditingController controller, {
+    bool required = false,
+    TextInputType? keyboardType,
+    String? errorText,
+  }) => TestId(
+    id,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _desktopLabel(label, required: required),
+        TextField(
+          controller: controller,
+          keyboardType: keyboardType,
+          onChanged: (_) => setState(() {}),
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+          decoration: _desktopDecoration(errorText: errorText),
         ),
+      ],
+    ),
+  );
+
+  Widget _desktopGenderField() => TestId(
+    DesktopCustomerIds.gender,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _desktopLabel('Gender'),
+        DropdownButtonFormField<String>(
+          // Keyed on the value so Undo's reset is shown.
+          key: ValueKey(_gender),
+          initialValue: _gender,
+          decoration: _desktopDecoration(),
+          items: const [
+            DropdownMenuItem(value: 'M', child: Text('Male')),
+            DropdownMenuItem(value: 'F', child: Text('Female')),
+          ],
+          onChanged: (value) => setState(() => _gender = value ?? 'M'),
+        ),
+      ],
+    ),
+  );
+
+  Widget _desktopFlightDateField({required bool required}) {
+    final enabled = _flightDates.isNotEmpty;
+    final selected = _selectedFlightDate == null
+        ? null
+        : _parseDisplayedDateTime(_selectedFlightDate!);
+    return TestId(
+      DesktopCustomerIds.flightDate,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _desktopLabel('Flight date & time', required: required),
+          Semantics(
+            button: true,
+            enabled: enabled,
+            child: Material(
+              color: enabled ? AppColors.surface : AppColors.surfaceAlt,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+                side: const BorderSide(color: Color(0xFFD8DDE5)),
+              ),
+              child: InkWell(
+                onTap: enabled ? _pickFlightDate : null,
+                borderRadius: BorderRadius.circular(8),
+                child: SizedBox(
+                  height: DesktopMetrics.fieldHeight,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            selected != null
+                                ? formatFlightPickerDate(selected)
+                                : enabled
+                                ? 'Pick a date'
+                                : 'Pick a flight first',
+                            style: selected != null
+                                ? const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                  )
+                                : const TextStyle(
+                                    fontSize: 14.5,
+                                    color: AppColors.hintText,
+                                  ),
+                          ),
+                        ),
+                        if (selected != null)
+                          Text(
+                            _wireFlightTime(selected),
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              fontFeatures: [FontFeature.tabularFigures()],
+                            ),
+                          ),
+                        const SizedBox(width: 10),
+                        const Icon(
+                          Icons.calendar_today_outlined,
+                          size: 16,
+                          color: AppColors.hintText,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

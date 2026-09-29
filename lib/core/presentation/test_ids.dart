@@ -332,6 +332,59 @@ abstract class DesktopSaleIds {
   static String qtyIncrease(String row) => 'desktop.sale.line.$row.qtyIncrease';
 }
 
+/// Desktop Customer (S8), Flight & passport (S9) and flight date picker
+/// (S12) elements not shared with handheld. Shared ones reuse
+/// [RegisterIds], [ProfileIds], [TravellerIds] and [FlightPickerIds].
+abstract class DesktopCustomerIds {
+  // S12 flight date & time
+  static const flightPicker = 'desktop.flightPicker';
+  static String departure(int index) => 'desktop.flightPicker.departure.$index';
+
+  // S8 form
+  static const form = 'desktop.customer.form';
+  static const flightCode = 'desktop.customer.flightCode';
+  static const flightDate = 'desktop.customer.flightDate';
+  static const passportNo = 'desktop.customer.passportNo';
+  static const englishName = 'desktop.customer.englishName';
+  static const gender = 'desktop.customer.gender';
+  static const nationality = 'desktop.customer.nationality';
+  static const email = 'desktop.customer.email';
+  static const mobile = 'desktop.customer.mobile';
+  static const weChat = 'desktop.customer.weChat';
+  static const customerType = 'desktop.customer.customerType';
+  static const agentCode = 'desktop.customer.agentCode';
+  static const subAgentCode = 'desktop.customer.subAgentCode';
+  static const nonInternational = 'desktop.customer.nonInternational';
+  static const undoButton = 'desktop.customer.undoButton';
+  static const travellerButton = 'desktop.customer.travellerButton';
+
+  // S8 tab
+  static const searchField = 'desktop.customer.searchField';
+  static const searchButton = 'desktop.customer.searchButton';
+  static const newCustomerButton = 'desktop.customer.newCustomerButton';
+  static const registerMemberButton = 'desktop.customer.registerMemberButton';
+  static const matchedCard = 'desktop.customer.matchedCard';
+  static const profile = 'desktop.customer.profile';
+  static const profileEmpty = 'desktop.customer.profileEmpty';
+  static String result(int index) => 'desktop.customer.result.$index';
+
+  // S9 flight & passport
+  static const traveller = 'desktop.traveller';
+  static const travellerPassportNo = 'desktop.traveller.passportNo';
+  static const travellerName = 'desktop.traveller.englishName';
+  static const travellerNationality = 'desktop.traveller.nationality';
+  static const boardingPassButton = 'desktop.traveller.boardingPassButton';
+  static const collectionPoint = 'desktop.traveller.collectionPoint';
+  static String travellerFilter(String key) => 'desktop.traveller.filter.$key';
+}
+
+/// Desktop lookup field (S13) parts, derived from the field's own id.
+abstract class DesktopLookupIds {
+  static String open(String fieldId) => '$fieldId.open';
+  static String list(String fieldId) => '$fieldId.list';
+  static String option(String fieldId, int index) => '$fieldId.option.$index';
+}
+
 /// Desktop Checkout (S5) / Payment (S6) elements not shared with handheld.
 abstract class DesktopPaymentIds {
   static const wizardSteps = 'desktop.wizard.steps';

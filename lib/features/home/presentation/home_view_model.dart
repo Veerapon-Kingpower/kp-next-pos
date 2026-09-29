@@ -73,4 +73,12 @@ class HomeViewModel extends GetxController {
     isSearchingCustomer = false;
     update();
   }
+
+  /// Back to the not-yet-searched state (desktop Customer "New customer").
+  void clearCustomerSearch() {
+    hasSearchedCustomer = false;
+    customerSearchResults = const [];
+    customerSearchError = null;
+    update();
+  }
 }

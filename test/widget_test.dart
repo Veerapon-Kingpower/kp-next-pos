@@ -11,6 +11,7 @@ import 'package:kp_pos/features/auth/domain/usecases/restore_session_usecase.dar
 import 'package:kp_pos/features/auth/presentation/login_view_model.dart';
 import 'package:kp_pos/features/customer/domain/usecases/list_agents_usecase.dart';
 import 'package:kp_pos/features/customer/domain/usecases/list_guides_usecase.dart';
+import 'package:kp_pos/features/customer/domain/usecases/list_customer_types_usecase.dart';
 import 'package:kp_pos/features/customer/domain/usecases/register_customer_usecase.dart';
 import 'package:kp_pos/features/customer/domain/usecases/search_customer_usecase.dart';
 import 'package:kp_pos/features/customer/presentation/customer_registration_view_model.dart';
@@ -65,6 +66,7 @@ CustomerRegistrationViewModel _customerRegistrationViewModel() {
     listNationalities: ListNationalitiesUseCase(FakeNationalityRepository()),
     listAgents: ListAgentsUseCase(repo),
     listGuides: ListGuidesUseCase(repo),
+    listCustomerTypes: ListCustomerTypesUseCase(repo),
     getFlightByCode: GetFlightByCodeUseCase(flightRepo),
     getDateByFlight: GetDateByFlightUseCase(flightRepo),
     registerCustomer: RegisterCustomerUseCase(repo),

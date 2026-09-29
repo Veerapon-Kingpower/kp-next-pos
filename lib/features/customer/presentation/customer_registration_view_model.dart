@@ -9,6 +9,7 @@ import '../../nationality/domain/usecases/list_nationalities_usecase.dart';
 import '../domain/entities/agent.dart';
 import '../domain/entities/customer_registration.dart';
 import '../domain/usecases/list_agents_usecase.dart';
+import '../domain/usecases/list_customer_types_usecase.dart';
 import '../domain/usecases/list_guides_usecase.dart';
 import '../domain/usecases/register_customer_usecase.dart';
 
@@ -36,6 +37,7 @@ class CustomerRegistrationViewModel extends GetxController {
   final ListNationalitiesUseCase _listNationalities;
   final ListAgentsUseCase _listAgents;
   final ListGuidesUseCase _listGuides;
+  final ListCustomerTypesUseCase _listCustomerTypes;
   final GetFlightByCodeUseCase _getFlightByCode;
   final GetDateByFlightUseCase _getDateByFlight;
   final RegisterCustomerUseCase _registerCustomer;
@@ -44,12 +46,14 @@ class CustomerRegistrationViewModel extends GetxController {
     required ListNationalitiesUseCase listNationalities,
     required ListAgentsUseCase listAgents,
     required ListGuidesUseCase listGuides,
+    required ListCustomerTypesUseCase listCustomerTypes,
     required GetFlightByCodeUseCase getFlightByCode,
     required GetDateByFlightUseCase getDateByFlight,
     required RegisterCustomerUseCase registerCustomer,
   }) : _listNationalities = listNationalities,
        _listAgents = listAgents,
        _listGuides = listGuides,
+       _listCustomerTypes = listCustomerTypes,
        _getFlightByCode = getFlightByCode,
        _getDateByFlight = getDateByFlight,
        _registerCustomer = registerCustomer;
@@ -67,6 +71,11 @@ class CustomerRegistrationViewModel extends GetxController {
   Future<List<Agent>> searchAgents(String query) => _listAgents(input: query);
 
   Future<List<Agent>> searchGuides(String query) => _listGuides(input: query);
+
+  /// Backs the desktop Customer type lookup; handheld keeps the free-text
+  /// field.
+  Future<List<Agent>> searchCustomerTypes(String query) =>
+      _listCustomerTypes(input: query);
 
   /// `pageSize: 60` matches `flight.ts`'s picker call.
   Future<List<Flight>> searchFlights(String query) =>
@@ -194,7 +203,11 @@ class CustomerRegistrationViewModel extends GetxController {
     // the combined display string.
     'flightDate': flightDate,
     'flightTime': flightTime,
-    'listContact': _buildListContact(email: email, mobile: mobile, weChat: weChat),
+    'listContact': _buildListContact(
+      email: email,
+      mobile: mobile,
+      weChat: weChat,
+    ),
     // Echoed back verbatim from the found customer's own `listIdentity`
     // when one already has a shopping card (empty for a brand-new
     // registration) — matches legacy's `if (this.shoppingCard != "") {

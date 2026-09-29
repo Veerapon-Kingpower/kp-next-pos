@@ -8,6 +8,7 @@ import 'data/datasources/customer_remote_data_source.dart';
 import 'data/repositories/customer_repository_impl.dart';
 import 'domain/repositories/customer_repository.dart';
 import 'domain/usecases/list_agents_usecase.dart';
+import 'domain/usecases/list_customer_types_usecase.dart';
 import 'domain/usecases/list_guides_usecase.dart';
 import 'domain/usecases/register_customer_usecase.dart';
 import 'domain/usecases/search_customer_usecase.dart';
@@ -36,6 +37,9 @@ void setupCustomerServiceLocator() {
   sl.registerFactory<ListGuidesUseCase>(
     () => ListGuidesUseCase(sl<CustomerRepository>()),
   );
+  sl.registerFactory<ListCustomerTypesUseCase>(
+    () => ListCustomerTypesUseCase(sl<CustomerRepository>()),
+  );
   sl.registerFactory<GetShippingAddressUseCase>(
     () => GetShippingAddressUseCase(sl<CustomerRepository>()),
   );
@@ -47,6 +51,7 @@ void setupCustomerServiceLocator() {
       listNationalities: sl<ListNationalitiesUseCase>(),
       listAgents: sl<ListAgentsUseCase>(),
       listGuides: sl<ListGuidesUseCase>(),
+      listCustomerTypes: sl<ListCustomerTypesUseCase>(),
       getFlightByCode: sl<GetFlightByCodeUseCase>(),
       getDateByFlight: sl<GetDateByFlightUseCase>(),
       registerCustomer: sl<RegisterCustomerUseCase>(),

@@ -3,6 +3,7 @@ import 'package:kp_pos/core/error/app_exception.dart';
 import 'package:kp_pos/features/customer/domain/entities/customer_registration.dart';
 import 'package:kp_pos/features/customer/domain/usecases/list_agents_usecase.dart';
 import 'package:kp_pos/features/customer/domain/usecases/list_guides_usecase.dart';
+import 'package:kp_pos/features/customer/domain/usecases/list_customer_types_usecase.dart';
 import 'package:kp_pos/features/customer/domain/usecases/register_customer_usecase.dart';
 import 'package:kp_pos/features/customer/presentation/customer_registration_view_model.dart';
 import 'package:kp_pos/features/flight/domain/entities/flight.dart';
@@ -27,6 +28,7 @@ void main() {
       ),
       listAgents: ListAgentsUseCase(repo),
       listGuides: ListGuidesUseCase(repo),
+      listCustomerTypes: ListCustomerTypesUseCase(repo),
       getFlightByCode: GetFlightByCodeUseCase(flight),
       getDateByFlight: GetDateByFlightUseCase(flight),
       registerCustomer: RegisterCustomerUseCase(repo),
@@ -342,29 +344,26 @@ void main() {
     },
   );
 
-  test(
-    'submit forces customerTypeCode to "FIT" when isAirportMpos is true, '
-    'regardless of what was collected — matches legacy exactly',
-    () async {
-      final repo = FakeCustomerRepository();
-      final viewModel = buildViewModel(repo);
+  test('submit forces customerTypeCode to "FIT" when isAirportMpos is true, '
+      'regardless of what was collected — matches legacy exactly', () async {
+    final repo = FakeCustomerRepository();
+    final viewModel = buildViewModel(repo);
 
-      await viewModel.submit(
-        englishName: 'Jane Doe',
-        passportNo: 'P1234567',
-        nationality: 'THA',
-        gender: 'M',
-        customerTypeCode: 'VIP',
-        allowTakeAway: false,
-        isAirportMpos: true,
-        userCode: 'U001',
-      );
+    await viewModel.submit(
+      englishName: 'Jane Doe',
+      passportNo: 'P1234567',
+      nationality: 'THA',
+      gender: 'M',
+      customerTypeCode: 'VIP',
+      allowTakeAway: false,
+      isAirportMpos: true,
+      userCode: 'U001',
+    );
 
-      final listPersonal =
-          repo.lastRegisterCall!['listPersonal'] as List<Map<String, dynamic>>;
-      expect(listPersonal.single['customerTypeCode'], 'FIT');
-    },
-  );
+    final listPersonal =
+        repo.lastRegisterCall!['listPersonal'] as List<Map<String, dynamic>>;
+    expect(listPersonal.single['customerTypeCode'], 'FIT');
+  });
 
   test('a successful submit stores the register result', () async {
     const registerResult = RegisterResult(
@@ -402,7 +401,9 @@ void main() {
     'a failed submit surfaces the server message and leaves status as failure',
     () async {
       final repo = FakeCustomerRepository(
-        registerError: const ApiException(messageDesc: 'Passport already registered.'),
+        registerError: const ApiException(
+          messageDesc: 'Passport already registered.',
+        ),
       );
       final viewModel = buildViewModel(repo);
 
@@ -461,6 +462,19 @@ void main() {
     },
   );
 
+  test(
+    'searchCustomerTypes delegates with typeSearch "customertype"',
+    () async {
+      final repo = FakeCustomerRepository();
+      final viewModel = buildViewModel(repo);
+
+      await viewModel.searchCustomerTypes('TOU');
+
+      expect(repo.lastAgentsInput, 'TOU');
+      expect(repo.lastAgentsTypeSearch, 'customertype');
+    },
+  );
+
   test('searchFlights delegates to GetFlightByCodeUseCase', () async {
     final flightRepo = FakeFlightRepository();
     final viewModel = buildViewModel(
@@ -498,26 +512,29 @@ void main() {
     expect(result, dates);
   });
 
-  test('submit includes gender and customer type code in listPersonal', () async {
-    final repo = FakeCustomerRepository();
-    final viewModel = buildViewModel(repo);
+  test(
+    'submit includes gender and customer type code in listPersonal',
+    () async {
+      final repo = FakeCustomerRepository();
+      final viewModel = buildViewModel(repo);
 
-    await viewModel.submit(
-      englishName: 'Jane Doe',
-      passportNo: 'P1234567',
-      nationality: 'THA',
-      gender: 'F',
-      customerTypeCode: 'VIP',
-      allowTakeAway: false,
-      isAirportMpos: false,
-      userCode: 'U001',
-    );
+      await viewModel.submit(
+        englishName: 'Jane Doe',
+        passportNo: 'P1234567',
+        nationality: 'THA',
+        gender: 'F',
+        customerTypeCode: 'VIP',
+        allowTakeAway: false,
+        isAirportMpos: false,
+        userCode: 'U001',
+      );
 
-    final listPersonal =
-        repo.lastRegisterCall!['listPersonal'] as List<Map<String, dynamic>>;
-    expect(listPersonal.single['gender'], 'F');
-    expect(listPersonal.single['customerTypeCode'], 'VIP');
-  });
+      final listPersonal =
+          repo.lastRegisterCall!['listPersonal'] as List<Map<String, dynamic>>;
+      expect(listPersonal.single['gender'], 'F');
+      expect(listPersonal.single['customerTypeCode'], 'VIP');
+    },
+  );
 
   test(
     'submit builds listContact from email, mobile, and weChat when provided',

@@ -6,14 +6,12 @@ import '../../../core/presentation/desktop/desktop.dart';
 import '../../../core/presentation/handheld/handheld.dart';
 import '../../../core/presentation/test_ids.dart';
 import '../../../core/presentation/widgets/test_id.dart';
-import '../../../core/presentation/widgets/app_buttons.dart';
 import '../../../core/presentation/widgets/app_card.dart';
 import '../../../core/presentation/widgets/app_dialogs.dart';
 import '../../../core/presentation/widgets/app_shell.dart';
 import '../../../core/presentation/widgets/empty_state_view.dart';
 import '../../../core/presentation/widgets/loading_view.dart';
 import '../../../core/presentation/widgets/retryable_error_view.dart';
-import '../../../core/presentation/widgets/search_scan_input.dart';
 import '../../../core/theme/app_breakpoints.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_sizing.dart';
@@ -149,6 +147,13 @@ class _HomePageState extends State<HomePage> {
   // `_choosePrivilege` dialog below, which was the old "Go to Sale"-gated
   // way to pick one.
   Privilege? _selectedPrivilege;
+  // Desktop Customer tab (S8): which search result the profile / form show,
+  // and the embedded form's view model, recreated per shown customer (see
+  // `_customerForm`).
+  int _selectedResult = 0;
+  int _formGeneration = 0;
+  String? _formKey;
+  CustomerRegistrationViewModel? _formViewModel;
 
   @override
   void initState() {
@@ -187,6 +192,7 @@ class _HomePageState extends State<HomePage> {
       setState(() => _selectedPrivilege = null);
       _saleCartViewModel.selectPrivilege(null);
     }
+    _selectedResult = 0;
     widget.viewModel.searchCustomer(_customerSearchController.text);
   }
 
@@ -538,7 +544,7 @@ class _HomePageState extends State<HomePage> {
     return HandheldHomeView(
       searchController: _customerSearchController,
       onSearch: (_) => _searchCustomer(),
-      searchResults: _customerSearchResults(context, viewModel, compact: true),
+      searchResults: _customerSearchResults(context, viewModel),
       onRegister: () => _openRegistration(),
       onSale: () => setState(() => _section = _HomeSection.sale),
       onEnquiry: () => setState(() => _section = _HomeSection.enquiry),
@@ -622,97 +628,399 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  /// Desktop Customer (POS Desktop mockup screen 8): one identifier
+  /// resolves to one customer, so the form sits where a result list would
+  /// be — the edit form on the left (a new-customer form until a search
+  /// finds someone, mirroring legacy's found → profile / not found →
+  /// register routing), the profile on the right.
   Widget _customerSearchSection(BuildContext context, HomeViewModel viewModel) {
-    final textTheme = Theme.of(context).textTheme;
+    final results = viewModel.customerSearchResults;
+    final index = _selectedResult < results.length ? _selectedResult : 0;
+    final customer = results.isEmpty ? null : results[index];
+    final profile = TestId(
+      DesktopCustomerIds.profile,
+      child: _customerProfile(viewModel, customer, index),
+    );
+    final form = _customerForm(viewModel, customer);
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              AppCard(
-                child: Column(
+    return Padding(
+      padding: const EdgeInsets.all(DesktopMetrics.pagePadding),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _customerSearchBar(viewModel, customer),
+          const SizedBox(height: 20),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // Too narrow for side-by-side (small landscape tablets):
+                // profile above the form.
+                if (constraints.maxWidth < 1000) {
+                  return SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [profile, const SizedBox(height: 20), form],
+                    ),
+                  );
+                }
+                return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Search customer', style: textTheme.titleMedium),
-                    const SizedBox(height: AppSpacing.sm),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: SearchScanInput(
-                            controller: _customerSearchController,
-                            hintText: _customerSearchHint,
-                            onSubmitted: (_) => _searchCustomer(),
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.sm),
-                        SizedBox(
-                          width: 120,
-                          child: AppPrimaryButton(
-                            label: 'Search',
-                            onPressed: viewModel.isSearchingCustomer
-                                ? null
-                                : _searchCustomer,
-                          ),
-                        ),
-                      ],
+                    Expanded(child: SingleChildScrollView(child: form)),
+                    const SizedBox(width: 20),
+                    SizedBox(
+                      width: constraints.maxWidth >= 1300 ? 560 : 440,
+                      child: SingleChildScrollView(child: profile),
                     ),
-                    const SizedBox(height: AppSpacing.sm),
-                    _customerSearchResults(context, viewModel),
                   ],
-                ),
-              ),
-              // Hidden once a search actually returns a candidate — mirrors
-              // legacy's own routing: a found shopping card goes to the
-              // profile, a search that turns up nothing goes to
-              // registration (`customer.ts`'s `isFound`-gated branch in
-              // `ionViewWillEnter()`). Kept visible before any search and
-              // after a no-results search, matching that same intent.
-              if (viewModel.customerSearchResults.isEmpty) ...[
-                const SizedBox(height: AppSpacing.md),
-                // Own card, physically separated from Search, so it can't
-                // be mis-tapped for it — see the "own card below Search"
-                // mockup decision.
-                AppCard(
-                  child: Column(
-                    children: [
-                      Text(
-                        "New customer not in the system?",
-                        style: textTheme.bodySmall?.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      Center(
-                        child: SizedBox(
-                          width: 240,
-                          child: AppPrimaryButton(
-                            label: 'Register new customer',
-                            onPressed: _openRegistration,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ],
+                );
+              },
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 
-  Widget _customerSearchResults(
-    BuildContext context,
-    HomeViewModel viewModel, {
-    bool compact = false,
-  }) {
+  Widget _customerSearchBar(HomeViewModel viewModel, Customer? customer) {
+    final card = customer?.person.shoppingCard ?? '';
+    return DesktopPanel(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TestId(
+                  DesktopCustomerIds.searchField,
+                  child: TextField(
+                    controller: _customerSearchController,
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: (_) => _searchCustomer(),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: _customerSearchHint,
+                      prefixIcon: const Icon(
+                        Icons.search,
+                        color: AppColors.goldDark,
+                      ),
+                      filled: true,
+                      fillColor: AppColors.surface,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 18),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(9),
+                        borderSide: const BorderSide(
+                          color: AppColors.goldMuted,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              SizedBox(
+                width: 140,
+                child: DesktopButton(
+                  id: DesktopCustomerIds.searchButton,
+                  label: 'Search',
+                  hotkey: 'ENTER',
+                  height: 58,
+                  onPressed: viewModel.isSearchingCustomer
+                      ? null
+                      : _searchCustomer,
+                ),
+              ),
+              const SizedBox(width: 10),
+              SizedBox(
+                width: 170,
+                child: DesktopButton(
+                  id: DesktopCustomerIds.newCustomerButton,
+                  label: 'New customer',
+                  icon: Icons.person_add_alt_1_outlined,
+                  secondary: true,
+                  height: 58,
+                  onPressed: _newCustomer,
+                ),
+              ),
+              const SizedBox(width: 10),
+              // TODO(pos-desktop): KP member registration — no member
+              // enrolment API in this app yet.
+              const SizedBox(
+                width: 190,
+                child: DesktopButton(
+                  id: DesktopCustomerIds.registerMemberButton,
+                  label: 'Register member',
+                  icon: Icons.card_membership_outlined,
+                  height: 58,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              // `Register/GetCustomer` takes the value as-is — no format
+              // detection, so no "detected ID type" is claimed.
+              const Expanded(
+                child: Text(
+                  'Scan or type a shopping card, passport no. or ID card '
+                  'number.',
+                  style: TextStyle(fontSize: 12.5, color: AppColors.mutedText),
+                ),
+              ),
+              if (card.isNotEmpty)
+                TestId(
+                  DesktopCustomerIds.matchedCard,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.check_circle,
+                          size: 14,
+                          color: AppColors.success,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Shopping card $card',
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // A fresh embedded form (and view model) per shown customer — or per
+  // "New customer" — so its fields always start from that customer.
+  Widget _customerForm(HomeViewModel viewModel, Customer? customer) {
+    final key = '${identityHashCode(customer)}#$_formGeneration';
+    if (key != _formKey || _formViewModel == null) {
+      _formKey = key;
+      _formViewModel = widget.customerRegistrationViewModelFactory();
+    }
+    return CustomerRegistrationPage(
+      key: ValueKey(key),
+      embedded: true,
+      viewModel: _formViewModel!,
+      userCode: viewModel.session?.userCode ?? '',
+      isAirportMpos: viewModel.settings.isAirportMpos,
+      existingCustomer: customer,
+      onSaved: _onCustomerSaved,
+    );
+  }
+
+  // Re-runs the lookup with the saved shopping card so the profile shows
+  // what the server now holds.
+  void _onCustomerSaved(String shoppingCard) {
+    if (shoppingCard.isNotEmpty) {
+      _customerSearchController.text = shoppingCard;
+    }
+    if (_customerSearchController.text.trim().isEmpty) {
+      setState(() => _formGeneration++);
+      return;
+    }
+    _searchCustomer();
+  }
+
+  void _newCustomer() {
+    _customerSearchController.clear();
+    if (_selectedPrivilege != null) _saleCartViewModel.selectPrivilege(null);
+    setState(() {
+      _selectedPrivilege = null;
+      _selectedResult = 0;
+      _formGeneration++;
+    });
+    widget.viewModel.clearCustomerSearch();
+  }
+
+  void _showResult(int index) {
+    if (_selectedPrivilege != null) _saleCartViewModel.selectPrivilege(null);
+    setState(() {
+      _selectedPrivilege = null;
+      _selectedResult = index;
+    });
+  }
+
+  Widget _customerProfile(
+    HomeViewModel viewModel,
+    Customer? customer,
+    int index,
+  ) {
+    const muted = TextStyle(fontSize: 13.5, color: AppColors.mutedText);
+    if (viewModel.isSearchingCustomer) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 40),
+        child: LoadingView(),
+      );
+    }
+    if (viewModel.customerSearchError != null) {
+      return RetryableErrorView(
+        message: viewModel.customerSearchError!,
+        onRetry: _searchCustomer,
+      );
+    }
+    if (customer == null) {
+      return DesktopPanel(
+        id: DesktopCustomerIds.profileEmpty,
+        title: 'Profile',
+        child: viewModel.hasSearchedCustomer
+            ? const Column(
+                children: [
+                  EmptyStateView(
+                    message: 'No customer found.',
+                    icon: Icons.person_search_outlined,
+                  ),
+                  Text(
+                    'Register them with the form.',
+                    textAlign: TextAlign.center,
+                    style: muted,
+                  ),
+                ],
+              )
+            : const Text(
+                'Search a customer to see their profile here. To register '
+                'a new one, fill in the form.',
+                style: muted,
+              ),
+      );
+    }
+
+    final results = viewModel.customerSearchResults;
+    Widget stat(String id, String label, String value) => Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.line),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label.toUpperCase(), style: DesktopText.fieldLabel),
+            const SizedBox(height: 6),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: TestId(
+                id,
+                child: Text(value, style: DesktopText.kpiValue),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (results.length > 1) ...[
+          DesktopPanel(
+            title: '${results.length} matches',
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (var i = 0; i < results.length; i++)
+                  TestId(
+                    DesktopCustomerIds.result(i),
+                    child: ChoiceChip(
+                      label: Text(
+                        results[i].person.englishName.isNotEmpty
+                            ? results[i].person.englishName
+                            : results[i].person.shoppingCard,
+                      ),
+                      selected: i == index,
+                      onSelected: (_) => _showResult(i),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+        // Points / spend / visits aren't on `GetCustomer` — shown as "—".
+        Row(
+          children: [
+            stat(ProfileIds.pointsStat, 'Points', '—'),
+            const SizedBox(width: 10),
+            stat(ProfileIds.ePurseStat, 'e-Purse', _ePurse(customer)),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            stat(ProfileIds.spendStat, 'Spend YTD', '—'),
+            const SizedBox(width: 10),
+            stat(ProfileIds.visitsStat, 'Visits', '—'),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _CustomerResultCard(
+          customer: customer,
+          isAirportMpos: viewModel.settings.isAirportMpos,
+          onGoToSale: _goToSale,
+          selectedPrivilege: _selectedPrivilege,
+          onSelectPrivilege: _selectPrivilege,
+        ),
+        const SizedBox(height: 16),
+        DesktopButton(
+          id: ProfileIds.attachButton,
+          label: 'Attach to bill',
+          icon: Icons.check,
+          height: 56,
+          onPressed: () => _attachToBill(customer, _selectedPrivilege),
+        ),
+        const SizedBox(height: 16),
+        // TODO(pos-desktop): recent purchases once a member-history API
+        // exists.
+        const DesktopPanel(
+          id: ProfileIds.recentPurchases,
+          title: 'Recent purchases',
+          child: Text('Purchase history is not available yet.', style: muted),
+        ),
+      ],
+    );
+  }
+
+  // Same source as the handheld profile: the first wallet member's balance.
+  static String _ePurse(Customer customer) {
+    for (final member in customer.person.walletMembers) {
+      final balance = double.tryParse('${member['balance'] ?? ''}');
+      if (balance != null) return formatBaht(balance);
+    }
+    return '—';
+  }
+
+  /// Handheld Home lookup results: a tile per match; the full profile
+  /// opens on tap.
+  Widget _customerSearchResults(BuildContext context, HomeViewModel viewModel) {
     if (viewModel.isSearchingCustomer) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
@@ -734,36 +1042,16 @@ class _HomePageState extends State<HomePage> {
         icon: Icons.person_search_outlined,
       );
     }
-    if (compact) {
-      // Handheld: a tile per match; the full profile opens on tap.
-      final results = viewModel.customerSearchResults;
-      return Column(
-        children: [
-          for (var i = 0; i < results.length; i++)
-            HandheldCustomerResultTile(
-              id: HomeIds.customerTile(i),
-              customer: results[i],
-              onTap: () => _openHandheldProfile(results[i], viewModel),
-            ),
-        ],
-      );
-    }
+    final results = viewModel.customerSearchResults;
     return Column(
-      children: viewModel.customerSearchResults
-          .map(
-            (customer) => Padding(
-              padding: const EdgeInsets.only(top: AppSpacing.sm),
-              child: _CustomerResultCard(
-                customer: customer,
-                isAirportMpos: viewModel.settings.isAirportMpos,
-                onEdit: (c) => _openRegistration(existingCustomer: c),
-                onGoToSale: _goToSale,
-                selectedPrivilege: _selectedPrivilege,
-                onSelectPrivilege: _selectPrivilege,
-              ),
-            ),
-          )
-          .toList(growable: false),
+      children: [
+        for (var i = 0; i < results.length; i++)
+          HandheldCustomerResultTile(
+            id: HomeIds.customerTile(i),
+            customer: results[i],
+            onTap: () => _openHandheldProfile(results[i], viewModel),
+          ),
+      ],
     );
   }
 }
@@ -814,17 +1102,16 @@ class _PrivilegeSelection {
 /// type, agent, guide, and register status are always visible (legacy shows
 /// exactly one customer per screen, so its whole header is static); flight
 /// info and the privilege/wallet/tour data sit directly below that header,
-/// always visible too — there is no expand/collapse step. The edit icon
-/// next to the register status ports legacy's `btn-edit-icon` — it opens
-/// the same registration form used for new customers, prefilled from this
-/// one (`onEdit`). The "Go to Sale" button ports the two data-only guards
+/// always visible too — there is no expand/collapse step. It is the desktop
+/// Customer tab's profile body, so legacy's `btn-edit-icon` is not repeated
+/// here: the edit form is already open beside it. The "Go to Sale" button
+/// ports the two data-only guards
 /// from legacy's `checkConditionToSalePage()` before switching tabs — see
 /// `_HomePageState._goToSale`'s doc comment for what's deliberately not
 /// replicated.
 class _CustomerResultCard extends StatelessWidget {
   final Customer customer;
   final bool isAirportMpos;
-  final ValueChanged<Customer> onEdit;
   final Future<void> Function(Customer) onGoToSale;
   final Privilege? selectedPrivilege;
   final ValueChanged<Privilege?> onSelectPrivilege;
@@ -832,7 +1119,6 @@ class _CustomerResultCard extends StatelessWidget {
   const _CustomerResultCard({
     required this.customer,
     required this.isAirportMpos,
-    required this.onEdit,
     required this.onGoToSale,
     required this.selectedPrivilege,
     required this.onSelectPrivilege,
@@ -853,7 +1139,6 @@ class _CustomerResultCard extends StatelessWidget {
                 Expanded(
                   child: _CustomerHeaderDetail(
                     customer: customer,
-                    onEdit: onEdit,
                     onGoToSale: onGoToSale,
                   ),
                 ),
@@ -1002,12 +1287,10 @@ class _CustomerCardFace extends StatelessWidget {
 /// Nationality, Customer Type, Agent, Guide, register status).
 class _CustomerHeaderDetail extends StatelessWidget {
   final Customer customer;
-  final ValueChanged<Customer> onEdit;
   final Future<void> Function(Customer) onGoToSale;
 
   const _CustomerHeaderDetail({
     required this.customer,
-    required this.onEdit,
     required this.onGoToSale,
   });
 
@@ -1089,18 +1372,6 @@ class _CustomerHeaderDetail extends StatelessWidget {
                           : AppColors.danger,
                     ),
                   ),
-                ),
-                // Mirrors legacy's `btn-edit-icon` — pushes the same form
-                // used to register a new customer, prefilled for editing
-                // (`customer.ts`'s `editInfo()` → `CustomerFormPage`).
-                IconButton(
-                  key: const Key('editCustomerButton'),
-                  tooltip: 'Edit customer',
-                  icon: const Icon(Icons.edit_outlined),
-                  iconSize: AppSizing.iconSize,
-                  color: AppColors.textSecondary,
-                  visualDensity: VisualDensity.compact,
-                  onPressed: () => onEdit(customer),
                 ),
               ],
             ),

@@ -82,41 +82,45 @@ class HomeDashboardPage extends StatelessWidget {
                               onNewSale: onNewSale,
                             ),
                             const SizedBox(height: 20),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: DesktopActionTile(
-                                    id: DesktopIds.homeTileSale,
-                                    icon: Icons.shopping_bag_outlined,
-                                    title: 'Sale',
-                                    subtitle: 'Walk-in, take or collect',
-                                    hotkey: 'F2',
-                                    onTap: onNewSale,
+                            // Equal heights too, whichever subtitle wraps.
+                            IntrinsicHeight(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Expanded(
+                                    child: DesktopActionTile(
+                                      id: DesktopIds.homeTileSale,
+                                      icon: Icons.shopping_bag_outlined,
+                                      title: 'Sale',
+                                      subtitle: 'Walk-in, take or collect',
+                                      hotkey: 'F2',
+                                      onTap: onNewSale,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: DesktopActionTile(
-                                    id: DesktopIds.homeTileRegistration,
-                                    icon: Icons.badge_outlined,
-                                    title: 'Registration',
-                                    subtitle: 'New member or shopping card',
-                                    hotkey: 'F3',
-                                    onTap: onRegister,
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: DesktopActionTile(
+                                      id: DesktopIds.homeTileRegistration,
+                                      icon: Icons.badge_outlined,
+                                      title: 'Registration',
+                                      subtitle: 'New member or shopping card',
+                                      hotkey: 'F3',
+                                      onTap: onRegister,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: DesktopActionTile(
-                                    id: DesktopIds.homeTileEnquiry,
-                                    icon: Icons.search,
-                                    title: 'Enquiry',
-                                    subtitle: 'Find or reprint a bill',
-                                    hotkey: 'F4',
-                                    onTap: onEnquiry,
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: DesktopActionTile(
+                                      id: DesktopIds.homeTileEnquiry,
+                                      icon: Icons.search,
+                                      title: 'Enquiry',
+                                      subtitle: 'Find or reprint a bill',
+                                      hotkey: 'F4',
+                                      onTap: onEnquiry,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ],
                         ),
@@ -270,8 +274,8 @@ class _StartSalePanel extends StatelessWidget {
             child: TestId(
               DesktopIds.homeScanField,
               child: Container(
-                height: 74,
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                height: DesktopMetrics.fieldHeight,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 decoration: BoxDecoration(
                   color: AppColors.cream,
                   borderRadius: BorderRadius.circular(10),
@@ -281,20 +285,20 @@ class _StartSalePanel extends StatelessWidget {
                   children: [
                     const Icon(
                       Icons.qr_code_scanner,
-                      size: 26,
+                      size: 20,
                       color: AppColors.goldDark,
                     ),
-                    const SizedBox(width: 14),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: TextField(
                         controller: controller,
                         textInputAction: TextInputAction.search,
                         onSubmitted: onScan,
-                        style: const TextStyle(fontSize: 21),
+                        style: const TextStyle(fontSize: 16),
                         decoration: const InputDecoration.collapsed(
                           hintText: 'Scan shopping card, passport or member QR',
                           hintStyle: TextStyle(
-                            fontSize: 21,
+                            fontSize: 16,
                             color: AppColors.hintText,
                           ),
                         ),
@@ -310,7 +314,7 @@ class _StartSalePanel extends StatelessWidget {
             id: DesktopIds.homeNewSaleButton,
             label: 'New sale',
             hotkey: 'F2',
-            height: 74,
+            height: DesktopMetrics.fieldHeight,
             onPressed: onNewSale,
           ),
         ],

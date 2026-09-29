@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kp_pos/core/presentation/desktop/desktop.dart';
 import 'package:kp_pos/core/presentation/test_ids.dart';
 import 'package:kp_pos/features/home/presentation/home_dashboard_page.dart';
 
@@ -131,5 +132,21 @@ void main() {
       await pump(tester, size: size);
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets('Sale / Registration / Enquiry tiles are the same size at '
+        '${size.width.toInt()} dp', (tester) async {
+      await pump(tester, size: size);
+      final sale = tester.getSize(byTestId(DesktopIds.homeTileSale));
+      expect(tester.getSize(byTestId(DesktopIds.homeTileRegistration)), sale);
+      expect(tester.getSize(byTestId(DesktopIds.homeTileEnquiry)), sale);
+    });
   }
+
+  testWidgets('the scan field is standard field height', (tester) async {
+    await pump(tester);
+    expect(
+      tester.getSize(byTestId(DesktopIds.homeScanField)).height,
+      DesktopMetrics.fieldHeight,
+    );
+  });
 }

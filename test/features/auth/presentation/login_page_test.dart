@@ -242,9 +242,7 @@ void main() {
       expect(find.text('Hide'), findsOneWidget);
     });
 
-    testWidgets('pressing Done on the password field signs in', (
-      tester,
-    ) async {
+    testWidgets('pressing Done on the password field signs in', (tester) async {
       setDeviceSize(tester, compactSize);
       const session = UserSession(
         sessionKey: 'k1',
@@ -340,11 +338,45 @@ void main() {
       expect(rect.center.dx, closeTo(410, 0.5));
     });
 
-    testWidgets('desktop width keeps the photo-card sign-in', (tester) async {
+    testWidgets('desktop width shows the station sign-in with identity panel', (
+      tester,
+    ) async {
       setDeviceSize(tester, expandedSize);
       await tester.pumpWidget(MaterialApp(home: buildPage()));
-      expect(find.text('Welcome back'), findsOneWidget);
-      expect(byTestId(LoginIds.qrLoginButton), findsNothing);
+      await tester.pumpAndSettle();
+      expect(byTestId(DesktopIds.loginIdentityPanel), findsOneWidget);
+      expect(find.text('SMART POS MOBILE'), findsNothing);
+    });
+
+    testWidgets('desktop sign-in submits through the same view-model', (
+      tester,
+    ) async {
+      setDeviceSize(tester, expandedSize);
+      const session = UserSession(
+        sessionKey: 'k2',
+        branchNo: '03',
+        userCode: 'U001',
+        userName: 'Test User',
+        authorizedActions: [],
+      );
+      final sessionState = buildSessionState();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: LoginPage(
+            viewModel: LoginViewModel(
+              loginUseCase: LoginUseCase(
+                FakeAuthRepository(loginResult: session),
+              ),
+            ),
+            sessionState: sessionState,
+            settingsViewModelFactory: buildSettingsViewModelFactory(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(byTestId(LoginIds.signInButton));
+      await tester.pumpAndSettle();
+      expect(sessionState.status, StartupStatus.ready);
     });
   });
 }

@@ -1,3 +1,4 @@
+import '../config/device_settings.dart';
 import '../storage/device_settings_storage.dart';
 import '../storage/secure_session_storage.dart';
 
@@ -34,6 +35,9 @@ class StartupValidator {
     required SessionStorage sessionStorage,
   }) : _deviceSettingsStorage = deviceSettingsStorage,
        _sessionStorage = sessionStorage;
+
+  /// Current device settings from local storage — no network call.
+  Future<DeviceSettings> readDeviceSettings() => _deviceSettingsStorage.read();
 
   Future<StartupResult> validate() async {
     final settings = await _deviceSettingsStorage.read();

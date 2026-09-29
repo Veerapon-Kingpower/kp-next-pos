@@ -81,4 +81,15 @@ void main() {
       expect(result.sessionKey, 'abc123');
     },
   );
+
+  test('readDeviceSettings returns the stored settings', () async {
+    const stored = DeviceSettings(branch: '03', location: 'Downtown Rangnam');
+    final validator = StartupValidator(
+      deviceSettingsStorage: _FakeDeviceSettingsStorage(stored),
+      sessionStorage: _FakeSessionStorage(),
+    );
+    final settings = await validator.readDeviceSettings();
+    expect(settings.location, 'Downtown Rangnam');
+    expect(settings.branch, '03');
+  });
 }

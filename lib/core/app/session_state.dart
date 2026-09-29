@@ -1,5 +1,6 @@
 import 'package:get/get.dart';
 
+import '../config/device_settings.dart';
 import '../startup/startup_validator.dart';
 
 /// App-wide auth/session status, drives the router's redirect guard (see
@@ -28,6 +29,11 @@ class SessionState extends GetxController {
     _sessionKey = result.sessionKey;
     update();
   }
+
+  /// Device settings for display (e.g. the desktop sign-in identity
+  /// panel) — a local storage read, no network call.
+  Future<DeviceSettings> readDeviceSettings() =>
+      _startupValidator.readDeviceSettings();
 
   void signedIn(String sessionKey) {
     _sessionKey = sessionKey;

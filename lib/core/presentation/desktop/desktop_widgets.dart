@@ -230,14 +230,18 @@ class DesktopButton extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                     ],
-                    Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: secondary
-                            ? FontWeight.w400
-                            : FontWeight.w700,
-                        color: foreground,
+                    Flexible(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: secondary
+                              ? FontWeight.w400
+                              : FontWeight.w700,
+                          color: foreground,
+                        ),
                       ),
                     ),
                     if (hotkey != null) ...[

@@ -370,6 +370,20 @@ worker is available (no shared files: sale feature vs customer feature).
 
 **2c plan file:** `2026-08-27-pos-desktop-phase2c-checkout-flow.md`
 
+**2c status (2026-09-29): done** — `94446e4`. Deviations from the task lists above:
+
+- **No fake tenders (S6).** "Add cash tender" is inert and the ledger stays empty —
+  appending PENDING / manual entries without an authorisation would show money the
+  bill never received. The applied-to-bill / change-due preview is real client-side
+  arithmetic (`previewCashTender`, unit tested).
+- **Flags are not defaulted to "cleared" (S5).** The blocking-flags panel says the
+  checks aren't available and asks the cashier to confirm serial / CITES / address.
+- **THB only** — USD / EUR / CNY / JPY stay disabled until a rate table exists.
+- **Chrome:** a new `DesktopWizardFrame` (ink bar, step pills, Esc) instead of the
+  light Phase 1 `WizardStepBar`. Payment method icons are Material icons; the
+  design-project payment PNGs were not added.
+- Signature reuses the handheld signature page (real local capture).
+
 ---
 
 ## Sub-phase 2d — customer & lookups

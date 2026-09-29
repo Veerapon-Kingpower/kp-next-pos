@@ -1,0 +1,340 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:kp_pos/core/presentation/test_ids.dart';
+import 'package:kp_pos/core/theme/app_colors.dart';
+import 'package:kp_pos/features/customer/domain/entities/privilege.dart';
+import 'package:kp_pos/features/sale/domain/entities/cart.dart';
+import 'package:kp_pos/features/sale/presentation/handheld/handheld_sale_view.dart';
+import 'package:kp_pos/features/sale/presentation/handheld/sale_order_type.dart';
+import 'package:kp_pos/features/sale/presentation/sale_cart_view_model.dart';
+
+import '../../../../helpers/test_id_finders.dart';
+import '../../fake_sale_repository.dart';
+import 'sale_test_helpers.dart';
+
+void main() {
+  late FakeSaleRepository sale;
+
+  Future<SaleCartViewModel> pump(
+    WidgetTester tester, {
+    Cart? cart = sampleCart,
+    Cart cartAfterMutation = sampleCart,
+    Size size = compactSize,
+    SaleOrderType orderType = SaleOrderType.shopping,
+    VoidCallback? onExit,
+    VoidCallback? onCustomer,
+  }) async {
+    setDeviceSize(tester, size);
+    sale = FakeSaleRepository(cartResult: cartAfterMutation);
+    final viewModel = buildSaleViewModel(sale, cart: cart);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: HandheldSaleView(
+            viewModel: viewModel,
+            orderType: orderType,
+            onExit: onExit ?? () {},
+            onCustomer: onCustomer ?? () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    return viewModel;
+  }
+
+  String textIn(WidgetTester tester, String id) => tester
+      .widget<Text>(
+        find.descendant(of: byTestId(id), matching: find.byType(Text)).last,
+      )
+      .data!;
+
+  group('header', () {
+    testWidgets('title, totals band and tab counts come from the cart', (
+      tester,
+    ) async {
+      await pump(tester);
+      expect(find.text('Sale · Shopping'), findsOneWidget);
+      expect(textIn(tester, SaleIds.netPay), '฿21,500.00');
+      expect(textIn(tester, SaleIds.totalLine), 'Total 21,500.00 · 3 units');
+      expect(
+        find.descendant(
+          of: byTestId(SaleIds.tabBuying),
+          matching: find.text('2'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    for (final (type, title, color) in [
+      (SaleOrderType.shopping, 'Sale · Shopping', AppColors.goldDark),
+      (SaleOrderType.delivery, 'Sale · Delivery', Color(0xFF165FA9)),
+      (SaleOrderType.preOrder, 'Sale · Pre-order', Color(0xFFBF4D0D)),
+    ]) {
+      testWidgets('${type.name} uses its own header colour', (tester) async {
+        await pump(tester, orderType: type);
+        expect(find.text(title), findsOneWidget);
+        final box = tester.widget<ColoredBox>(
+          find
+              .ancestor(
+                of: byTestId(SaleIds.backButton),
+                matching: find.byType(ColoredBox),
+              )
+              .first,
+        );
+        expect(box.color, color);
+      });
+    }
+
+    testWidgets('back button exits to Home', (tester) async {
+      var exits = 0;
+      await pump(tester, onExit: () => exits++);
+      await tester.tap(byTestId(SaleIds.backButton));
+      expect(exits, 1);
+    });
+  });
+
+  group('scan', () {
+    testWidgets('scanning adds the article through the view-model', (
+      tester,
+    ) async {
+      await pump(tester, cart: null);
+      expect(byTestId(SaleIds.emptyState), findsOneWidget);
+
+      await tester.enterText(
+        find.descendant(
+          of: byTestId(SaleIds.scanField),
+          matching: find.byType(TextField),
+        ),
+        '2*8850012345678',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+
+      expect(sale.lastLookupBarcode, '8850012345678');
+      expect(sale.lastAddedQuantity, 2);
+      expect(byTestId(SaleIds.line('1')), findsOneWidget);
+    });
+
+    testWidgets('a malformed scan shows the error and keeps the text', (
+      tester,
+    ) async {
+      await pump(tester);
+      final field = find.descendant(
+        of: byTestId(SaleIds.scanField),
+        matching: find.byType(TextField),
+      );
+      await tester.enterText(field, '');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+      expect(byTestId(SaleIds.scanError), findsOneWidget);
+    });
+  });
+
+  group('lines', () {
+    testWidgets('each line shows number, name, qty and total', (tester) async {
+      await pump(tester);
+      final line = byTestId(SaleIds.line('2'));
+      expect(
+        find.descendant(
+          of: line,
+          matching: find.text('JOHNNIE WALKER BLUE LABEL 1L'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: line, matching: find.text('Qty 2 × 7,800.00')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: line, matching: find.text('15,600.00')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('tapping a line opens Edit line', (tester) async {
+      await pump(tester);
+      await tester.tap(byTestId(SaleIds.line('1')));
+      await tester.pumpAndSettle();
+      expect(byTestId(EditLineIds.page), findsOneWidget);
+      expect(find.text('Line 1'), findsOneWidget);
+    });
+
+    testWidgets('swiping left asks to void, then removes the row', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        cartAfterMutation: const Cart(
+          guid: 'order-1',
+          isCheckOut: false,
+          items: [chanel],
+        ),
+      );
+      await tester.drag(byTestId(SaleIds.line('2')), const Offset(-500, 0));
+      await tester.pumpAndSettle();
+      expect(find.text('Void this line?'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Void line'));
+      await tester.pumpAndSettle();
+      expect(sale.lastRemovedRow, '2');
+      expect(byTestId(SaleIds.line('2')), findsNothing);
+    });
+
+    testWidgets('cancelling the void keeps the line', (tester) async {
+      await pump(tester);
+      await tester.drag(byTestId(SaleIds.line('2')), const Offset(-500, 0));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Cancel'));
+      await tester.pumpAndSettle();
+      expect(sale.lastRemovedRow, isNull);
+      expect(byTestId(SaleIds.line('2')), findsOneWidget);
+    });
+
+    testWidgets('swiping right opens the Discount sheet for that line', (
+      tester,
+    ) async {
+      await pump(tester);
+      await tester.drag(byTestId(SaleIds.line('2')), const Offset(500, 0));
+      await tester.pumpAndSettle();
+      expect(byTestId(DiscountIds.sheet), findsOneWidget);
+      expect(find.text('Discount · line 2'), findsOneWidget);
+    });
+
+    testWidgets('a selected privilege is shown above the lines', (
+      tester,
+    ) async {
+      final viewModel = await pump(tester);
+      viewModel.selectPrivilege(
+        const Privilege(
+          name: 'Gold Member',
+          discount: 10,
+          typeCode: 'VIP',
+          promoCode: 'PROMO123',
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: byTestId(SaleIds.privilege),
+          matching: find.text('[VIP]:PROMO123'),
+        ),
+        findsOneWidget,
+      );
+    });
+  });
+
+  group('tabs', () {
+    testWidgets('Basket shows the lines plus the fulfilment notice', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pump(tester);
+      await tester.tap(byTestId(SaleIds.tabBasket));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getSemantics(byTestId(SaleIds.tabBasket)),
+        isSemantics(isSelected: true),
+      );
+      expect(byTestId(SaleIds.basketNotice), findsOneWidget);
+      expect(byTestId(SaleIds.line('1')), findsOneWidget);
+
+      // Basket's secondary action returns to Buying.
+      await tester.tap(find.widgetWithText(InkWell, 'Buying').last);
+      await tester.pumpAndSettle();
+      expect(byTestId(SaleIds.basketNotice), findsNothing);
+      handle.dispose();
+    });
+  });
+
+  group('action bar', () {
+    testWidgets('Checkout shows the net and is inert until H3', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pump(tester);
+      expect(find.text('Checkout · ฿21,500.00'), findsOneWidget);
+      expect(
+        tester.getSemantics(byTestId(SaleIds.checkoutButton)),
+        isSemantics(isButton: true, hasEnabledState: true, isEnabled: false),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('Customer goes to customer lookup', (tester) async {
+      var calls = 0;
+      await pump(tester, onCustomer: () => calls++);
+      await tester.tap(byTestId(SaleIds.customerButton));
+      expect(calls, 1);
+    });
+
+    testWidgets('Discount opens the sheet for the last line', (tester) async {
+      await pump(tester);
+      await tester.tap(byTestId(SaleIds.discountButton));
+      await tester.pumpAndSettle();
+      expect(find.text('Discount · line 2'), findsOneWidget);
+    });
+
+    testWidgets('Discount is disabled on an empty bill', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pump(tester, cart: null);
+      expect(
+        tester.getSemantics(byTestId(SaleIds.discountButton)),
+        isSemantics(hasEnabledState: true, isEnabled: false),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('More lists order types, only Shopping is available', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pump(tester);
+      await tester.tap(byTestId(SaleIds.moreButton));
+      await tester.pumpAndSettle();
+
+      expect(byTestId(SaleIds.moreSheet), findsOneWidget);
+      expect(
+        tester.getSemantics(byTestId(SaleIds.orderTypeShopping)),
+        isSemantics(isSelected: true),
+      );
+      for (final id in [SaleIds.orderTypeDelivery, SaleIds.orderTypePreOrder]) {
+        expect(
+          tester.getSemantics(byTestId(id)),
+          isSemantics(hasEnabledState: true, isEnabled: false),
+          reason: id,
+        );
+      }
+      handle.dispose();
+    });
+
+    testWidgets('all bar actions expose semantics ids', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pump(tester);
+      for (final id in [
+        SaleIds.scanField,
+        SaleIds.netPay,
+        SaleIds.tabBuying,
+        SaleIds.tabBasket,
+        SaleIds.checkoutButton,
+        SaleIds.customerButton,
+        SaleIds.discountButton,
+        SaleIds.saveButton,
+        SaleIds.moreButton,
+        SaleIds.line('1'),
+      ]) {
+        expect(find.bySemanticsIdentifier(id), findsOneWidget, reason: id);
+      }
+      handle.dispose();
+    });
+  });
+
+  testWidgets('iPad portrait: header spans full width, lines are capped', (
+    tester,
+  ) async {
+    await pump(tester, size: mediumSize);
+    expect(tester.takeException(), isNull);
+    final line = tester.getRect(byTestId(SaleIds.line('1')));
+    expect(line.width, lessThanOrEqualTo(720));
+    expect(line.center.dx, closeTo(410, 0.5));
+  });
+}

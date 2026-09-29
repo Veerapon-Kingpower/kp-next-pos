@@ -63,6 +63,7 @@ abstract class SaleIds {
   static const netPay = 'sale.netPay';
   static const tabBuying = 'sale.tab.buying';
   static const tabBasket = 'sale.tab.basket';
+  static const backToBuyingButton = 'sale.backToBuyingButton';
   static const emptyState = 'sale.emptyState';
   static const privilege = 'sale.privilege';
   static const basketNotice = 'sale.basketNotice';

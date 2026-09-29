@@ -990,21 +990,44 @@ void main() {
       expect(find.text('[VIP]:PROMO123'), findsOneWidget);
     });
 
-    testWidgets('the Sale tile and the Sale nav item open the Sale tab', (
+    testWidgets('the Sale tile and the Sale nav item open the Sale screen', (
       tester,
     ) async {
-      const barcodeHint = 'Scan or type barcode (e.g. 5*8850012345678)';
       await pumpHandheld(tester, buildPage());
 
       await tester.tap(byTestId(HomeIds.tileSale));
       await tester.pumpAndSettle();
-      expect(find.widgetWithText(TextField, barcodeHint), findsOneWidget);
+      expect(byTestId(SaleIds.scanField), findsOneWidget);
+      expect(find.text('Sale · Shopping'), findsOneWidget);
 
-      await tester.tap(byTestId(NavIds.home));
+      await tester.tap(byTestId(SaleIds.backButton));
       await tester.pumpAndSettle();
+      expect(byTestId(HomeIds.scanField), findsOneWidget);
+
       await tester.tap(byTestId(NavIds.sale));
       await tester.pumpAndSettle();
-      expect(find.widgetWithText(TextField, barcodeHint), findsOneWidget);
+      expect(byTestId(SaleIds.scanField), findsOneWidget);
+    });
+
+    testWidgets('the Sale screen hides the bottom nav, as in the mockup', (
+      tester,
+    ) async {
+      await pumpHandheld(tester, buildPage());
+      await tester.tap(byTestId(NavIds.sale));
+      await tester.pumpAndSettle();
+      expect(byTestId(NavIds.home), findsNothing);
+      expect(byTestId(SaleIds.checkoutButton), findsOneWidget);
+    });
+
+    testWidgets("the Sale screen's Customer action returns to Home lookup", (
+      tester,
+    ) async {
+      await pumpHandheld(tester, buildPage());
+      await tester.tap(byTestId(NavIds.sale));
+      await tester.pumpAndSettle();
+      await tester.tap(byTestId(SaleIds.customerButton));
+      await tester.pumpAndSettle();
+      expect(byTestId(HomeIds.scanField), findsOneWidget);
     });
 
     testWidgets('the Register tile opens the registration page', (

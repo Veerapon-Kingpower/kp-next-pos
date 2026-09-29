@@ -23,6 +23,7 @@ import '../../customer/domain/entities/privilege.dart';
 import '../../customer/presentation/customer_registration_page.dart';
 import '../../customer/presentation/customer_registration_view_model.dart';
 import '../../enquiry/presentation/enquiry_page.dart';
+import '../../sale/presentation/handheld/handheld_sale_view.dart';
 import '../../sale/presentation/sale_cart_view_model.dart';
 import '../../sale/presentation/widgets/sale_page.dart';
 import '../../settings/presentation/settings_page.dart';
@@ -374,28 +375,37 @@ class _HomePageState extends State<HomePage> {
         ? _section!
         : sections.first;
     final selectedIndex = sections.indexOf(section);
+    // The Sale screen brings its own order-type header and Checkout bar
+    // and, as in the mockup, hides the bottom nav (its back button returns
+    // Home).
+    final isSale = section == _HomeSection.sale;
 
     return HandheldScaffold(
-      header: _handheldHeaderFor(section, viewModel),
+      header: isSale ? null : _handheldHeaderFor(section, viewModel),
+      fullWidthBody: isSale,
       body: IndexedStack(
         index: selectedIndex,
         children: [
           for (final s in sections) _handheldPageFor(s, context, viewModel),
         ],
       ),
-      navBar: HandheldNavBar(
-        items: _handheldNavItems,
-        selectedIndex: selectedIndex,
-        onSelected: (index) {
-          if (index >= sections.length) {
-            _openHandheldMenu(viewModel);
-            return;
-          }
-          setState(() => _section = sections[index]);
-        },
-      ),
+      navBar: isSale
+          ? null
+          : HandheldNavBar(
+              items: _handheldNavItems,
+              selectedIndex: selectedIndex,
+              onSelected: (index) {
+                if (index >= sections.length) {
+                  _openHandheldMenu(viewModel);
+                  return;
+                }
+                setState(() => _section = sections[index]);
+              },
+            ),
     );
   }
+
+  void _showHandheldHome() => setState(() => _section = _HomeSection.home);
 
   Widget _handheldHeaderFor(_HomeSection section, HomeViewModel viewModel) {
     switch (section) {
@@ -409,8 +419,7 @@ class _HomePageState extends State<HomePage> {
           now: DateTime.now(),
         );
       case _HomeSection.sale:
-        // TODO(pos-handheld): H2 replaces this with the bill header (order
-        // type, bill no., rate, totals) from mockup screens 3 / 16 / 17.
+        // Not shown — the Sale screen renders its own header.
         return const HandheldHeader(title: 'Sale');
       case _HomeSection.enquiry:
         return const HandheldHeader(
@@ -427,6 +436,14 @@ class _HomePageState extends State<HomePage> {
     BuildContext context,
     HomeViewModel viewModel,
   ) {
+    if (section == _HomeSection.sale) {
+      return HandheldSaleView(
+        viewModel: _saleCartViewModel,
+        onExit: _showHandheldHome,
+        // Customer lookup lives on Home's scan field.
+        onCustomer: _showHandheldHome,
+      );
+    }
     if (section != _HomeSection.home) {
       return _pageFor(section, context, viewModel);
     }

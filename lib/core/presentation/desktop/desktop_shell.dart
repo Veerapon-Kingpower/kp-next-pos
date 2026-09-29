@@ -85,7 +85,7 @@ class DesktopShell extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _TopBar(
+                DesktopTopBar(
                   title: title,
                   subtitle: subtitle,
                   contextItems: contextItems,
@@ -207,19 +207,25 @@ class _RailButton extends StatelessWidget {
   }
 }
 
-class _TopBar extends StatelessWidget {
+/// The white 64 dp top bar: [title], optional [subtitle], station
+/// [contextItems], [actions] and the signed-in [user].
+class DesktopTopBar extends StatelessWidget {
   final String title;
   final String? subtitle;
   final List<DesktopContextItem> contextItems;
   final List<Widget> actions;
   final DesktopUser? user;
 
-  const _TopBar({
+  final Widget? leading;
+
+  const DesktopTopBar({
+    super.key,
+    this.leading,
     required this.title,
-    required this.subtitle,
-    required this.contextItems,
-    required this.actions,
-    required this.user,
+    this.subtitle,
+    this.contextItems = const [],
+    this.actions = const [],
+    this.user,
   });
 
   @override
@@ -235,6 +241,7 @@ class _TopBar extends StatelessWidget {
         ),
         child: Row(
           children: [
+            if (leading != null) ...[leading!, const SizedBox(width: 8)],
             Text(title, style: DesktopText.screenTitle),
             if (subtitle != null) ...[
               const SizedBox(width: 14),
@@ -342,6 +349,45 @@ class _UserChip extends StatelessWidget {
                 ),
               ],
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A pushed desktop page (e.g. Settings): the [DesktopTopBar] with a
+/// back button and actions over the [body], without the navigation rail.
+class DesktopPageFrame extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  final List<Widget> actions;
+  final Widget body;
+
+  const DesktopPageFrame({
+    super.key,
+    required this.title,
+    required this.body,
+    this.subtitle,
+    this.actions = const [],
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final canPop = Navigator.of(context).canPop();
+    return Scaffold(
+      backgroundColor: AppColors.surfaceAlt,
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            DesktopTopBar(
+              leading: canPop ? const BackButton() : null,
+              title: title,
+              subtitle: subtitle,
+              actions: actions,
+            ),
+            Expanded(child: body),
           ],
         ),
       ),

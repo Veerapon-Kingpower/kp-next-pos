@@ -346,30 +346,121 @@ void main() {
     expect(sessionState.status, isNot(StartupStatus.needsLogin));
   });
 
-  testWidgets('desktop width keeps the Offline mode switch and persists it', (
-    tester,
-  ) async {
-    setDeviceSize(tester, const Size(1200, 3200));
-    final repo = FakeSettingsRepository(
-      settings: const DeviceSettings(
-        branch: '03',
-        saleEngineEndpoint: 'https://sale-engine',
-        webServiceEndpoint: 'https://register',
-        flightApi: 'https://flight',
-      ),
+  group('desktop settings (desktop width)', () {
+    const configured = DeviceSettings(
+      moduleKey: 'PosKpi',
+      branch: '03',
+      location: 'Downtown Rangnam',
+      printerName: 'Star TSP143',
+      edcPort: 'COM3',
+      saleEngineEndpoint: 'https://sale-engine',
+      webServiceEndpoint: 'https://register',
+      flightApi: 'https://flight',
     );
-    await tester.pumpWidget(
-      MaterialApp(home: SettingsPage(viewModel: buildViewModel(repo))),
-    );
-    await tester.pumpAndSettle();
 
-    expect(byTestId(SettingsIds.sellOffline), findsNothing);
-    await tester.tap(find.text('Offline mode'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Save'));
-    await tester.pumpAndSettle();
+    Future<FakeSettingsRepository> pumpDesktop(
+      WidgetTester tester, {
+      Size size = const Size(1440, 1400),
+      bool pushed = false,
+    }) async {
+      setDeviceSize(tester, size);
+      final repo = FakeSettingsRepository(settings: configured);
+      final page = SettingsPage(viewModel: buildViewModel(repo));
+      if (pushed) {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Builder(
+              builder: (context) => Scaffold(
+                body: TextButton(
+                  onPressed: () => Navigator.of(
+                    context,
+                  ).push(MaterialPageRoute<void>(builder: (_) => page)),
+                  child: const Text('open'),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.tap(find.text('open'));
+      } else {
+        await tester.pumpWidget(MaterialApp(home: page));
+      }
+      await tester.pumpAndSettle();
+      return repo;
+    }
 
-    expect(repo.settings.forceOfflineMode, isTrue);
+    testWidgets('four panels side by side with automation ids', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pumpDesktop(tester);
+      expect(find.text('Device settings'), findsOneWidget);
+      for (final id in [
+        DesktopIds.settingsTerminalPanel,
+        DesktopIds.settingsPeripheralsPanel,
+        DesktopIds.settingsEndpointsPanel,
+        DesktopIds.settingsDevicePanel,
+        SettingsIds.sellOnline,
+        SettingsIds.sellOffline,
+        SettingsIds.saveButton,
+      ]) {
+        expect(find.bySemanticsIdentifier(id), findsOneWidget, reason: id);
+      }
+      final terminal = tester.getRect(
+        byTestId(DesktopIds.settingsTerminalPanel),
+      );
+      final endpoints = tester.getRect(
+        byTestId(DesktopIds.settingsEndpointsPanel),
+      );
+      expect(endpoints.left, greaterThan(terminal.right), reason: 'columns');
+      expect(
+        find.descendant(
+          of: byTestId(DesktopIds.settingsPeripheralsPanel),
+          matching: find.textContaining('not available yet'),
+        ),
+        findsOneWidget,
+      );
+      handle.dispose();
+    });
+
+    testWidgets('Sell offline + Save in the top bar persists', (tester) async {
+      final repo = await pumpDesktop(tester);
+      await tester.tap(byTestId(SettingsIds.sellOffline));
+      await tester.pumpAndSettle();
+      await tester.tap(byTestId(SettingsIds.saveButton));
+      await tester.pumpAndSettle();
+      expect(repo.settings.forceOfflineMode, isTrue);
+      expect(repo.settings.printerName, 'Star TSP143');
+    });
+
+    testWidgets('edits in any panel are saved', (tester) async {
+      final repo = await pumpDesktop(tester);
+      await enterByLabel(tester, 'EDC port', 'COM7');
+      await enterByLabel(tester, 'Location', 'Airport Pickup D');
+      await tester.tap(byTestId(SettingsIds.saveButton));
+      await tester.pumpAndSettle();
+      expect(repo.settings.edcPort, 'COM7');
+      expect(repo.settings.location, 'Airport Pickup D');
+    });
+
+    testWidgets('a required field left empty blocks Save', (tester) async {
+      final repo = await pumpDesktop(tester);
+      await enterByLabel(tester, 'Branch number', '');
+      await tester.tap(byTestId(SettingsIds.saveButton));
+      await tester.pumpAndSettle();
+      expect(find.text('Required'), findsOneWidget);
+      expect(repo.settings.branch, '03');
+    });
+
+    testWidgets('Cancel is offered when pushed and pops', (tester) async {
+      await pumpDesktop(tester, pushed: true);
+      await tester.tap(byTestId(SettingsIds.cancelButton));
+      await tester.pumpAndSettle();
+      expect(find.text('open'), findsOneWidget);
+    });
+
+    testWidgets('no overflow at 1024 dp (iPad landscape)', (tester) async {
+      await pumpDesktop(tester, size: const Size(1024, 1400));
+      expect(tester.takeException(), isNull);
+    });
   });
 
   group('handheld settings (below desktop width)', () {

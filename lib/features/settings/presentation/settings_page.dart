@@ -8,6 +8,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../../core/app/router.dart';
 import '../../../core/app/session_state.dart';
 import '../../../core/config/device_settings.dart';
+import '../../../core/presentation/desktop/desktop.dart';
 import '../../../core/presentation/handheld/handheld.dart';
 import '../../../core/presentation/test_ids.dart';
 import '../../../core/presentation/widgets/app_buttons.dart';
@@ -18,7 +19,6 @@ import '../../../core/presentation/widgets/retryable_error_view.dart';
 import '../../../core/presentation/widgets/test_id.dart';
 import '../../../core/theme/app_breakpoints.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_sizing.dart';
 import '../../../core/theme/app_spacing.dart';
 import 'settings_view_model.dart';
 
@@ -279,189 +279,199 @@ class _SettingsPageState extends State<SettingsPage> {
       return _buildHandheld(context, viewModel, isSaving);
     }
 
-    return AppShell(
+    return _buildDesktop(context, viewModel, isSaving);
+  }
+
+  /// Desktop layout (POS Desktop mockup screen 11): Terminal identity +
+  /// Peripherals, Service endpoints and Device panels side by side, with
+  /// Save / Cancel in the top bar. Same fields, validation and save as the
+  /// handheld layout.
+  ///
+  /// Like handheld, the mockup's supervisor lock is not applied (this page
+  /// is also first-run setup and card verification has no API), and live
+  /// peripheral / endpoint health is omitted until there is a source.
+  // TODO(pos-desktop): SupervisorLockGate once supervisor-card verification
+  // exists; live peripheral health (openspec 7.6) and endpoint reachability.
+  Widget _buildDesktop(
+    BuildContext context,
+    SettingsViewModel viewModel,
+    bool isSaving,
+  ) {
+    final canPop = Navigator.of(context).canPop();
+    final module = _moduleKey.text.isEmpty ? '—' : _moduleKey.text;
+
+    Widget fields(List<Widget> children) => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < children.length; i++) ...[
+          if (i > 0) const SizedBox(height: AppSpacing.sm),
+          children[i],
+        ],
+      ],
+    );
+
+    final terminal = DesktopPanel(
+      id: DesktopIds.settingsTerminalPanel,
+      title: 'Terminal identity',
+      child: fields([
+        _moduleField(),
+        _validatedField(_branch, 'Branch number'),
+        _subBranchField(),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Airport MPOS device'),
+          value: _isAirportMpos,
+          onChanged: (value) => setState(() => _isAirportMpos = value),
+        ),
+        const Text('SALE MODE', style: DesktopText.fieldLabel),
+        Row(
+          children: [
+            Expanded(
+              child: _SaleModeOption(
+                id: SettingsIds.sellOnline,
+                icon: Icons.wifi,
+                label: 'Sell online',
+                selected: !_forceOfflineMode,
+                onTap: () => setState(() => _forceOfflineMode = false),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.xs),
+            Expanded(
+              child: _SaleModeOption(
+                id: SettingsIds.sellOffline,
+                icon: Icons.cloud_off_outlined,
+                label: 'Sell offline',
+                selected: _forceOfflineMode,
+                onTap: () => setState(() => _forceOfflineMode = true),
+              ),
+            ),
+          ],
+        ),
+        Text(
+          _forceOfflineMode
+              ? 'Selling offline prices items from the local article cache '
+                    'and skips server lookups. Switch back once the RC '
+                    'server is reachable.'
+              : 'Live price and stock from the sale engine.',
+          style: const TextStyle(fontSize: 12.5, color: AppColors.mutedText),
+        ),
+      ]),
+    );
+
+    final peripherals = DesktopPanel(
+      id: DesktopIds.settingsPeripheralsPanel,
+      title: 'Peripherals',
+      child: fields([
+        AppTextField(controller: _printerName, label: 'Printer name'),
+        AppTextField(controller: _edcPort, label: 'EDC port'),
+        const Text(
+          'Live device status (ready / paired / offline) is not available '
+          'yet.',
+          style: TextStyle(fontSize: 12.5, color: AppColors.mutedText),
+        ),
+      ]),
+    );
+
+    final endpoints = DesktopPanel(
+      id: DesktopIds.settingsEndpointsPanel,
+      title: 'Service endpoints',
+      child: fields([
+        _validatedField(_saleEngineEndpoint, 'Sale Engine endpoint'),
+        _validatedField(
+          _webServiceEndpoint,
+          'Register endpoint',
+          focusNode: _webServiceEndpointFocus,
+        ),
+        _validatedField(_flightApi, 'Flight API endpoint'),
+        AppTextField(controller: _cashCardApi, label: 'Cash Card API endpoint'),
+        AppTextField(controller: _updateEndpoint, label: 'App update endpoint'),
+      ]),
+    );
+
+    final device = DesktopPanel(
+      id: DesktopIds.settingsDevicePanel,
+      title: 'Device',
+      child: fields([
+        _uuidRow(),
+        ?_uuidQrCode(context),
+        AppTextField(controller: _location, label: 'Location'),
+        AppTextField(
+          controller: _machine,
+          label: 'Machine number',
+          keyboardType: TextInputType.number,
+        ),
+        AppTextField(controller: _company, label: 'Company'),
+        AppTextField(controller: _serial, label: 'Serial'),
+        AppTextField(controller: _macAddress, label: 'MAC address'),
+        AppTextField(controller: _ipAddress, label: 'IP address'),
+      ]),
+    );
+
+    return DesktopPageFrame(
       title: 'Device settings',
+      subtitle: 'Smart POS · cashier station · $module',
+      actions: [
+        if (canPop)
+          DesktopButton(
+            id: SettingsIds.cancelButton,
+            label: 'Cancel',
+            secondary: true,
+            onPressed: () => Navigator.of(context).maybePop(),
+          ),
+        DesktopButton(
+          id: SettingsIds.saveButton,
+          label: isSaving ? 'Saving...' : 'Save',
+          icon: Icons.check,
+          onPressed: isSaving ? null : _save,
+        ),
+      ],
       body: Form(
         key: _formKey,
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 560),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'Connectivity',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: AppColors.warning.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(
-                        AppSizing.cornerRadiusMd,
-                      ),
-                      border: Border.all(
-                        color: AppColors.warning.withValues(alpha: 0.4),
-                      ),
-                    ),
-                    child: SwitchListTile(
-                      value: _forceOfflineMode,
-                      onChanged: (value) =>
-                          setState(() => _forceOfflineMode = value),
-                      title: const Text('Offline mode'),
-                      subtitle: const Text(
-                        'Turn on when the network or backend is known to '
-                        'be down. Skips server lookups and uses cached '
-                        'article data directly. Turn off once connectivity '
-                        'is restored.',
-                      ),
-                      secondary: Icon(
-                        _forceOfflineMode
-                            ? Icons.cloud_off
-                            : Icons.cloud_outlined,
-                        color: AppColors.warning,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-
-                  Text(
-                    'Service endpoints',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  _validatedField(_saleEngineEndpoint, 'Sale Engine endpoint'),
-                  const SizedBox(height: AppSpacing.sm),
-                  _validatedField(
-                    _webServiceEndpoint,
-                    'Register endpoint',
-                    focusNode: _webServiceEndpointFocus,
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  _validatedField(_flightApi, 'Flight API endpoint'),
-                  const SizedBox(height: AppSpacing.sm),
-                  AppTextField(
-                    controller: _cashCardApi,
-                    label: 'Cash Card API endpoint',
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  AppTextField(
-                    controller: _updateEndpoint,
-                    label: 'App update endpoint',
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-
-                  Text(
-                    'Branch & module',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  _validatedField(_branch, 'Branch number'),
-                  const SizedBox(height: AppSpacing.sm),
-                  _moduleField(),
-                  const SizedBox(height: AppSpacing.sm),
-                  _subBranchField(),
-                  const SizedBox(height: AppSpacing.sm),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Airport MPOS device'),
-                    value: _isAirportMpos,
-                    onChanged: (value) =>
-                        setState(() => _isAirportMpos = value),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-
-                  Text(
-                    'Device identity',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  AppTextField(controller: _location, label: 'Location'),
-                  const SizedBox(height: AppSpacing.sm),
-                  AppTextField(
-                    controller: _machine,
-                    label: 'Machine number',
-                    keyboardType: TextInputType.number,
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  AppTextField(controller: _company, label: 'Company'),
-                  const SizedBox(height: AppSpacing.sm),
-                  AppTextField(controller: _serial, label: 'Serial'),
-                  const SizedBox(height: AppSpacing.sm),
-                  AppTextField(controller: _macAddress, label: 'MAC address'),
-                  const SizedBox(height: AppSpacing.sm),
-                  AppTextField(controller: _ipAddress, label: 'IP address'),
-                  const SizedBox(height: AppSpacing.sm),
-                  AppTextField(controller: _printerName, label: 'Printer name'),
-                  const SizedBox(height: AppSpacing.sm),
-                  AppTextField(controller: _edcPort, label: 'EDC port'),
-                  const SizedBox(height: AppSpacing.sm),
-                  Row(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(DesktopMetrics.pagePadding),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (viewModel.saveStatus == SettingsSaveStatus.failure) ...[
+                Text(
+                  viewModel.errorMessage ?? 'Could not save.',
+                  style: const TextStyle(color: AppColors.danger),
+                ),
+                const SizedBox(height: AppSpacing.md),
+              ],
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  const gap = SizedBox(width: 20, height: 20);
+                  if (constraints.maxWidth >= 1500) {
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(children: [terminal, gap, peripherals]),
+                        ),
+                        gap,
+                        Expanded(child: endpoints),
+                        gap,
+                        Expanded(child: device),
+                      ],
+                    );
+                  }
+                  return Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: AppTextField(
-                          controller: _uuid,
-                          label: 'Device UUID',
-                        ),
+                        child: Column(children: [terminal, gap, peripherals]),
                       ),
-                      const SizedBox(width: AppSpacing.sm),
-                      SizedBox(
-                        width: 120,
-                        child: AppSecondaryButton(
-                          label: 'Generate',
-                          onPressed: _generateUuid,
-                        ),
+                      gap,
+                      Expanded(
+                        child: Column(children: [endpoints, gap, device]),
                       ),
                     ],
-                  ),
-                  if (_showUuidQrCode && _uuid.text.isNotEmpty) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    Center(
-                      child: Column(
-                        children: [
-                          DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(
-                                AppSizing.cornerRadiusLg,
-                              ),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(AppSpacing.sm),
-                              child: QrImageView(
-                                data: _uuid.text,
-                                size: 160,
-                                backgroundColor: Colors.white,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: AppSpacing.xs),
-                          Text(
-                            _uuid.text,
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: AppSpacing.lg),
-
-                  if (viewModel.saveStatus == SettingsSaveStatus.failure)
-                    RetryableErrorView(
-                      message: viewModel.errorMessage ?? 'Could not save.',
-                      onRetry: _save,
-                    )
-                  else
-                    AppPrimaryButton(
-                      label: isSaving ? 'Saving...' : 'Save',
-                      onPressed: isSaving ? null : _save,
-                    ),
-                ],
+                  );
+                },
               ),
-            ),
+            ],
           ),
         ),
       ),

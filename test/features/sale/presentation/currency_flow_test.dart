@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/presentation/test_ids.dart';
 import 'package:kp_pos/features/sale/domain/entities/cart.dart';
@@ -357,6 +358,115 @@ void main() {
       expect(repo.exchangeCalls.first.change, 100);
       expect(find.textContaining('quote only'), findsNothing);
 
+      await tester.tap(byTestId(CurrencyIds.changeCurrency('USD')));
+      await tester.pumpAndSettle();
+      await tester.tap(byTestId(CurrencyIds.changeSaveButton));
+      await tester.pumpAndSettle();
+
+      expect(repo.changeExchanges.single.currency, 'USD');
+      expect(byTestId(CurrencyIds.changeScreen), findsNothing);
+    });
+  });
+
+  group('Add cash tender (desktop Payment, legacy PaymentFormPage)', () {
+    Cart paid(double amount) => Cart(
+      guid: 'order-1',
+      isCheckOut: false,
+      items: sampleCart.items,
+      payments: [
+        CartPayment(
+          guid: 'p1',
+          code: '***',
+          short: 'CASH',
+          amount: amount,
+          status: 'SUCCESS',
+        ),
+      ],
+      remaining: 0,
+      change: amount - 900,
+    );
+
+    Future<void> pump(WidgetTester tester) async {
+      setDeviceSize(tester, const Size(1440, 1000));
+      repo = FakeSaleRepository(
+        cartResult: sampleCart,
+        currencies: branchCurrencies,
+        exchangeQuote: quoteAtBranchRates,
+        paymentCartResult: paid,
+      );
+      final vm = buildSaleViewModel(
+        repo,
+        cart: sampleCart,
+        session: currencySession,
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DesktopPaymentPage(
+            netPay: 900,
+            viewModel: vm,
+            loadCurrencies: vm.listCurrencies,
+            exchangeChange: vm.exchangeChange,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> tender(WidgetTester tester, String amount) async {
+      await tester.enterText(
+        find.descendant(
+          of: byTestId(DesktopPaymentIds.tenderedField),
+          matching: find.byType(TextField),
+        ),
+        amount,
+      );
+      await tester.pump();
+    }
+
+    testWidgets('records the tender; ledger, remaining and change come from '
+        'the order', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pump(tester);
+      expect(
+        tester.getSemantics(byTestId(DesktopPaymentIds.addTenderButton)),
+        isSemantics(isButton: true, hasEnabledState: true, isEnabled: false),
+      );
+
+      await tender(tester, '1000');
+      await tester.tap(byTestId(DesktopPaymentIds.addTenderButton));
+      await tester.pumpAndSettle();
+
+      expect(repo.cashPayments.single.orderGuid, 'order-1');
+      expect(repo.cashPayments.single.amount, 1000);
+      expect(textIn(tester, PaymentIds.remaining), '฿0.00');
+      expect(textIn(tester, PaymentIds.tendered), '฿1,000.00');
+      expect(byTestId(PaymentIds.ledgerRow(0)), findsOneWidget);
+      expect(
+        textIn(tester, PaymentIds.recordedChange),
+        'Change to give (recorded): ฿100.00',
+      );
+      handle.dispose();
+    });
+
+    testWidgets('Enter adds the cash tender', (tester) async {
+      await pump(tester);
+      await tender(tester, '500');
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(repo.cashPayments.single.amount, 500);
+    });
+
+    testWidgets('after cash, change in USD is saved (edit_exchange)', (
+      tester,
+    ) async {
+      await pump(tester);
+      await tender(tester, '1000');
+      await tester.tap(byTestId(DesktopPaymentIds.addTenderButton));
+      await tester.pumpAndSettle();
+
+      await tester.tap(byTestId(CurrencyIds.changeButton));
+      await tester.pumpAndSettle();
+      expect(repo.exchangeCalls.first.change, 100);
       await tester.tap(byTestId(CurrencyIds.changeCurrency('USD')));
       await tester.pumpAndSettle();
       await tester.tap(byTestId(CurrencyIds.changeSaveButton));

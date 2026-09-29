@@ -6,7 +6,6 @@ import '../../../../../core/presentation/handheld/handheld.dart';
 import '../../../../../core/presentation/test_ids.dart';
 import '../../../../../core/presentation/widgets/test_id.dart';
 import '../../../../../core/theme/app_colors.dart';
-import '../../../domain/entities/cart.dart';
 import '../../../domain/entities/currency.dart';
 import '../../sale_cart_view_model.dart';
 import '../../widgets/change_currency_screen.dart';
@@ -98,18 +97,7 @@ class _PaymentPageState extends State<PaymentPage> {
   /// Tenders passed in plus the order's own `OrderPayments`.
   List<Tender> get _tenders => [
     ...widget.tenders,
-    for (final p in widget.viewModel?.cart?.payments ?? const <CartPayment>[])
-      Tender(
-        method: p.isCash ? TenderMethod.cash : TenderMethod.card,
-        title: p.short.isEmpty ? 'Payment' : p.short,
-        amount: p.amount,
-        status: switch (p.status.toUpperCase()) {
-          'SUCCESS' => TenderStatus.approved,
-          'VOID' => TenderStatus.voided,
-          'FAIL' => TenderStatus.declined,
-          _ => TenderStatus.pending,
-        },
-      ),
+    ...tendersFromPayments(widget.viewModel?.cart?.payments ?? const []),
   ];
 
   /// The sale engine's `RemainingAmount` once it reports one.

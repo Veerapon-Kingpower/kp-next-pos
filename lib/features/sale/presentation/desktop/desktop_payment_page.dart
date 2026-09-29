@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:get/get.dart';
 
 import '../../../../core/presentation/desktop/desktop.dart';
-import '../../../../core/presentation/handheld/handheld.dart' show formatMoney;
+import '../../../../core/presentation/handheld/handheld.dart'
+    show formatBaht, formatMoney;
 import '../../../../core/presentation/test_ids.dart';
 import '../../../../core/presentation/widgets/test_id.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../domain/entities/currency.dart';
 import '../handheld/payment/payment_models.dart';
 import '../handheld/payment/payment_widgets.dart' show TenderRow;
+import '../sale_cart_view_model.dart';
 import '../widgets/change_currency_screen.dart';
 
 class _Method {
@@ -125,7 +128,13 @@ class DesktopPaymentPage extends StatefulWidget {
   final Future<List<Currency>> Function()? loadCurrencies;
   final ExchangeChange? exchangeChange;
 
+  /// The sale's view model — makes Add cash tender real (legacy
+  /// `PaymentFormPage`, `AddPaymentToOrder`) and feeds the ledger /
+  /// remaining / change from the order.
+  final SaleCartViewModel? viewModel;
+
   const DesktopPaymentPage({
+    this.viewModel,
     super.key,
     required this.netPay,
     this.tenders = const [],
@@ -145,9 +154,46 @@ class _DesktopPaymentPageState extends State<DesktopPaymentPage> {
 
   String _money(double value) => formatMoney(value, widget.currencyCode);
 
+  /// Tenders passed in plus the order's own `OrderPayments`.
+  List<Tender> get _tenders => [
+    ...widget.tenders,
+    ...tendersFromPayments(widget.viewModel?.cart?.payments ?? const []),
+  ];
+
+  /// The sale engine's `RemainingAmount` once it reports one.
   double get _remaining {
-    final v = widget.netPay - tenderedTotal(widget.tenders);
+    final fromOrder = widget.viewModel?.cart?.remaining;
+    final v = fromOrder ?? widget.netPay - tenderedTotal(_tenders);
     return v < 0 ? 0 : v;
+  }
+
+  double get _tenderedAmount => double.tryParse(_tendered.text) ?? 0;
+
+  bool get _canAddCash {
+    final viewModel = widget.viewModel;
+    return viewModel != null &&
+        _method == 'cash' &&
+        _tenderedAmount > 0 &&
+        _remaining > 0 &&
+        !viewModel.isBusy;
+  }
+
+  // Legacy `PaymentFormPage` Save for cash (`AddPaymentToOrder`).
+  Future<void> _addCash() async {
+    if (!_canAddCash) return;
+    if (await widget.viewModel!.payCash(_tenderedAmount)) _tendered.clear();
+  }
+
+  Future<String?> _saveExchange({
+    required String currencyCode,
+    required double amount,
+  }) async {
+    final viewModel = widget.viewModel!;
+    final saved = await viewModel.saveChangeExchange(
+      currencyCode: currencyCode,
+      amount: amount,
+    );
+    return saved ? null : viewModel.paymentError;
   }
 
   @override
@@ -180,12 +226,24 @@ class _DesktopPaymentPageState extends State<DesktopPaymentPage> {
 
   @override
   Widget build(BuildContext context) {
+    final viewModel = widget.viewModel;
+    if (viewModel == null) return _build(context);
+    return GetBuilder<SaleCartViewModel>(
+      init: viewModel,
+      global: false,
+      builder: (_) => _build(context),
+    );
+  }
+
+  Widget _build(BuildContext context) {
     return TestId(
       PaymentIds.page,
       child: CallbackShortcuts(
         bindings: {
           for (final m in _methods)
             SingleActivator(m.key): () => setState(() => _method = m.id),
+          const SingleActivator(LogicalKeyboardKey.enter): _addCash,
+          const SingleActivator(LogicalKeyboardKey.numpadEnter): _addCash,
         },
         child: DesktopWizardFrame(
           title: 'Payment',
@@ -334,6 +392,13 @@ class _DesktopPaymentPageState extends State<DesktopPaymentPage> {
       remaining: _remaining,
       tendered: tendered,
     );
+    // Once cash is recorded the order's own change due (baht) is what the
+    // CHANGE screen works on, and its Save is real; before that it quotes
+    // the preview only.
+    final recordedChange = widget.viewModel?.cart?.change ?? 0;
+    final changeInBaht = recordedChange > 0
+        ? recordedChange
+        : preview.change * widget.rateToBaht;
 
     Widget currency(String code, String note, {bool enabled = false}) {
       final selected = code == 'THB';
@@ -501,38 +566,68 @@ class _DesktopPaymentPageState extends State<DesktopPaymentPage> {
                     ),
                   ],
                 ),
+                if (recordedChange > 0) ...[
+                  const SizedBox(height: 10),
+                  TestId(
+                    PaymentIds.recordedChange,
+                    child: Text(
+                      'Change to give (recorded): ${formatBaht(recordedChange)}',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.success,
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 10),
                 // Legacy ChangePage: hand the change back in another
-                // currency, quoted by the sale engine.
+                // currency, quoted by the sale engine; saved once the cash
+                // is recorded on the order.
                 DesktopButton(
                   id: CurrencyIds.changeButton,
                   label: 'Change in another currency',
                   icon: Icons.currency_exchange,
                   secondary: true,
                   onPressed:
-                      preview.change > 0 &&
+                      changeInBaht > 0 &&
                           widget.loadCurrencies != null &&
                           widget.exchangeChange != null
                       ? () => showChangeCurrencyScreen(
                           context,
-                          changeInBaht: preview.change * widget.rateToBaht,
+                          changeInBaht: changeInBaht,
                           loadCurrencies: widget.loadCurrencies!,
                           exchange: widget.exchangeChange!,
+                          onSave: recordedChange > 0 ? _saveExchange : null,
                         )
                       : null,
                 ),
                 const SizedBox(height: 14),
-                const Text(
-                  'Recording cash tenders is not available yet on this '
-                  'station.',
-                  style: TextStyle(fontSize: 12.5, color: AppColors.mutedText),
-                ),
+                if (widget.viewModel == null)
+                  const Text(
+                    'Recording cash tenders is not available yet on this '
+                    'station.',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: AppColors.mutedText,
+                    ),
+                  ),
+                if (widget.viewModel?.paymentError != null)
+                  TestId(
+                    PaymentIds.paymentError,
+                    child: Text(
+                      widget.viewModel!.paymentError!,
+                      style: const TextStyle(color: AppColors.danger),
+                    ),
+                  ),
                 const SizedBox(height: 8),
-                const DesktopButton(
+                // Legacy PaymentFormPage Save for cash.
+                DesktopButton(
                   id: DesktopPaymentIds.addTenderButton,
                   label: 'Add cash tender',
                   hotkey: 'ENTER',
                   height: 60,
+                  onPressed: _canAddCash ? _addCash : null,
                 ),
                 const SizedBox(height: 8),
                 const DesktopButton(
@@ -552,7 +647,7 @@ class _DesktopPaymentPageState extends State<DesktopPaymentPage> {
   }
 
   Widget _totalsColumn() {
-    final tenders = widget.tenders;
+    final tenders = _tenders;
     Widget amount(
       String label,
       String value,

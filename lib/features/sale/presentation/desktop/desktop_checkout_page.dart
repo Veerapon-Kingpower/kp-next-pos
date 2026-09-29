@@ -82,6 +82,7 @@ class _DesktopCheckoutPageState extends State<DesktopCheckoutPage> {
             rateToBaht: orderRateToBaht(viewModel.cart),
             loadCurrencies: viewModel.listCurrencies,
             exchangeChange: viewModel.exchangeChange,
+            viewModel: viewModel,
           ),
         ),
       );

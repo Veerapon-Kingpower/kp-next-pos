@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../domain/entities/cart.dart';
+
 /// Presentation-only payment models for the handheld Payment / Wallet
 /// screens (mockup screens 6, 18–20). There is no payment domain yet — no
 /// EDC, 2C2P or sale-completion API — so these describe what the screens
@@ -114,3 +116,21 @@ CashTenderPreview previewCashTender({
     remainingAfter: _satang(owed - applied),
   );
 }
+
+/// The order's `OrderPayments` as ledger tenders (legacy `status`:
+/// `SUCCESS` approved, `VOID` voided, `FAIL` declined, anything else
+/// pending).
+List<Tender> tendersFromPayments(List<CartPayment> payments) => [
+  for (final p in payments)
+    Tender(
+      method: p.isCash ? TenderMethod.cash : TenderMethod.card,
+      title: p.short.isEmpty ? 'Payment' : p.short,
+      amount: p.amount,
+      status: switch (p.status.toUpperCase()) {
+        'SUCCESS' => TenderStatus.approved,
+        'VOID' => TenderStatus.voided,
+        'FAIL' => TenderStatus.declined,
+        _ => TenderStatus.pending,
+      },
+    ),
+];

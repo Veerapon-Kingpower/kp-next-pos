@@ -1,10 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/config/device_settings.dart';
+import 'package:kp_pos/features/auth/domain/entities/user_session.dart';
+import 'package:kp_pos/features/auth/domain/usecases/restore_session_usecase.dart';
 import 'package:kp_pos/features/customer/data/datasources/customer_remote_data_source.dart';
 import 'package:kp_pos/features/customer/data/repositories/customer_repository_impl.dart';
 
 import '../../../../core/network/fake_api_client.dart';
 import '../../../../core/storage/fakes.dart';
+import '../../../auth/fake_auth_repository.dart';
 
 void main() {
   const deviceSettings = DeviceSettings(
@@ -30,6 +33,18 @@ void main() {
     return CustomerRepositoryImpl(
       remote: CustomerRemoteDataSource(apiClient: apiClient),
       deviceSettingsStorage: FakeDeviceSettingsStorage(settings),
+      restoreSession: RestoreSessionUseCase(
+        FakeAuthRepository(
+          currentSessionResult: const UserSession(
+            sessionKey: 'S1',
+            branchNo: '03',
+            userCode: 'U001',
+            userName: 'Test User',
+            authorizedActions: [],
+            machineNo: 'KPPOS05',
+          ),
+        ),
+      ),
     );
   }
 
@@ -51,7 +66,8 @@ void main() {
         'shoppingCard': 'CPX0001',
         'isTour': false,
         'pickupCode': 'A1',
-        'machineNo': 'device-uuid-1',
+        // The login's MachineEnv.MachineNo, not the device uuid.
+        'machineNo': 'KPPOS05',
       });
     },
   );
@@ -88,7 +104,7 @@ void main() {
   });
 
   test(
-    'register resolves subBranchCode/branchNo/machineNo from device settings and sends the MOBILE platform code',
+    'register resolves subBranchCode/branchNo from device settings, machineNo from the login session, and sends the MOBILE platform code',
     () async {
       final apiClient = FakeApiClient(
         response: {
@@ -117,7 +133,7 @@ void main() {
       final body = sent.single as Map<String, dynamic>;
       expect(body['subBranchCode'], 'CPX-DT');
       expect(body['branchNo'], '03');
-      expect(body['machineNo'], 'device-uuid-1');
+      expect(body['machineNo'], 'KPPOS05');
       expect(body['platformCode'], 'MOBILE');
     },
   );

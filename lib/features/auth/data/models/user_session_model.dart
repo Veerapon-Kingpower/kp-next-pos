@@ -12,16 +12,21 @@ class UserSessionModel extends UserSession {
     required super.userCode,
     required super.userName,
     required super.authorizedActions,
+    super.machineNo,
   });
 
   /// [json] is the `Data` object of a `ReturnObject<LoginResult>` response.
   factory UserSessionModel.fromLoginResultJson(Map<String, dynamic> json) {
     final userInfo = json['userInfo'] as Map<String, dynamic>? ?? const {};
+    // Legacy `UserInfoModel.MachineEnv: EnvModel` (`AuthenModel.ts`).
+    final machineEnv =
+        userInfo['MachineEnv'] as Map<String, dynamic>? ?? const {};
     return UserSessionModel(
       sessionKey: json['session_key'] as String? ?? '',
       branchNo: userInfo['branch_no'] as String? ?? '',
       userCode: userInfo['user_code'] as String? ?? '',
       userName: userInfo['user_name'] as String? ?? '',
+      machineNo: '${machineEnv['MachineNo'] ?? ''}',
       authorizedActions:
           (userInfo['list_authorize'] as List<dynamic>? ?? const [])
               .map(
@@ -40,6 +45,7 @@ class UserSessionModel extends UserSession {
     'branchNo': branchNo,
     'userCode': userCode,
     'userName': userName,
+    'machineNo': machineNo,
     'authorizedActions': authorizedActions
         .map(
           (a) => {
@@ -57,6 +63,9 @@ class UserSessionModel extends UserSession {
         branchNo: json['branchNo'] as String? ?? '',
         userCode: json['userCode'] as String? ?? '',
         userName: json['userName'] as String? ?? '',
+        // Absent from sessions saved before it was stored — such a session
+        // is incomplete and startup sends the user back to login.
+        machineNo: json['machineNo'] as String? ?? '',
         authorizedActions:
             (json['authorizedActions'] as List<dynamic>? ?? const [])
                 .map(

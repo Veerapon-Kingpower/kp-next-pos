@@ -1,6 +1,7 @@
 import '../../core/di/service_locator.dart';
 import '../../core/network/api_client.dart';
 import '../../core/storage/device_settings_storage.dart';
+import '../auth/domain/usecases/restore_session_usecase.dart';
 import '../flight/domain/usecases/get_date_by_flight_usecase.dart';
 import '../flight/domain/usecases/get_flight_by_code_usecase.dart';
 import '../nationality/domain/usecases/list_nationalities_usecase.dart';
@@ -23,6 +24,7 @@ void setupCustomerServiceLocator() {
     () => CustomerRepositoryImpl(
       remote: sl<CustomerRemoteDataSource>(),
       deviceSettingsStorage: sl<DeviceSettingsStorage>(),
+      restoreSession: sl<RestoreSessionUseCase>(),
     ),
   );
   sl.registerFactory<SearchCustomerUseCase>(

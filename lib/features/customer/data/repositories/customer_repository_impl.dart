@@ -1,4 +1,5 @@
 import '../../../../core/storage/device_settings_storage.dart';
+import '../../../auth/domain/usecases/restore_session_usecase.dart';
 import '../../domain/entities/agent.dart';
 import '../../domain/entities/customer.dart';
 import '../../domain/entities/customer_registration.dart';
@@ -13,12 +14,20 @@ const _platformCode = 'MOBILE';
 class CustomerRepositoryImpl implements CustomerRepository {
   final CustomerRemoteDataSource _remote;
   final DeviceSettingsStorage _deviceSettingsStorage;
+  final RestoreSessionUseCase _restoreSession;
 
   CustomerRepositoryImpl({
     required CustomerRemoteDataSource remote,
     required DeviceSettingsStorage deviceSettingsStorage,
+    required RestoreSessionUseCase restoreSession,
   }) : _remote = remote,
-       _deviceSettingsStorage = deviceSettingsStorage;
+       _deviceSettingsStorage = deviceSettingsStorage,
+       _restoreSession = restoreSession;
+
+  // Legacy sends `shareData.userInfo.MachineEnv.MachineNo` — the machine
+  // number from the login response (`customer.ts`, `customer-form.ts`).
+  Future<String> _machineNo() async =>
+      (await _restoreSession())?.machineNo ?? '';
 
   @override
   Future<List<Customer>> search({
@@ -35,7 +44,7 @@ class CustomerRepositoryImpl implements CustomerRepository {
       shoppingCard: shoppingCard,
       isTour: isTour,
       pickupCode: settings.pickupCode,
-      machineNo: settings.uuid,
+      machineNo: await _machineNo(),
     );
   }
 
@@ -61,7 +70,7 @@ class CustomerRepositoryImpl implements CustomerRepository {
       platformCode: _platformCode,
       prefixShoppingCard: prefixShoppingCard,
       userCode: userCode,
-      machineNo: settings.uuid,
+      machineNo: await _machineNo(),
       action: action,
       allowTakeAway: allowTakeAway,
       isAirport: isAirport,

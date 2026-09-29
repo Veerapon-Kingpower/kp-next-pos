@@ -19,7 +19,15 @@ void setupCoreServiceLocator() {
     () => SharedPreferencesDeviceSettingsStorage(),
   );
   sl.registerLazySingleton<SessionStorage>(() => SecureSessionStorage());
+  // Built on first use, after the features have registered — so the auth
+  // feature's [SessionValidity], when present, is picked up.
   sl.registerLazySingleton<StartupValidator>(
-    () => StartupValidator(deviceSettingsStorage: sl(), sessionStorage: sl()),
+    () => StartupValidator(
+      deviceSettingsStorage: sl(),
+      sessionStorage: sl(),
+      sessionValidity: sl.isRegistered<SessionValidity>()
+          ? sl<SessionValidity>()
+          : null,
+    ),
   );
 }

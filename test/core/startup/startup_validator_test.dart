@@ -35,6 +35,15 @@ class _FakeSessionStorage implements SessionStorage {
   Future<void> clear() async => _sessionKey = null;
 }
 
+class _FakeSessionValidity implements SessionValidity {
+  final bool complete;
+
+  const _FakeSessionValidity(this.complete);
+
+  @override
+  Future<bool> isSessionComplete() async => complete;
+}
+
 const _completeSettings = DeviceSettings(
   saleEngineEndpoint: 'https://sale',
   webServiceEndpoint: 'https://register',
@@ -81,6 +90,30 @@ void main() {
       expect(result.sessionKey, 'abc123');
     },
   );
+
+  test('routes to login when the stored session is incomplete (e.g. saved '
+      'without the login machine number)', () async {
+    final validator = StartupValidator(
+      deviceSettingsStorage: _FakeDeviceSettingsStorage(_completeSettings),
+      sessionStorage: _FakeSessionStorage('abc123'),
+      sessionValidity: const _FakeSessionValidity(false),
+    );
+
+    final result = await validator.validate();
+    expect(result.status, StartupStatus.needsLogin);
+  });
+
+  test('stays ready when the stored session is complete', () async {
+    final validator = StartupValidator(
+      deviceSettingsStorage: _FakeDeviceSettingsStorage(_completeSettings),
+      sessionStorage: _FakeSessionStorage('abc123'),
+      sessionValidity: const _FakeSessionValidity(true),
+    );
+
+    final result = await validator.validate();
+    expect(result.status, StartupStatus.ready);
+    expect(result.sessionKey, 'abc123');
+  });
 
   test('readDeviceSettings returns the stored settings', () async {
     const stored = DeviceSettings(branch: '03', location: 'Downtown Rangnam');

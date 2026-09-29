@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/config/device_settings.dart';
+import 'package:kp_pos/core/error/app_exception.dart';
+import 'package:kp_pos/features/auth/data/auth_session_validity.dart';
 import 'package:kp_pos/features/auth/data/datasources/auth_remote_data_source.dart';
 import 'package:kp_pos/features/auth/data/models/user_session_model.dart';
 import 'package:kp_pos/features/auth/data/repositories/auth_repository_impl.dart';
@@ -30,6 +32,7 @@ void main() {
               'branch_no': '03',
               'user_code': 'U001',
               'user_name': 'Test User',
+              'MachineEnv': {'MachineNo': 'KPPOS05'},
               'list_authorize': [],
             },
           },
@@ -48,6 +51,8 @@ void main() {
       final session = await repo.login(userCode: 'U001', userPassword: 'pass');
 
       expect(session.sessionKey, 'abc123');
+      expect(session.machineNo, 'KPPOS05');
+      expect((await local.read())!.machineNo, 'KPPOS05');
       expect(apiClient.lastData, {
         'user_code': 'U001',
         'user_password': 'pass',
@@ -72,6 +77,7 @@ void main() {
               'branch_no': '03',
               'user_code': 'U001',
               'user_name': '',
+              'MachineEnv': {'MachineNo': 'KPPOS05'},
               'list_authorize': [],
             },
           },
@@ -95,6 +101,95 @@ void main() {
       );
     },
   );
+
+  test('login without MachineEnv.MachineNo fails and saves nothing', () async {
+    final apiClient = FakeApiClient(
+      response: {
+        'isCompleted': true,
+        'Data': {
+          'session_key': 'abc123',
+          'userInfo': {
+            'branch_no': '03',
+            'user_code': 'U001',
+            'user_name': 'Test User',
+            'list_authorize': [],
+          },
+        },
+        'Message': [],
+      },
+    );
+    final local = FakeAuthLocalDataSource();
+    final coreSession = FakeSessionStorage();
+    final repo = AuthRepositoryImpl(
+      remote: AuthRemoteDataSource(apiClient: apiClient),
+      local: local,
+      coreSessionStorage: coreSession,
+      deviceSettingsStorage: FakeDeviceSettingsStorage(deviceSettings),
+    );
+
+    await expectLater(
+      repo.login(userCode: 'U001', userPassword: 'pass'),
+      throwsA(
+        isA<ApiException>().having(
+          (e) => e.messageDesc,
+          'messageDesc',
+          contains('machine number'),
+        ),
+      ),
+    );
+    expect(await local.read(), isNull);
+    expect(await coreSession.readSessionKey(), isNull);
+  });
+
+  group('AuthSessionValidity', () {
+    const complete = UserSessionModel(
+      sessionKey: 'abc123',
+      branchNo: '03',
+      userCode: 'U001',
+      userName: 'Test User',
+      authorizedActions: [],
+      machineNo: 'KPPOS05',
+    );
+
+    test('keeps a session that has its machine number', () async {
+      final local = FakeAuthLocalDataSource(complete);
+      final coreSession = FakeSessionStorage('abc123');
+      final validity = AuthSessionValidity(
+        local: local,
+        coreSessionStorage: coreSession,
+      );
+
+      expect(await validity.isSessionComplete(), isTrue);
+      expect(await coreSession.readSessionKey(), 'abc123');
+    });
+
+    test('clears a session saved without a machine number, forcing login', () async {
+      final local = FakeAuthLocalDataSource(
+        UserSessionModel.fromJson({
+          'sessionKey': 'abc123',
+          'branchNo': '03',
+          'userCode': 'U001',
+          'userName': 'Test User',
+          'authorizedActions': [],
+        }),
+      );
+      final coreSession = FakeSessionStorage('abc123');
+      final validity = AuthSessionValidity(
+        local: local,
+        coreSessionStorage: coreSession,
+      );
+
+      expect(await validity.isSessionComplete(), isFalse);
+      expect(await local.read(), isNull);
+      expect(await coreSession.readSessionKey(), isNull);
+    });
+
+    test('the machine number survives the persisted round trip', () {
+      final restored = UserSessionModel.fromJson(complete.toJson());
+      expect(restored.machineNo, 'KPPOS05');
+      expect(restored.isComplete, isTrue);
+    });
+  });
 
   test(
     'logout clears the local session and core session key even if the server call fails',

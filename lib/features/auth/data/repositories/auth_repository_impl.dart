@@ -1,3 +1,4 @@
+import '../../../../core/error/app_exception.dart';
 import '../../../../core/storage/device_settings_storage.dart';
 import '../../../../core/storage/secure_session_storage.dart' as core_session;
 import '../../domain/entities/user_session.dart';
@@ -41,6 +42,17 @@ class AuthRepositoryImpl implements AuthRepository {
       moduleCode: settings.moduleKey,
       machineIp: settings.uuid.isEmpty ? _fallbackMachineIp : settings.uuid,
     );
+
+    // Without `MachineEnv.MachineNo` the session is incomplete (startup
+    // would discard it on the next launch) — refuse it now, while the user
+    // is still on the login page.
+    if (!session.isComplete) {
+      throw const ApiException(
+        messageDesc:
+            'Login did not return a machine number. Check this device\'s '
+            'machine registration and try again.',
+      );
+    }
 
     await _local.save(session);
     await _coreSessionStorage.saveSessionKey(session.sessionKey);

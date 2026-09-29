@@ -1,7 +1,9 @@
 import '../../core/di/service_locator.dart';
 import '../../core/network/api_client.dart';
 import '../../core/storage/device_settings_storage.dart';
+import '../../core/startup/startup_validator.dart';
 import '../../core/storage/secure_session_storage.dart';
+import 'data/auth_session_validity.dart';
 import 'data/datasources/auth_local_data_source.dart';
 import 'data/datasources/auth_remote_data_source.dart';
 import 'data/repositories/auth_repository_impl.dart';
@@ -24,6 +26,12 @@ void setupAuthServiceLocator() {
       local: sl<AuthLocalDataSource>(),
       coreSessionStorage: sl<SessionStorage>(),
       deviceSettingsStorage: sl<DeviceSettingsStorage>(),
+    ),
+  );
+  sl.registerLazySingleton<SessionValidity>(
+    () => AuthSessionValidity(
+      local: sl<AuthLocalDataSource>(),
+      coreSessionStorage: sl<SessionStorage>(),
     ),
   );
   sl.registerFactory<LoginUseCase>(() => LoginUseCase(sl<AuthRepository>()));

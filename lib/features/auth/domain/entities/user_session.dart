@@ -10,13 +10,25 @@ class UserSession {
   final String userName;
   final List<AuthorizedAction> authorizedActions;
 
+  /// `userInfo.MachineEnv.MachineNo` — the POS machine number the server
+  /// assigns at login. Legacy sends it as `machineNo` on Register/GetCustomer
+  /// and RegisterAPI (and elsewhere), so a session without one is not
+  /// usable: see [isComplete].
+  final String machineNo;
+
   const UserSession({
     required this.sessionKey,
     required this.branchNo,
     required this.userCode,
     required this.userName,
     required this.authorizedActions,
+    this.machineNo = '',
   });
+
+  /// Whether this session carries everything later calls need. A session
+  /// persisted before [machineNo] was stored isn't — the app sends the
+  /// user back to login to get a fresh one.
+  bool get isComplete => sessionKey.isNotEmpty && machineNo.isNotEmpty;
 
   /// Port of `ShareDataProvider.canDoIt` — whether this session is
   /// authorized for [action] within [moduleCode].

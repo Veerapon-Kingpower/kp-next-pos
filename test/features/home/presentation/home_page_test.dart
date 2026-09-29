@@ -806,7 +806,7 @@ void main() {
       await tester.pumpWidget(MaterialApp(home: buildPage()));
       await tester.pumpAndSettle();
 
-      expect(find.text('Home dashboard — coming soon'), findsOneWidget);
+      expect(byTestId(DesktopIds.homeGreeting), findsOneWidget);
       expect(find.text('Home'), findsWidgets);
       expect(find.text('Sale'), findsWidgets);
       expect(find.text('Enquiry'), findsWidgets);
@@ -865,6 +865,74 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Device settings'), findsOneWidget);
+  });
+
+  testWidgets(
+    'at desktop width, scanning a card on the dashboard looks up the customer',
+    (tester) async {
+      const customer = Customer(
+        action: 'found',
+        isFound: true,
+        person: CustomerPerson(
+          englishName: 'Jane Doe',
+          passportNo: 'P1234567',
+          nationality: 'THA',
+          contacts: [],
+          privileges: [],
+          walletMembers: [],
+        ),
+        tour: {},
+        agentCode: '',
+        isMember: false,
+      );
+      await tester.pumpWidget(
+        MaterialApp(home: buildPage(searchResult: const [customer])),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.descendant(
+          of: byTestId(DesktopIds.homeScanField),
+          matching: find.byType(TextField),
+        ),
+        'CPX0001',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Search customer'), findsOneWidget);
+      expect(find.text('Jane Doe'), findsOneWidget);
+      expect(
+        tester.getSemantics(byTestId(NavIds.customer)),
+        isSemantics(isSelected: true),
+      );
+    },
+  );
+
+  testWidgets('at desktop width, the rail shows the station context', (
+    tester,
+  ) async {
+    await tester.pumpWidget(MaterialApp(home: buildPage()));
+    await tester.pumpAndSettle();
+    expect(find.text('Module PosKpi', findRichText: true), findsOneWidget);
+    expect(find.text('Branch 03', findRichText: true), findsOneWidget);
+    expect(
+      find.descendant(
+        of: byTestId(DesktopIds.userChip),
+        matching: find.text('Cashier · U001'),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('at desktop width, Sign out in the rail asks to confirm', (
+    tester,
+  ) async {
+    await tester.pumpWidget(MaterialApp(home: buildPage()));
+    await tester.pumpAndSettle();
+    await tester.tap(byTestId(NavIds.signOut));
+    await tester.pumpAndSettle();
+    expect(find.text('Are you sure you want to log out?'), findsOneWidget);
   });
 
   group('handheld layout (below desktop width)', () {

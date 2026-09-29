@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../../core/app/session_state.dart';
+import '../../../core/presentation/desktop/desktop.dart';
 import '../../../core/presentation/handheld/handheld.dart';
 import '../../../core/presentation/test_ids.dart';
 import '../../../core/presentation/widgets/test_id.dart';
@@ -111,11 +112,23 @@ class _HomePageState extends State<HomePage> {
   // "Customer" is the full customer search section, "Setup" pushes
   // Settings.
   static const _desktopDestinations = [
-    AppNavDestination(icon: Icons.dashboard_outlined, label: 'Home'),
-    AppNavDestination(icon: Icons.point_of_sale, label: 'Sale'),
-    AppNavDestination(icon: Icons.receipt_long_outlined, label: 'Enquiry'),
-    AppNavDestination(icon: Icons.people, label: 'Customer'),
-    AppNavDestination(icon: Icons.settings, label: 'Setup'),
+    DesktopNavItem(id: NavIds.home, icon: Icons.home_outlined, label: 'Home'),
+    DesktopNavItem(
+      id: NavIds.sale,
+      icon: Icons.shopping_bag_outlined,
+      label: 'Sale',
+    ),
+    DesktopNavItem(id: NavIds.enquiry, icon: Icons.search, label: 'Enquiry'),
+    DesktopNavItem(
+      id: NavIds.customer,
+      icon: Icons.badge_outlined,
+      label: 'Customer',
+    ),
+    DesktopNavItem(
+      id: NavIds.setup,
+      icon: Icons.settings_outlined,
+      label: 'Setup',
+    ),
   ];
   static const _desktopSections = [
     _HomeSection.home,
@@ -125,6 +138,7 @@ class _HomePageState extends State<HomePage> {
   ];
 
   final _customerSearchController = TextEditingController();
+  final _dashboardScanController = TextEditingController();
   // Null until the first build, which picks each breakpoint's own default
   // landing section (Customers on mobile, Home on desktop) — see
   // `_buildContent`. Set explicitly after that by nav taps and `_goToSale`.
@@ -146,6 +160,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     _customerSearchController.dispose();
+    _dashboardScanController.dispose();
     super.dispose();
   }
 
@@ -386,25 +401,42 @@ class _HomePageState extends State<HomePage> {
         : sections.first;
     final selectedIndex = sections.indexOf(section);
 
-    return AppShell(
-      title: destinations[selectedIndex].label,
-      destinations: destinations,
+    final session = viewModel.session;
+    final settings = viewModel.settings;
+    String orDash(String v) => v.isEmpty ? '—' : v;
+
+    return DesktopShell(
+      items: destinations,
       selectedIndex: selectedIndex,
-      onDestinationSelected: (index) => _onDestinationSelected(index, sections),
-      actions: [
-        _sessionInfo(viewModel),
-        IconButton(
-          icon: const Icon(Icons.logout),
-          tooltip: 'Log out',
-          onPressed: _logOut,
+      onSelected: (index) => _onDestinationSelected(index, sections),
+      footerItems: [
+        DesktopNavItem(
+          id: NavIds.signOut,
+          icon: Icons.logout,
+          label: 'Sign out',
+          onTap: _logOut,
         ),
       ],
+      title: destinations[selectedIndex].label,
+      contextItems: [
+        DesktopContextItem(label: 'Store', value: orDash(settings.location)),
+        DesktopContextItem(
+          label: 'Machine',
+          value: settings.machine == 0 ? '—' : '${settings.machine}',
+        ),
+        DesktopContextItem(label: 'Module', value: orDash(settings.moduleKey)),
+        DesktopContextItem(label: 'Branch', value: orDash(settings.branch)),
+      ],
+      user: session == null
+          ? null
+          : DesktopUser(
+              name: session.userName,
+              detail: 'Cashier · ${session.userCode}',
+            ),
       // IndexedStack only builds the sections valid for the current
       // breakpoint (via `sections`, not the full `_HomeSection.values`) —
-      // otherwise a mobile-width IndexedStack would still build (just not
-      // paint) the Home/Enquiry pages, and any widget test asserting they
-      // aren't present on mobile would find them anyway, since IndexedStack
-      // keeps every child mounted regardless of which index is showing.
+      // otherwise the other layout's pages would be built (just not
+      // painted) and tests asserting their absence would find them.
       body: IndexedStack(
         index: selectedIndex,
         children: [for (final s in sections) _pageFor(s, context, viewModel)],
@@ -561,7 +593,22 @@ class _HomePageState extends State<HomePage> {
   ) {
     switch (section) {
       case _HomeSection.home:
-        return const HomeDashboardPage();
+        return HomeDashboardPage(
+          userName: viewModel.session?.userName ?? '',
+          now: DateTime.now(),
+          scanController: _dashboardScanController,
+          onScan: (value) {
+            // The dashboard scan is a customer lookup (shopping card /
+            // passport / member QR) — run it and show the Customer tab.
+            _customerSearchController.text = value;
+            _dashboardScanController.clear();
+            _searchCustomer();
+            setState(() => _section = _HomeSection.customers);
+          },
+          onNewSale: () => setState(() => _section = _HomeSection.sale),
+          onRegister: () => _openRegistration(),
+          onEnquiry: () => setState(() => _section = _HomeSection.enquiry),
+        );
       case _HomeSection.customers:
         return _customerSearchSection(context, viewModel);
       case _HomeSection.sale:
@@ -569,28 +616,6 @@ class _HomePageState extends State<HomePage> {
       case _HomeSection.enquiry:
         return const EnquiryPage();
     }
-  }
-
-  /// Signed-in user, module, and branch — shown in the header so the
-  /// cashier always has that context on screen, per the request to surface
-  /// it on the navbar rather than a dashboard card.
-  Widget _sessionInfo(HomeViewModel viewModel) {
-    final session = viewModel.session;
-    if (session == null) return const SizedBox.shrink();
-    final settings = viewModel.settings;
-    final module = settings.moduleKey.isEmpty ? '—' : settings.moduleKey;
-    final branch = settings.branch.isEmpty ? '—' : settings.branch;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-      child: Center(
-        child: Text(
-          '${session.userName} · $module · $branch',
-          style: const TextStyle(color: Colors.white, fontSize: 13),
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-    );
   }
 
   Widget _customerSearchSection(BuildContext context, HomeViewModel viewModel) {

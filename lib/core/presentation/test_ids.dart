@@ -9,6 +9,9 @@ abstract class NavIds {
   static const sale = 'nav.sale';
   static const enquiry = 'nav.enquiry';
   static const menu = 'nav.menu';
+  static const customer = 'nav.customer';
+  static const setup = 'nav.setup';
+  static const signOut = 'nav.signOut';
 }
 
 abstract class MenuIds {
@@ -260,4 +263,45 @@ abstract class EnquiryIds {
   static const resultsNotice = 'enquiry.resultsNotice';
   static const reprintButton = 'enquiry.reprintButton';
   static const refundButton = 'enquiry.refundButton';
+}
+
+/// Desktop-only elements (≥ 840 dp). Elements shared with the handheld
+/// layout reuse that screen's ids (LoginIds, SettingsIds, EnquiryIds, …)
+/// so one automation script can drive both.
+abstract class DesktopIds {
+  static const topBar = 'desktop.topBar';
+  static const userChip = 'desktop.userChip';
+
+  // Sign in (S1)
+  static const loginIdentityPanel = 'desktop.login.identityPanel';
+  static const loginRememberUser = 'desktop.login.rememberUser';
+  static const loginIdCardButton = 'desktop.login.idCardButton';
+
+  // Home dashboard (S2)
+  static const homeGreeting = 'desktop.home.greeting';
+  static const homeShiftLine = 'desktop.home.shiftLine';
+  static const homeBillsKpi = 'desktop.home.kpi.bills';
+  static const homeNetSalesKpi = 'desktop.home.kpi.netSales';
+  static const homeAvgBillKpi = 'desktop.home.kpi.avgBill';
+  static const homeScanField = 'desktop.home.scanField';
+  static const homeNewSaleButton = 'desktop.home.newSaleButton';
+  static const homeTileSale = 'desktop.home.tile.sale';
+  static const homeTileRegistration = 'desktop.home.tile.registration';
+  static const homeTileEnquiry = 'desktop.home.tile.enquiry';
+  static const homeSuspendedBills = 'desktop.home.suspendedBills';
+  static const homePromotions = 'desktop.home.promotions';
+
+  // Enquiry (S10)
+  static const enquiryDateRange = 'desktop.enquiry.dateRange';
+  static const enquiryStatus = 'desktop.enquiry.status';
+  static const enquirySearchButton = 'desktop.enquiry.searchButton';
+  static const enquiryTable = 'desktop.enquiry.table';
+  static const enquiryDetail = 'desktop.enquiry.detail';
+  static const enquiryOpenBillButton = 'desktop.enquiry.openBillButton';
+
+  // Settings (S11)
+  static const settingsTerminalPanel = 'desktop.settings.terminalPanel';
+  static const settingsPeripheralsPanel = 'desktop.settings.peripheralsPanel';
+  static const settingsEndpointsPanel = 'desktop.settings.endpointsPanel';
+  static const settingsDevicePanel = 'desktop.settings.devicePanel';
 }

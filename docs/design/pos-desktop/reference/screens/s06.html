@@ -1,0 +1,166 @@
+<section id="s6" data-screen-label="06 Payment" style="padding:34px 56px;scroll-margin-top:16px">
+  <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:14px;font-family:'KP Text',sans-serif">
+    <span style="font:700 11px/1 ui-monospace,Menlo,monospace;padding:5px 8px;background:#191712;color:#E0C57F;border-radius:4px">06</span>
+    <span style="font-weight:700;font-size:15px;color:#191712">Payment — split tender in progress</span>
+    <span style="font-size:12.5px;color:#6B7480">Method tiles, a running tender ledger, and a remaining-amount number that never leaves the screen.</span>
+  </div>
+  <div style="width:1920px;height:1080px;flex:none;display:flex;flex-direction:column;background:#F4F6F9;border-radius:6px;overflow:hidden;box-shadow:0 3px 30px rgba(20,24,32,.18);font-family:'KP Text',ui-sans-serif,system-ui,sans-serif;color:#1E232B">
+    <div style="height:64px;flex:none;background:#191712;color:#fff;display:flex;align-items:center;padding:0 28px;gap:20px">
+      <img src="assets/imgs/logo.png" alt="KP" style="height:30px;width:auto;object-fit:contain">
+      <div style="width:1px;height:26px;background:rgba(255,255,255,.16)"></div>
+      <div style="font-family:'KP Head','KP Text',sans-serif;font-size:19px;font-weight:700">Payment</div>
+      <div style="font-size:13.5px;color:rgba(255,255,255,.6);font-variant-numeric:tabular-nums">RN04-260826-0114 · Sofia Almeida</div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:22px;font-size:13px;color:rgba(255,255,255,.7)">
+        <span>Step 3 of 3</span>
+        <div style="display:flex;gap:6px;align-items:center"><span style="width:34px;height:4px;border-radius:2px;background:#C8A04B"></span><span style="width:34px;height:4px;border-radius:2px;background:#C8A04B"></span><span style="width:34px;height:4px;border-radius:2px;background:#C8A04B"></span></div>
+        <span style="padding:7px 12px;border:1px solid rgba(255,255,255,.22);border-radius:6px">Esc cancels the tender</span>
+      </div>
+    </div>
+    <div style="flex:1;display:grid;grid-template-columns:1fr 560px;min-height:0">
+      <div style="padding:28px 28px 28px 32px;display:flex;flex-direction:column;gap:22px;min-height:0;box-sizing:border-box">
+        <div style="flex:none">
+          <div style="font:600 10.5px/1 'KP Text',sans-serif;letter-spacing:.09em;text-transform:uppercase;color:#6B7480;margin-bottom:14px">Choose a method</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
+            <div style="height:132px;background:#fff;border:1px solid #E4E8EE;border-radius:10px;padding:18px;display:flex;flex-direction:column;justify-content:space-between">
+              <img src="assets/imgs/pay-visa.png" alt="Visa" style="height:26px;width:auto;object-fit:contain;align-self:flex-start">
+              <div><div style="font-size:15px;font-weight:700">Credit card</div><div style="font-size:12.5px;color:#6B7480;margin-top:3px">Visa · Master · JCB</div></div>
+              <span style="font:600 10px/1 ui-monospace,Menlo,monospace;color:#9F8957">F1</span>
+            </div>
+            <div style="height:132px;background:#fff;border:2px solid #654F1C;border-radius:10px;padding:18px;display:flex;flex-direction:column;justify-content:space-between;box-shadow:0 0 0 4px rgba(101,79,28,.1)">
+              <img src="assets/imgs/pay-cash.png" alt="Cash" style="height:26px;width:auto;object-fit:contain;align-self:flex-start">
+              <div><div style="font-size:15px;font-weight:700">Cash</div><div style="font-size:12.5px;color:#6B7480;margin-top:3px">THB · USD · EUR · CNY · JPY</div></div>
+              <span style="font:600 10px/1 ui-monospace,Menlo,monospace;color:#9F8957">F2</span>
+            </div>
+            <div style="height:132px;background:#fff;border:1px solid #E4E8EE;border-radius:10px;padding:18px;display:flex;flex-direction:column;justify-content:space-between">
+              <img src="assets/imgs/pay-cup-card.png" alt="UnionPay" style="height:26px;width:auto;object-fit:contain;align-self:flex-start">
+              <div><div style="font-size:15px;font-weight:700">UnionPay</div><div style="font-size:12.5px;color:#6B7480;margin-top:3px">Card or QR</div></div>
+              <span style="font:600 10px/1 ui-monospace,Menlo,monospace;color:#9F8957">F3</span>
+            </div>
+            <div style="height:132px;background:#fff;border:1px solid #E4E8EE;border-radius:10px;padding:18px;display:flex;flex-direction:column;justify-content:space-between">
+              <div style="display:flex;gap:10px;align-items:center"><img src="assets/imgs/alipay.png" alt="Alipay" style="height:24px;width:auto;object-fit:contain"><img src="assets/imgs/wechat.png" alt="WeChat Pay" style="height:24px;width:auto;object-fit:contain"></div>
+              <div><div style="font-size:15px;font-weight:700">Wallet QR</div><div style="font-size:12.5px;color:#6B7480;margin-top:3px">Alipay · WeChat Pay</div></div>
+              <span style="font:600 10px/1 ui-monospace,Menlo,monospace;color:#9F8957">F4</span>
+            </div>
+            <div style="height:132px;background:#fff;border:1px solid #E4E8EE;border-radius:10px;padding:18px;display:flex;flex-direction:column;justify-content:space-between">
+              [ICON i-card width:26px;height:26px;fill:#654F1C]
+              <div><div style="font-size:15px;font-weight:700">Cash card</div><div style="font-size:12.5px;color:#6B7480;margin-top:3px">KP stored value</div></div>
+              <span style="font:600 10px/1 ui-monospace,Menlo,monospace;color:#9F8957">F5</span>
+            </div>
+            <div style="height:132px;background:#fff;border:1px solid #E4E8EE;border-radius:10px;padding:18px;display:flex;flex-direction:column;justify-content:space-between">
+              [ICON i-coins width:26px;height:26px;fill:#654F1C]
+              <div><div style="font-size:15px;font-weight:700">e-Purse</div><div style="font-size:12.5px;color:#6B7480;margin-top:3px">Member balance ฿4,200</div></div>
+              <span style="font:600 10px/1 ui-monospace,Menlo,monospace;color:#9F8957">F6</span>
+            </div>
+            <div style="height:132px;background:#fff;border:1px solid #E4E8EE;border-radius:10px;padding:18px;display:flex;flex-direction:column;justify-content:space-between">
+              [ICON i-receipt width:26px;height:26px;fill:#654F1C]
+              <div><div style="font-size:15px;font-weight:700">Voucher</div><div style="font-size:12.5px;color:#6B7480;margin-top:3px">Gift or staff voucher</div></div>
+              <span style="font:600 10px/1 ui-monospace,Menlo,monospace;color:#9F8957">F7</span>
+            </div>
+            <div style="height:132px;background:#FBFCFD;border:1px dashed #C3C9D2;border-radius:10px;padding:18px;display:flex;flex-direction:column;justify-content:space-between">
+              [ICON i-list width:26px;height:26px;fill:#9AA2AE]
+              <div><div style="font-size:15px;font-weight:700;color:#6B7480">More methods</div><div style="font-size:12.5px;color:#9AA2AE;margin-top:3px">2C2P · bank transfer</div></div>
+              <span style="font:600 10px/1 ui-monospace,Menlo,monospace;color:#9AA2AE">F8</span>
+            </div>
+          </div>
+        </div>
+        <div style="flex:1;background:#fff;border:1px solid #E4E8EE;border-radius:10px;display:flex;min-height:0;overflow:hidden">
+          <div style="flex:1;padding:24px 26px;display:flex;flex-direction:column;min-width:0">
+            <div style="display:flex;align-items:baseline;justify-content:space-between">
+              <div style="font-family:'KP Head','KP Text',sans-serif;font-size:17px;font-weight:700">Cash · amount tendered</div>
+              <div style="font-size:12.5px;color:#6B7480">Drawer open · counted at shift close</div>
+            </div>
+            <div style="margin-top:16px">
+              <div style="font:600 10.5px/1 'KP Text',sans-serif;letter-spacing:.09em;text-transform:uppercase;color:#6B7480;margin-bottom:11px">Currency</div>
+              <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:9px">
+                <div style="height:64px;border:2px solid #654F1C;border-radius:8px;background:#FBF8F1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px"><span style="font-family:'KP Head','KP Text',sans-serif;font-size:17px;font-weight:700;color:#654F1C">THB</span><span style="font-size:11px;color:#8A7340">฿ · base</span></div>
+                <div style="height:64px;border:1px solid #D8DDE5;border-radius:8px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px"><span style="font-family:'KP Head','KP Text',sans-serif;font-size:17px;font-weight:700;color:#3A414C">USD</span><span style="font-size:11px;color:#9AA2AE;font-variant-numeric:tabular-nums">32.35000</span></div>
+                <div style="height:64px;border:1px solid #D8DDE5;border-radius:8px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px"><span style="font-family:'KP Head','KP Text',sans-serif;font-size:17px;font-weight:700;color:#3A414C">EUR</span><span style="font-size:11px;color:#9AA2AE;font-variant-numeric:tabular-nums">35.10000</span></div>
+                <div style="height:64px;border:1px solid #D8DDE5;border-radius:8px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px"><span style="font-family:'KP Head','KP Text',sans-serif;font-size:17px;font-weight:700;color:#3A414C">CNY</span><span style="font-size:11px;color:#9AA2AE;font-variant-numeric:tabular-nums">4.52000</span></div>
+                <div style="height:64px;border:1px solid #D8DDE5;border-radius:8px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px"><span style="font-family:'KP Head','KP Text',sans-serif;font-size:17px;font-weight:700;color:#3A414C">JPY</span><span style="font-size:11px;color:#9AA2AE;font-variant-numeric:tabular-nums">0.22000</span></div>
+              </div>
+            </div>
+            <div style="margin-top:16px;height:88px;border:2px solid #9F8957;border-radius:10px;background:#FBF8F1;display:flex;align-items:center;padding:0 22px;gap:12px;box-shadow:0 0 0 4px rgba(159,137,87,.12)">
+              <span style="font-family:'KP Head','KP Text',sans-serif;font-size:20px;color:#654F1C">฿</span>
+              <span style="font-family:'KP Head','KP Text',sans-serif;font-size:42px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;color:#191712">30,000.00</span>
+              <span style="width:2px;height:42px;background:#654F1C;margin-left:4px"></span>
+              <span style="margin-left:auto;text-align:right;font-size:12.5px;color:#654F1C;line-height:1.45">tendered in THB<br>remaining ฿27,370.00</span>
+            </div>
+            <div style="display:flex;gap:9px;margin-top:14px">
+              <div style="flex:1;height:44px;border:1px solid #D8DDE5;border-radius:7px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:13.5px;color:#3A414C">Exact</div>
+              <div style="flex:1;height:44px;border:1px solid #D8DDE5;border-radius:7px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:13.5px;color:#3A414C">฿1,000</div>
+              <div style="flex:1;height:44px;border:1px solid #D8DDE5;border-radius:7px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:13.5px;color:#3A414C">฿5,000</div>
+              <div style="flex:1;height:44px;border:1px solid #D8DDE5;border-radius:7px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:13.5px;color:#3A414C">฿10,000</div>
+              <div style="flex:1;height:44px;border:2px solid #654F1C;border-radius:7px;background:#FBF8F1;display:flex;align-items:center;justify-content:center;font-size:13.5px;font-weight:700;color:#654F1C">฿30,000</div>
+            </div>
+            <div style="margin-top:18px;padding-top:18px;border-top:1px solid #EDEFF3;display:flex;gap:14px">
+              <div style="flex:1;padding:16px 18px;border:1px solid #E4E8EE;border-radius:9px;background:#FAFBFC">
+                <div style="font:600 10.5px/1 'KP Text',sans-serif;letter-spacing:.09em;text-transform:uppercase;color:#6B7480;margin-bottom:11px">Applied to bill</div>
+                <div style="font-family:'KP Head','KP Text',sans-serif;font-size:24px;font-weight:500;font-variant-numeric:tabular-nums">฿27,370.00</div>
+                <div style="font-size:12px;color:#9AA2AE;margin-top:6px">capped at remaining balance</div>
+              </div>
+              <div style="flex:1;padding:16px 18px;border:1px solid #CDEFE1;border-radius:9px;background:#E7F8F1">
+                <div style="font:600 10.5px/1 'KP Text',sans-serif;letter-spacing:.09em;text-transform:uppercase;color:#0F6947;margin-bottom:11px">Change due</div>
+                <div style="font-family:'KP Head','KP Text',sans-serif;font-size:24px;font-weight:500;color:#0F6947;font-variant-numeric:tabular-nums">฿2,630.00</div>
+                <div style="font-size:12px;color:#0F6947;opacity:.75;margin-top:6px">given in THB from drawer</div>
+              </div>
+            </div>
+            <div style="margin-top:auto;display:flex;gap:12px">
+              <div style="flex:1;height:64px;border-radius:8px;background:#654F1C;color:#fff;display:flex;align-items:center;justify-content:center;gap:12px;font-size:17px;font-weight:700">Add cash tender <span style="font:600 11px/1 ui-monospace,Menlo,monospace;background:rgba(255,255,255,.18);padding:5px 8px;border-radius:4px">ENTER</span></div>
+              <div style="width:200px;height:64px;border:1px solid #D8DDE5;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;gap:9px;font-size:14.5px;color:#3A414C">[ICON i-money width:15px;height:15px;fill:#654F1C]Open drawer</div>
+            </div>
+          </div>
+          <div style="width:280px;flex:none;border-left:1px solid #EDEFF3;padding:24px 22px;background:#FAFBFC;display:grid;grid-template-columns:repeat(3,1fr);grid-auto-rows:1fr;gap:10px">
+            <div style="border:1px solid #E1E5EC;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;font-family:'KP Head','KP Text',sans-serif;font-size:22px;font-weight:500">7</div>
+            <div style="border:1px solid #E1E5EC;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;font-family:'KP Head','KP Text',sans-serif;font-size:22px;font-weight:500">8</div>
+            <div style="border:1px solid #E1E5EC;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;font-family:'KP Head','KP Text',sans-serif;font-size:22px;font-weight:500">9</div>
+            <div style="border:1px solid #E1E5EC;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;font-family:'KP Head','KP Text',sans-serif;font-size:22px;font-weight:500">4</div>
+            <div style="border:1px solid #E1E5EC;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;font-family:'KP Head','KP Text',sans-serif;font-size:22px;font-weight:500">5</div>
+            <div style="border:1px solid #E1E5EC;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;font-family:'KP Head','KP Text',sans-serif;font-size:22px;font-weight:500">6</div>
+            <div style="border:1px solid #E1E5EC;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;font-family:'KP Head','KP Text',sans-serif;font-size:22px;font-weight:500">1</div>
+            <div style="border:1px solid #E1E5EC;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;font-family:'KP Head','KP Text',sans-serif;font-size:22px;font-weight:500">2</div>
+            <div style="border:1px solid #E1E5EC;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;font-family:'KP Head','KP Text',sans-serif;font-size:22px;font-weight:500">3</div>
+            <div style="border:1px solid #E1E5EC;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;font-family:'KP Head','KP Text',sans-serif;font-size:22px;font-weight:500">0</div>
+            <div style="border:1px solid #E1E5EC;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;font-family:'KP Head','KP Text',sans-serif;font-size:22px;font-weight:500">00</div>
+            <div style="border:1px solid #E1E5EC;border-radius:8px;background:#F2F4F7;display:flex;align-items:center;justify-content:center">[ICON i-times width:18px;height:18px;fill:#6B7480]</div>
+          </div>
+        </div>
+      </div>
+      <div style="background:#fff;border-left:1px solid #E4E8EE;display:flex;flex-direction:column;box-sizing:border-box">
+        <div style="padding:28px 32px 24px;background:#191712;color:#fff">
+          <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font:600 11px/1 'KP Text',sans-serif;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.55)">Net pay</span><span style="font-family:'KP Head','KP Text',sans-serif;font-size:22px;font-weight:500;font-variant-numeric:tabular-nums">฿87,370.00</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:12px"><span style="font:600 11px/1 'KP Text',sans-serif;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.55)">Tendered</span><span style="font-family:'KP Head','KP Text',sans-serif;font-size:22px;font-weight:500;color:#5BD9A4;font-variant-numeric:tabular-nums">฿60,000.00</span></div>
+          <div style="margin-top:20px;padding-top:20px;border-top:1px solid rgba(255,255,255,.14)">
+            <div style="display:flex;align-items:baseline;justify-content:space-between"><span style="font:600 11px/1 'KP Text',sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#C8A04B">Remaining</span><span style="font-size:13px;color:rgba(255,255,255,.55);font-variant-numeric:tabular-nums">≈ USD 846.06</span></div>
+            <div style="font-family:'KP Head','KP Text',sans-serif;font-size:52px;font-weight:700;letter-spacing:-.02em;margin-top:10px;font-variant-numeric:tabular-nums;line-height:1">฿27,370.00</div>
+          </div>
+        </div>
+        <div style="padding:24px 32px;flex:1;display:flex;flex-direction:column;min-height:0">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:16px"><div style="font-family:'KP Head','KP Text',sans-serif;font-size:17px;font-weight:700">Tender ledger</div><div style="font-size:12.5px;color:#6B7480">2 entries</div></div>
+          <div style="display:flex;align-items:center;gap:14px;padding:16px;border:1px solid #E4E8EE;border-radius:9px;margin-bottom:12px">
+            <img src="assets/imgs/pay-visa.png" alt="Visa" style="height:22px;width:auto;object-fit:contain;flex:none">
+            <div style="min-width:0;flex:1"><div style="font-size:14px;font-weight:700">Visa •••• 4021</div><div style="font-size:12.5px;color:#6B7480;margin-top:3px;font-variant-numeric:tabular-nums">Approved 14:36 · auth 883104 · full payment</div></div>
+            <div style="text-align:right"><div style="font-family:'KP Head','KP Text',sans-serif;font-size:19px;font-weight:500;font-variant-numeric:tabular-nums">฿60,000.00</div><div style="font-size:11.5px;color:#1DB87A;margin-top:3px;font-weight:700">APPROVED</div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px;padding:16px;border:2px solid #9F8957;border-radius:9px;background:#FBF8F1">
+            <img src="assets/imgs/pay-cash.png" alt="Cash" style="height:22px;width:auto;object-fit:contain;flex:none">
+            <div style="min-width:0;flex:1"><div style="font-size:14px;font-weight:700">Cash · THB</div><div style="font-size:12.5px;color:#654F1C;margin-top:3px;font-variant-numeric:tabular-nums">Tendered ฿30,000.00 · change ฿2,630.00</div></div>
+            <div style="text-align:right"><div style="font-family:'KP Head','KP Text',sans-serif;font-size:19px;font-weight:500;font-variant-numeric:tabular-nums">฿27,370.00</div><div style="font-size:11.5px;color:#C8923B;margin-top:3px;font-weight:700">PENDING</div></div>
+          </div>
+          <div style="margin-top:22px;padding:16px;border-radius:9px;background:#F7F9FB;border:1px solid #EDEFF3">
+            <div style="font:600 10.5px/1 'KP Text',sans-serif;letter-spacing:.09em;text-transform:uppercase;color:#6B7480;margin-bottom:12px">Cash-D subsidy applied</div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:13.5px;color:#3A414C">Liquor &amp; tobacco 5%</span><span style="font-family:'KP Head','KP Text',sans-serif;font-size:17px;font-weight:500;color:#1DB87A;font-variant-numeric:tabular-nums">−฿1,200.00</span></div>
+          </div>
+          <div style="margin-top:auto;display:flex;flex-direction:column;gap:12px">
+            <div style="height:70px;border-radius:8px;background:#C3C9D2;color:#fff;display:flex;align-items:center;justify-content:center;gap:12px;font-size:18px;font-weight:700">[ICON i-check width:21px;height:21px;fill:#fff]Complete sale</div>
+            <div style="font-size:12.5px;color:#9AA2AE;text-align:center">Enabled when remaining reaches ฿0.00</div>
+            <div style="display:flex;gap:10px">
+              <div style="flex:1;height:50px;border:1px solid #D8DDE5;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;gap:9px;font-size:14px;color:#3A414C">[ICON i-times width:15px;height:15px;fill:#C2483B]Void tender</div>
+              <div style="flex:1;height:50px;border:1px solid #D8DDE5;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;gap:9px;font-size:14px;color:#3A414C">[ICON i-history width:15px;height:15px;fill:#654F1C]Payment history</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+

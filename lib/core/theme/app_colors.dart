@@ -37,6 +37,7 @@ abstract class AppColors {
   static const hintText = Color(0xFF9AA2AE);
   static const online = Color(0xFF1DB87A); // status dot
   static const onlineOnInk = Color(0xFF5BD9A4); // status text on ink
+  static const goldOnInk = Color(0xFFE0C57F); // selected rail item on ink
 
   // Neutrals.
   static const textPrimary = Color(0xFF1E293B);

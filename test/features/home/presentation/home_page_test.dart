@@ -164,13 +164,9 @@ void main() {
     await tester.tap(find.text('Sale').last);
     await tester.pumpAndSettle();
 
-    expect(
-      find.widgetWithText(
-        TextField,
-        'Scan or type barcode (e.g. 5*8850012345678)',
-      ),
-      findsOneWidget,
-    );
+    expect(byTestId(SaleIds.scanField), findsOneWidget);
+    expect(byTestId(DesktopSaleIds.summary), findsOneWidget);
+    expect(find.text('Sale · Shopping'), findsOneWidget);
   });
 
   testWidgets('tapping the logout icon asks for confirmation first', (

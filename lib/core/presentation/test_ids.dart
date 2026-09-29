@@ -112,6 +112,11 @@ abstract class DiscountIds {
   static const modePercent = 'discount.mode.percent';
   static const modeAmount = 'discount.mode.amount';
   static const modePromo = 'discount.mode.promo';
+  static const modeNewPrice = 'discount.mode.newPrice';
+  static const clearButton = 'discount.clearButton';
+  static const lineDiscount = 'discount.lineDiscount';
+  static const billDelta = 'discount.billDelta';
+  static const promotions = 'discount.promotions';
   static const valueField = 'discount.valueField';
   static const netPreview = 'discount.netPreview';
   static const applyButton = 'discount.applyButton';
@@ -304,4 +309,25 @@ abstract class DesktopIds {
   static const settingsPeripheralsPanel = 'desktop.settings.peripheralsPanel';
   static const settingsEndpointsPanel = 'desktop.settings.endpointsPanel';
   static const settingsDevicePanel = 'desktop.settings.devicePanel';
+}
+
+/// Desktop Sale (S3 / S4) elements not shared with the handheld Sale.
+abstract class DesktopSaleIds {
+  static const lookupButton = 'desktop.sale.lookupButton';
+  static const qtyButton = 'desktop.sale.qtyButton';
+  static const table = 'desktop.sale.table';
+  static const summary = 'desktop.sale.summary';
+  static const qtyTotal = 'desktop.sale.qtyTotal';
+  static const lineCount = 'desktop.sale.lineCount';
+  static const grand = 'desktop.sale.grand';
+  static const removeButton = 'desktop.sale.removeButton';
+  static const freezeButton = 'desktop.sale.freezeButton';
+  static const pickupButton = 'desktop.sale.pickupButton';
+  static const selectionHint = 'desktop.sale.selectionHint';
+  static const suspendButton = 'desktop.sale.suspendButton';
+  static const printBasketButton = 'desktop.sale.printBasketButton';
+  static const claimCheckButton = 'desktop.sale.claimCheckButton';
+
+  static String qtyDecrease(String row) => 'desktop.sale.line.$row.qtyDecrease';
+  static String qtyIncrease(String row) => 'desktop.sale.line.$row.qtyIncrease';
 }

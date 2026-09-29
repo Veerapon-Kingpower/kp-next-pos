@@ -417,7 +417,11 @@ class _HomePageState extends State<HomePage> {
           onTap: _logOut,
         ),
       ],
-      title: destinations[selectedIndex].label,
+      // The Sale screen names its order type, as in the mockup; the app
+      // only runs Shopping bills today (see HandheldSaleView / SaleOrderType).
+      title: section == _HomeSection.sale
+          ? 'Sale · Shopping'
+          : destinations[selectedIndex].label,
       contextItems: [
         DesktopContextItem(label: 'Store', value: orDash(settings.location)),
         DesktopContextItem(

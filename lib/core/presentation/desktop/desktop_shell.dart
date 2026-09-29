@@ -257,30 +257,47 @@ class DesktopTopBar extends StatelessWidget {
                 ),
               ),
             ],
-            for (final item in contextItems) ...[
-              const SizedBox(width: 16),
-              Container(width: 1, height: 26, color: AppColors.line),
-              const SizedBox(width: 16),
-              Text.rich(
-                TextSpan(
-                  children: [
-                    TextSpan(
-                      text: '${item.label} ',
-                      style: const TextStyle(color: AppColors.mutedText),
-                    ),
-                    TextSpan(
-                      text: item.value,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                  ],
-                ),
-                style: const TextStyle(
-                  fontSize: 13.5,
-                  color: AppColors.textPrimary,
+            // Station context gets whatever room is left and clips quietly
+            // (never overflows) when the title / actions need the space.
+            Expanded(
+              child: ClipRect(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const NeverScrollableScrollPhysics(),
+                  child: Row(
+                    children: [
+                      for (final item in contextItems) ...[
+                        const SizedBox(width: 16),
+                        Container(width: 1, height: 26, color: AppColors.line),
+                        const SizedBox(width: 16),
+                        Text.rich(
+                          TextSpan(
+                            children: [
+                              TextSpan(
+                                text: '${item.label} ',
+                                style: const TextStyle(
+                                  color: AppColors.mutedText,
+                                ),
+                              ),
+                              TextSpan(
+                                text: item.value,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
               ),
-            ],
-            const Spacer(),
+            ),
             for (final action in actions) ...[
               action,
               const SizedBox(width: 10),

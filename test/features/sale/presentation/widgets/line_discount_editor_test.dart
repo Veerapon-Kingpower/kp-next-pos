@@ -216,7 +216,15 @@ void main() {
     await open(tester);
     await tapId(tester, DiscountIds.codeSearchButton);
     expect(byTestId(DiscountIds.picker), findsOneWidget);
-    expect(find.text('B500 : Baht 500 off'), findsOneWidget);
+    final row = byTestId(DiscountIds.pickerRow('B500'));
+    expect(
+      find.descendant(of: row, matching: find.text('Baht 500 off')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: row, matching: find.text('500.00')),
+      findsOneWidget,
+    );
 
     await tapId(tester, DiscountIds.pickerRow('B500'));
     expect(textField(tester, DiscountIds.amountField).controller!.text, '500');
@@ -296,6 +304,107 @@ void main() {
     await open(tester, session: _noPermission);
     expect(find.text("Sorry, you don't have permission."), findsOneWidget);
     expect(byTestId(DiscountIds.sheet), findsNothing);
+  });
+
+  testWidgets('project design: net bar shows the line net; a quick-set chip '
+      'fills Per.; Cancel closes', (tester) async {
+    await open(tester);
+    expect(
+      find.descendant(
+        of: byTestId(DiscountIds.netPreview),
+        matching: find.text('฿5,080.00'),
+      ),
+      findsOneWidget,
+    );
+    await tapId(tester, DiscountIds.preset(5));
+    expect(textField(tester, DiscountIds.percentField).controller!.text, '5');
+    expect(
+      textField(tester, DiscountIds.amountField).enabled,
+      isFalse,
+      reason: 'a percent locks THB, as typing does',
+    );
+    await tapId(tester, DiscountIds.cancelButton);
+    expect(byTestId(DiscountIds.sheet), findsNothing);
+    expect(sale.lineActions, isEmpty);
+  });
+
+  testWidgets('the picker (currency picker frame) re-queries the promotion '
+      'master as the cashier types; Close picks nothing', (tester) async {
+    await open(tester);
+    await tapId(tester, DiscountIds.codeSearchButton);
+    expect(find.text('Promotions'), findsOneWidget);
+    await tester.enterText(field(DiscountIds.pickerSearch), 'B5');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
+    expect(sale.lastPromotionQuery, 'B5');
+    expect(byTestId(DiscountIds.pickerRow('B500')), findsOneWidget);
+    expect(byTestId(DiscountIds.pickerRow('P10')), findsNothing);
+
+    await tapId(tester, DiscountIds.pickerClearButton);
+    expect(textField(tester, DiscountIds.pickerSearch).controller!.text, '');
+    expect(sale.lastPromotionQuery, '', reason: 'lists the master again');
+    expect(byTestId(DiscountIds.pickerRow('P10')), findsOneWidget);
+    expect(byTestId(DiscountIds.pickerClearButton), findsNothing);
+
+    await tester.tap(find.byTooltip('Close').last);
+    await tester.pumpAndSettle();
+    expect(byTestId(DiscountIds.picker), findsNothing);
+    expect(textField(tester, DiscountIds.codeField).controller!.text, isEmpty);
+  });
+
+  testWidgets('desktop: the picker is a dialog and fills the form', (
+    tester,
+  ) async {
+    await open(tester, desktop: true);
+    await tapId(tester, DiscountIds.codeSearchButton);
+    expect(byTestId(DiscountIds.picker), findsOneWidget);
+    await tapId(tester, DiscountIds.pickerRow('P10'));
+    expect(find.text('Promo 10%'), findsOneWidget);
+    expect(textField(tester, DiscountIds.percentField).controller!.text, '10');
+  });
+
+  testWidgets('tapping Per. clears THB and tapping THB clears Per., even '
+      'while it is locked', (tester) async {
+    await open(tester);
+    final percent = textField(tester, DiscountIds.percentField).controller!;
+    final amount = textField(tester, DiscountIds.amountField).controller!;
+
+    await tester.enterText(field(DiscountIds.percentField), '10');
+    await tester.pump();
+    expect(textField(tester, DiscountIds.amountField).enabled, isFalse);
+
+    await tapId(tester, DiscountIds.amountField);
+    expect(percent.text, isEmpty);
+    expect(textField(tester, DiscountIds.amountField).enabled, isTrue);
+
+    await tester.enterText(field(DiscountIds.amountField), '300');
+    await tester.pump();
+    await tapId(tester, DiscountIds.percentField);
+    expect(amount.text, isEmpty);
+    expect(textField(tester, DiscountIds.percentField).enabled, isTrue);
+  });
+
+  testWidgets('a baht promotion keeps THB: tapping Per. does nothing', (
+    tester,
+  ) async {
+    await open(tester);
+    await tapId(tester, DiscountIds.codeSearchButton);
+    await tapId(tester, DiscountIds.pickerRow('B500'));
+    await tapId(tester, DiscountIds.percentField);
+    expect(textField(tester, DiscountIds.amountField).controller!.text, '500');
+    expect(textField(tester, DiscountIds.percentField).enabled, isFalse);
+  });
+
+  testWidgets('Per. cannot go above 100%', (tester) async {
+    await open(tester);
+    final percent = textField(tester, DiscountIds.percentField).controller!;
+    await tester.enterText(field(DiscountIds.percentField), '10');
+    await tester.enterText(field(DiscountIds.percentField), '101');
+    expect(percent.text, '10', reason: 'the keystroke over 100 is refused');
+    await tester.enterText(field(DiscountIds.percentField), '100');
+    expect(percent.text, '100');
+    await tester.enterText(field(DiscountIds.percentField), '100.5');
+    expect(percent.text, '100');
   });
 
   testWidgets('desktop: form and line detail side by side', (tester) async {

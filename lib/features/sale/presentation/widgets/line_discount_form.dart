@@ -23,6 +23,9 @@ class LineDiscountForm extends ChangeNotifier {
   /// The applied discount being edited (legacy `isEditMode`), if any.
   LineDiscount? editing;
 
+  // The mode a promotion fixed: true = rate (Per.), false = baht (THB).
+  bool? _promotionMode;
+
   double get _percent => double.tryParse(percent.text) ?? 0;
   double get _amount => double.tryParse(amount.text) ?? 0;
 
@@ -49,6 +52,7 @@ class LineDiscountForm extends ChangeNotifier {
     canEditPercent = true;
     canEditAmount = true;
     editing = null;
+    _promotionMode = null;
     notifyListeners();
   }
 
@@ -59,12 +63,14 @@ class LineDiscountForm extends ChangeNotifier {
     description = promotion.name;
     if (promotion.discountAmount > 0) {
       isPercent = false;
+      _promotionMode = false;
       percent.text = '';
       amount.text = _format(promotion.discountAmount);
       canEditAmount = promotion.allowOverwrite;
       canEditPercent = false;
     } else if (promotion.discountRate > 0) {
       isPercent = true;
+      _promotionMode = true;
       percent.text = _format(promotion.discountRate);
       amount.text = '';
       canEditPercent = promotion.allowOverwrite;
@@ -98,8 +104,24 @@ class LineDiscountForm extends ChangeNotifier {
     code.clear();
     percent.clear();
     amount.clear();
+    _promotionMode = null;
     canEditPercent = true;
     canEditAmount = true;
+    notifyListeners();
+  }
+
+  /// Tapping Per. ([percent] true) or THB: that one becomes the discount and
+  /// the other's value is cleared, so only one is ever sent. A mode a
+  /// promotion fixed (baht vs rate) can't be switched.
+  void select({required bool percent}) {
+    final fixed = _promotionMode;
+    if (fixed != null && fixed != percent) return;
+    if (fixed == null) {
+      canEditPercent = true;
+      canEditAmount = true;
+    }
+    isPercent = percent;
+    (percent ? amount : this.percent).clear();
     notifyListeners();
   }
 

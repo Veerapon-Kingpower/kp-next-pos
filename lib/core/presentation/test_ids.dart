@@ -143,7 +143,12 @@ abstract class DiscountIds {
   static const clearAllButton = 'discount.clearAllButton';
   static const picker = 'discount.picker';
   static const pickerSearch = 'discount.picker.search';
+  static const pickerClearButton = 'discount.picker.clearButton';
   static const currencyButton = 'discount.currencyButton';
+  static const netPreview = 'discount.netPreview';
+  static const cancelButton = 'discount.cancelButton';
+
+  static String preset(int percent) => 'discount.preset.$percent';
 
   static String discountRow(int index) => 'discount.list.$index';
   static String discountRemove(int index) => 'discount.list.$index.remove';

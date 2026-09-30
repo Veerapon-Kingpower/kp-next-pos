@@ -1,21 +1,20 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
-import '../../../../core/presentation/handheld/money_format.dart';
 import '../../../../core/presentation/test_ids.dart';
-import '../../../../core/presentation/widgets/app_buttons.dart';
+import '../../../../core/presentation/desktop/desktop.dart'
+    show DesktopButton, DesktopText;
+import '../../../../core/presentation/handheld/handheld.dart';
 import '../../../../core/presentation/widgets/app_dialogs.dart';
 import '../../../../core/presentation/widgets/test_id.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../domain/entities/cart_item.dart';
 import '../../domain/entities/line_discount.dart';
-import '../../domain/entities/promotion.dart';
 import '../sale_cart_view_model.dart';
 import '../sale_currency.dart';
 import 'line_discount_form.dart';
+import 'promotion_picker.dart';
 
 /// Legacy's gates before the Discount page opens for [lines]: one locked
 /// or frozen line can't be discounted (the Sale page's "Discount" action),
@@ -74,6 +73,8 @@ class _LineDiscountEditorState extends State<LineDiscountEditor> {
   final _form = LineDiscountForm();
   final _scan = TextEditingController();
   final _codeFocus = FocusNode();
+  final _percentFocus = FocusNode();
+  final _amountFocus = FocusNode();
 
   @override
   void initState() {
@@ -98,6 +99,8 @@ class _LineDiscountEditorState extends State<LineDiscountEditor> {
       ..dispose();
     _scan.dispose();
     _codeFocus.dispose();
+    _percentFocus.dispose();
+    _amountFocus.dispose();
     super.dispose();
   }
 
@@ -195,13 +198,43 @@ class _LineDiscountEditorState extends State<LineDiscountEditor> {
     if (refusal != null) await _alert(context, 'Oops !', refusal);
   }
 
+  // Quick-set chips fill Per. the same way typing does.
+  List<int> get _presets =>
+      widget.wide ? const [3, 5, 7, 10, 15, 20] : const [3, 5, 7, 10];
+
+  // Per. vs THB: the tapped one clears the other and takes the cursor.
+  void _select({required bool percent}) {
+    _form.select(percent: percent);
+    final focus = percent ? _percentFocus : _amountFocus;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) focus.requestFocus();
+    });
+  }
+
+  void _setPreset(int percent) {
+    _select(percent: true);
+    _form.percent.text = '$percent';
+    _form.percentChanged(_form.percent.text);
+  }
+
   @override
   Widget build(BuildContext context) {
     return GetBuilder<SaleCartViewModel>(
       init: _vm,
       global: false,
       builder: (vm) {
-        if (!_single) return _entry(vm.isBusy);
+        final busy = vm.isBusy;
+        if (!_single) {
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _entry(busy),
+              const SizedBox(height: 18),
+              _actions(busy),
+            ],
+          );
+        }
         final line = _line;
         if (line == null) {
           return const Padding(
@@ -209,209 +242,256 @@ class _LineDiscountEditorState extends State<LineDiscountEditor> {
             child: Text('This line is no longer on the order.'),
           );
         }
-        final form = _entry(vm.isBusy);
-        final detail = _detail(line);
+        final subtitle = Text(
+          '${line.articleName.isEmpty ? line.articleCode : line.articleName}'
+          ' · ${line.articleCode}',
+          style: TextStyle(
+            fontSize: widget.wide ? 13 : 11.5,
+            color: AppColors.mutedText,
+          ),
+        );
         if (!widget.wide) {
           return Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [form, const SizedBox(height: 16), detail],
+            children: [
+              subtitle,
+              const SizedBox(height: 14),
+              _entry(busy),
+              const SizedBox(height: 16),
+              _detail(line),
+              const SizedBox(height: 16),
+              _actions(busy),
+            ],
           );
         }
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(flex: 3, child: form),
-            const SizedBox(width: 28),
-            Expanded(flex: 2, child: detail),
+            subtitle,
+            const SizedBox(height: 20),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(flex: 3, child: _entry(busy)),
+                const SizedBox(width: 28),
+                Expanded(
+                  flex: 2,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _detail(line),
+                      const SizedBox(height: 16),
+                      _actions(busy),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ],
         );
       },
     );
   }
 
+  /// Scan + currency, the promotion Code, then Per. / THB as the big entry
+  /// boxes with quick-set percent chips.
   Widget _entry(bool busy) {
-    InputDecoration decoration(String hint, {Widget? suffix}) =>
-        InputDecoration(
-          hintText: hint,
-          isDense: true,
-          border: const OutlineInputBorder(),
-          suffixIcon: suffix,
-        );
-    Widget clearButton(String id, VoidCallback onPressed) => TestId(
-      id,
-      child: IconButton(
-        icon: const Icon(Icons.cancel, size: 18),
-        tooltip: 'Clear',
-        onPressed: onPressed,
-      ),
-    );
-    final numbers = [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))];
-    const label = TextStyle(fontWeight: FontWeight.w700);
-
+    final wide = widget.wide;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
           children: [
             Expanded(
-              child: TestId(
-                DiscountIds.scanField,
-                child: TextField(
-                  controller: _scan,
-                  enabled: !busy,
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => _submitScan(),
-                  decoration: decoration(
-                    'Scan or type promotion code',
-                    suffix: const Icon(Icons.qr_code_scanner),
-                  ),
-                ),
+              child: ScanField(
+                id: DiscountIds.scanField,
+                controller: _scan,
+                enabled: !busy,
+                hintText: 'Scan or type promotion QR',
+                onSubmitted: (_) => _submitScan(),
               ),
             ),
             const SizedBox(width: 8),
             // Legacy Discount page header: the order's currency.
-            TestId(
-              DiscountIds.currencyButton,
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.currency_exchange, size: 18),
-                label: Text(orderCurrency(_vm.cart)),
-                onPressed: busy
-                    ? null
-                    : () => changeOrderCurrency(context, _vm),
+            SizedBox(
+              width: wide ? 110 : 84,
+              child: HandheldChoiceChip(
+                id: DiscountIds.currencyButton,
+                icon: Icons.currency_exchange,
+                label: orderCurrency(_vm.cart),
+                selected: false,
+                height: HandheldMetrics.scanFieldHeight,
+                onTap: busy ? null : () => changeOrderCurrency(context, _vm),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            const SizedBox(width: 56, child: Text('Code', style: label)),
-            Expanded(
-              child: TestId(
-                DiscountIds.codeField,
-                child: TextField(
-                  controller: _form.code,
-                  focusNode: _codeFocus,
-                  textCapitalization: TextCapitalization.characters,
-                  onSubmitted: (_) => _lookUpCode(),
-                  decoration: decoration(
-                    'type promotion code',
-                    suffix: _form.code.text.isEmpty
-                        ? null
-                        : clearButton(DiscountIds.codeClearButton, _form.reset),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            TestId(
-              DiscountIds.codeSearchButton,
-              child: IconButton.filledTonal(
-                icon: const Icon(Icons.search),
-                tooltip: 'Promotions',
-                onPressed: busy ? null : _pickPromotion,
-              ),
-            ),
-          ],
-        ),
+        SizedBox(height: wide ? 18 : 14),
+        const Text('PROMOTION CODE', style: DesktopText.fieldLabel),
+        const SizedBox(height: 8),
+        _codeBox(busy),
         if (_form.description.isNotEmpty) ...[
           const SizedBox(height: 6),
-          Padding(
-            padding: const EdgeInsets.only(left: 56),
-            child: TestId(
-              DiscountIds.promotionName,
-              child: Text(
-                _form.description,
-                style: const TextStyle(color: AppColors.goldDark),
+          TestId(
+            DiscountIds.promotionName,
+            child: Text(
+              _form.description,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                color: AppColors.goldDark,
               ),
             ),
           ),
         ],
-        const SizedBox(height: 12),
+        SizedBox(height: wide ? 18 : 14),
         Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(width: 56, child: Text('Per.', style: label)),
             Expanded(
-              child: TestId(
-                DiscountIds.percentField,
-                child: TextField(
-                  controller: _form.percent,
-                  enabled: _form.canEditPercent,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  inputFormatters: numbers,
-                  onChanged: _form.percentChanged,
-                  decoration: decoration('Percent disc.'),
-                ),
+              child: _ValueBox(
+                id: DiscountIds.percentField,
+                label: 'DISCOUNT PERCENT',
+                hint: 'Percent disc.',
+                suffix: '%',
+                max: 100,
+                controller: _form.percent,
+                enabled: _form.canEditPercent,
+                active: _form.isPercent && _form.percent.text.isNotEmpty,
+                wide: wide,
+                onChanged: _form.percentChanged,
+                focusNode: _percentFocus,
+                onSelect: busy ? null : () => _select(percent: true),
               ),
             ),
-            const SizedBox(width: 12),
-            const Text('THB', style: label),
-            const SizedBox(width: 8),
+            SizedBox(width: wide ? 14 : 10),
             Expanded(
-              child: TestId(
-                DiscountIds.amountField,
-                child: TextField(
-                  controller: _form.amount,
-                  enabled: _form.canEditAmount,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  inputFormatters: numbers,
-                  onChanged: _form.amountChanged,
-                  decoration: decoration('Cash disc.'),
-                ),
+              child: _ValueBox(
+                id: DiscountIds.amountField,
+                label: 'DISCOUNT AMOUNT (THB)',
+                hint: 'Cash disc.',
+                suffix: '฿',
+                controller: _form.amount,
+                enabled: _form.canEditAmount,
+                active: !_form.isPercent && _form.amount.text.isNotEmpty,
+                wide: wide,
+                onChanged: _form.amountChanged,
+                focusNode: _amountFocus,
+                onSelect: busy ? null : () => _select(percent: false),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 18),
-        Row(
-          children: [
-            Expanded(
-              child: TestId(
-                DiscountIds.saveButton,
-                child: AppPrimaryButton(
-                  label: _form.editing == null ? 'Save' : 'Update',
-                  onPressed: _form.canSave && !busy
-                      ? () => _save(close: false)
-                      : null,
+        if (_form.canEditPercent) ...[
+          const SizedBox(height: 14),
+          const Text('QUICK SET', style: DesktopText.fieldLabel),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              for (var i = 0; i < _presets.length; i++) ...[
+                if (i > 0) const SizedBox(width: 8),
+                Expanded(
+                  child: HandheldChoiceChip(
+                    id: DiscountIds.preset(_presets[i]),
+                    label: '${_presets[i]}%',
+                    selected: _form.percent.text == '${_presets[i]}',
+                    onTap: busy ? null : () => _setPreset(_presets[i]),
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: TestId(
-                DiscountIds.saveCloseButton,
-                child: AppPrimaryButton(
-                  label: 'Save & Close',
-                  onPressed: _form.canSave && !busy
-                      ? () => _save(close: true)
-                      : null,
-                ),
-              ),
-            ),
-          ],
-        ),
+              ],
+            ],
+          ),
+        ],
       ],
     );
   }
 
-  Widget _detail(CartItem line) {
-    final max = line.maxPercentDiscount;
-    Widget row(String label, String value, {Color? color}) => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+  Widget _codeBox(bool busy) {
+    return Container(
+      height: widget.wide ? 60 : 54,
+      padding: const EdgeInsets.only(left: 18, right: 6),
+      decoration: BoxDecoration(
+        color: AppColors.cream,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.goldMuted, width: 2),
+      ),
       child: Row(
         children: [
-          Text(label, style: const TextStyle(color: AppColors.mutedText)),
+          Expanded(
+            child: TestId(
+              DiscountIds.codeField,
+              child: TextField(
+                controller: _form.code,
+                focusNode: _codeFocus,
+                textCapitalization: TextCapitalization.characters,
+                onSubmitted: (_) => _lookUpCode(),
+                style: TextStyle(
+                  fontFamily: 'KingPowerHeadline',
+                  fontSize: widget.wide ? 24 : 20,
+                  fontWeight: FontWeight.w700,
+                ),
+                decoration: InputDecoration.collapsed(
+                  hintText: 'Type promotion code',
+                  hintStyle: TextStyle(
+                    fontSize: widget.wide ? 18 : 16,
+                    color: AppColors.hintText,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (_form.code.text.isNotEmpty)
+            TestId(
+              DiscountIds.codeClearButton,
+              child: IconButton(
+                icon: const Icon(Icons.cancel, size: 18),
+                color: AppColors.mutedText,
+                tooltip: 'Clear',
+                onPressed: _form.reset,
+              ),
+            ),
+          TestId(
+            DiscountIds.codeSearchButton,
+            child: IconButton(
+              icon: const Icon(Icons.search),
+              color: AppColors.goldDark,
+              tooltip: 'Promotions',
+              onPressed: busy ? null : _pickPromotion,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// The line preview panel: the line's figures from the sale engine, its
+  /// net on the ink bar, and the discounts already applied.
+  Widget _detail(CartItem line) {
+    final wide = widget.wide;
+    final max = line.maxPercentDiscount;
+    Widget row(String label, String value, {Color? color}) => Padding(
+      padding: EdgeInsets.symmetric(vertical: wide ? 5 : 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: wide ? 14 : 12.5,
+              color: AppColors.mutedText,
+            ),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               value,
               textAlign: TextAlign.end,
-              style: TextStyle(fontWeight: FontWeight.w700, color: color),
+              style: TextStyle(
+                fontSize: wide ? 17 : 14,
+                fontWeight: FontWeight.w500,
+                color: color,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
             ),
           ),
         ],
@@ -419,62 +499,80 @@ class _LineDiscountEditorState extends State<LineDiscountEditor> {
     );
     final gross = line.unitPrice * line.quantity;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        TestId(
-          DiscountIds.lineDetail,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              row('Item Code', line.articleCode),
-              row('Description', line.articleName),
-              row('Price', formatAmount(line.unitPrice)),
-              row('Amount', formatAmount(gross)),
-              row('Discount', formatAmount(line.discountAmount)),
-              row(
-                'Max Disc',
-                max == null || max == 0 ? '-' : '${max.toStringAsFixed(0)}%',
-                color: AppColors.danger,
-              ),
-              row('Net Amount', formatAmount(line.lineTotal)),
-            ],
+    return Container(
+      padding: EdgeInsets.all(wide ? 20 : 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFAFBFC),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('LINE PREVIEW', style: DesktopText.fieldLabel),
+          const SizedBox(height: 8),
+          TestId(
+            DiscountIds.lineDetail,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                row('Item Code', line.articleCode),
+                row('Description', line.articleName),
+                row('Price', formatAmount(line.unitPrice)),
+                row('Qty', '${line.quantity}'),
+                row('Amount', formatAmount(gross)),
+                row(
+                  'Discount',
+                  line.discountAmount == 0
+                      ? '—'
+                      : formatAmount(-line.discountAmount),
+                  color: line.discountAmount == 0 ? null : AppColors.danger,
+                ),
+                row(
+                  'Max Disc',
+                  max == null || max == 0 ? '-' : '${max.toStringAsFixed(0)}%',
+                  color: AppColors.danger,
+                ),
+              ],
+            ),
           ),
-        ),
-        if (line.discounts.isNotEmpty) ...[
-          const SizedBox(height: 14),
-          Container(
-            color: AppColors.cream,
-            padding: const EdgeInsets.only(left: 12),
-            child: Row(
+          const SizedBox(height: 12),
+          _NetBar(value: formatBaht(line.lineTotal), wide: wide),
+          if (line.discounts.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Row(
               children: [
                 const Expanded(
                   child: Text(
-                    'Promotion & Discount',
-                    style: TextStyle(fontWeight: FontWeight.w700),
+                    'PROMOTION & DISCOUNT',
+                    style: DesktopText.fieldLabel,
                   ),
                 ),
                 TestId(
                   DiscountIds.clearAllButton,
                   child: TextButton(
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.danger,
+                    ),
                     onPressed: _clearAll,
                     child: const Text('Clear All'),
                   ),
                 ),
               ],
             ),
-          ),
-          TestId(
-            DiscountIds.discountList,
-            child: Column(
-              children: [
-                for (var i = 0; i < line.discounts.length; i++)
-                  _discountRow(i, line.discounts[i]),
-              ],
+            TestId(
+              DiscountIds.discountList,
+              child: Column(
+                children: [
+                  for (var i = 0; i < line.discounts.length; i++) ...[
+                    if (i > 0) const SizedBox(height: 8),
+                    _discountRow(i, line.discounts[i]),
+                  ],
+                ],
+              ),
             ),
-          ),
+          ],
         ],
-      ],
+      ),
     );
   }
 
@@ -482,46 +580,155 @@ class _LineDiscountEditorState extends State<LineDiscountEditor> {
     final value = discount.isPercent
         ? '${_trim(discount.percent)} %'
         : formatAmount(discount.amount);
+    final selected = _form.editing?.guid == discount.guid;
     return TestId(
       DiscountIds.discountRow(index),
-      child: ListTile(
-        dense: true,
-        selected: _form.editing?.guid == discount.guid,
-        onTap: () => _edit(discount),
-        title: Text(
-          discount.description,
-          style: const TextStyle(color: AppColors.goldDark),
+      child: Material(
+        color: selected ? AppColors.cream : AppColors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(
+            color: selected ? AppColors.goldDark : const Color(0xFFD8DDE5),
+            width: selected ? 2 : 1,
+          ),
         ),
-        subtitle: Text(discount.code),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: () => _edit(discount),
+          child: Padding(
+            padding: const EdgeInsets.only(left: 12, top: 8, bottom: 8),
+            child: Row(
               children: [
-                Text(
-                  value,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-                if (discount.isPercent && discount.calculatedAmount != null)
-                  Text(
-                    formatAmount(discount.calculatedAmount!),
-                    style: const TextStyle(fontSize: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        discount.description,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.goldDark,
+                        ),
+                      ),
+                      if (discount.code.isNotEmpty)
+                        Text(
+                          discount.code,
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            color: AppColors.mutedText,
+                          ),
+                        ),
+                    ],
                   ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      value,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontFeatures: [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                    if (discount.isPercent && discount.calculatedAmount != null)
+                      Text(
+                        formatAmount(discount.calculatedAmount!),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.mutedText,
+                        ),
+                      ),
+                  ],
+                ),
+                TestId(
+                  DiscountIds.discountRemove(index),
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      color: AppColors.danger,
+                    ),
+                    tooltip: 'Remove',
+                    onPressed: () => _remove(discount),
+                  ),
+                ),
               ],
             ),
-            TestId(
-              DiscountIds.discountRemove(index),
-              child: IconButton(
-                icon: const Icon(Icons.delete_outline, color: AppColors.danger),
-                tooltip: 'Remove',
-                onPressed: () => _remove(discount),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Save (stay) / Save & Close, as legacy; Cancel closes without saving.
+  Widget _actions(bool busy) {
+    final canSave = _form.canSave && !busy;
+    final saveLabel = _form.editing == null ? 'Save' : 'Update';
+    void cancel() => Navigator.of(context).pop();
+
+    if (widget.wide) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          DesktopButton(
+            id: DiscountIds.saveCloseButton,
+            label: 'Save & Close',
+            hotkey: 'ENTER',
+            height: 64,
+            onPressed: canSave ? () => _save(close: true) : null,
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: DesktopButton(
+                  id: DiscountIds.saveButton,
+                  label: saveLabel,
+                  secondary: true,
+                  onPressed: canSave ? () => _save(close: false) : null,
+                ),
               ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: DesktopButton(
+                  id: DiscountIds.cancelButton,
+                  label: 'Cancel',
+                  secondary: true,
+                  onPressed: cancel,
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        HandheldPrimaryButton(
+          id: DiscountIds.saveCloseButton,
+          label: 'Save & Close',
+          onPressed: canSave ? () => _save(close: true) : null,
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _OutlineButton(
+                id: DiscountIds.saveButton,
+                label: saveLabel,
+                onPressed: canSave ? () => _save(close: false) : null,
+              ),
+            ),
+            const SizedBox(width: 10),
+            HandheldSecondaryButton(
+              id: DiscountIds.cancelButton,
+              label: 'Cancel',
+              onPressed: cancel,
             ),
           ],
         ),
-      ),
+      ],
     );
   }
 
@@ -529,121 +736,220 @@ class _LineDiscountEditorState extends State<LineDiscountEditor> {
       v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
 }
 
-/// Legacy `PromotionPickerPage`: the branch's promotion master
-/// (`GetPromotionList`), re-queried as the cashier types; tapping one picks
-/// it.
-Future<Promotion?> showPromotionPicker(
-  BuildContext context, {
-  required SaleCartViewModel viewModel,
-  String initialQuery = '',
-}) {
-  return showDialog<Promotion>(
-    context: context,
-    builder: (_) =>
-        _PromotionPicker(viewModel: viewModel, initialQuery: initialQuery),
-  );
-}
+/// The big cream entry box (`10 %`, `500 ฿`) — Per. or THB. A locked one
+/// greys out; the one driving the discount keeps the gold border.
+class _ValueBox extends StatelessWidget {
+  final String id;
+  final String label;
+  final String hint;
+  final String suffix;
+  final TextEditingController controller;
+  final bool enabled;
+  final bool active;
+  final bool wide;
+  final ValueChanged<String> onChanged;
+  final FocusNode focusNode;
 
-class _PromotionPicker extends StatefulWidget {
-  final SaleCartViewModel viewModel;
-  final String initialQuery;
+  /// Tapping the box, even while it's locked.
+  final VoidCallback? onSelect;
 
-  const _PromotionPicker({required this.viewModel, required this.initialQuery});
+  /// Rejects a keystroke that would take the value above it.
+  final double? max;
 
-  @override
-  State<_PromotionPicker> createState() => _PromotionPickerState();
-}
-
-class _PromotionPickerState extends State<_PromotionPicker> {
-  late final _query = TextEditingController(text: widget.initialQuery);
-  late Future<List<Promotion>> _promotions = _load(widget.initialQuery);
-  Timer? _debounce;
-
-  Future<List<Promotion>> _load(String query) =>
-      widget.viewModel.searchPromotions(query.trim());
-
-  void _changed(String query) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () {
-      if (mounted) setState(() => _promotions = _load(query));
-    });
-  }
-
-  @override
-  void dispose() {
-    _debounce?.cancel();
-    _query.dispose();
-    super.dispose();
-  }
+  const _ValueBox({
+    required this.id,
+    required this.label,
+    required this.hint,
+    required this.suffix,
+    required this.controller,
+    required this.enabled,
+    required this.active,
+    required this.wide,
+    required this.onChanged,
+    required this.focusNode,
+    this.onSelect,
+    this.max,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final size = wide ? 40.0 : 28.0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: DesktopText.fieldLabel,
+        ),
+        const SizedBox(height: 8),
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onSelect,
+          child: Container(
+            height: wide ? 88 : 68,
+            padding: EdgeInsets.symmetric(horizontal: wide ? 20 : 14),
+            decoration: BoxDecoration(
+              color: enabled ? AppColors.cream : const Color(0xFFF1F2F4),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: !enabled
+                    ? const Color(0xFFD8DDE5)
+                    : active
+                    ? AppColors.goldDark
+                    : AppColors.goldMuted,
+                width: 2,
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TestId(
+                    id,
+                    child: TextField(
+                      controller: controller,
+                      enabled: enabled,
+                      focusNode: focusNode,
+                      onTap: onSelect,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                        if (max != null)
+                          TextInputFormatter.withFunction(
+                            (old, next) =>
+                                (double.tryParse(next.text) ?? 0) > max!
+                                ? old
+                                : next,
+                          ),
+                      ],
+                      onChanged: onChanged,
+                      style: TextStyle(
+                        fontFamily: 'KingPowerHeadline',
+                        fontSize: size,
+                        fontWeight: FontWeight.w700,
+                        color: enabled ? AppColors.ink : AppColors.mutedText,
+                      ),
+                      decoration: InputDecoration.collapsed(
+                        hintText: hint,
+                        hintStyle: TextStyle(
+                          fontSize: wide ? 18 : 14,
+                          color: AppColors.hintText,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Text(
+                  suffix,
+                  style: TextStyle(
+                    fontSize: wide ? 28 : 22,
+                    color: enabled ? AppColors.goldDark : AppColors.hintText,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Ink "Net Amount" bar — the line's net from the sale engine.
+class _NetBar extends StatelessWidget {
+  final String value;
+  final bool wide;
+
+  const _NetBar({required this.value, required this.wide});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!wide) {
+      return HandheldNetBar(
+        id: DiscountIds.netPreview,
+        label: 'Net Amount',
+        value: value,
+      );
+    }
     return TestId(
-      DiscountIds.picker,
-      child: AlertDialog(
-        title: const Text('PROMOTIONS'),
-        content: SizedBox(
-          width: 520,
-          height: 420,
-          child: Column(
-            children: [
-              TestId(
-                DiscountIds.pickerSearch,
-                child: TextField(
-                  controller: _query,
-                  autofocus: true,
-                  onChanged: _changed,
-                  decoration: const InputDecoration(
-                    hintText: 'Type to search promotion',
-                    prefixIcon: Icon(Icons.search),
-                    border: OutlineInputBorder(),
-                    isDense: true,
+      DiscountIds.netPreview,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        decoration: BoxDecoration(
+          color: AppColors.ink,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Net Amount',
+              style: TextStyle(fontSize: 13, color: AppColors.gold),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: const TextStyle(
+                fontFamily: 'KingPowerHeadline',
+                fontSize: 36,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+                fontFeatures: [FontFeature.tabularFigures()],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 56 dp gold-outlined action beside Cancel (Save that keeps the sheet
+/// open).
+class _OutlineButton extends StatelessWidget {
+  final String id;
+  final String label;
+  final VoidCallback? onPressed;
+
+  const _OutlineButton({required this.id, required this.label, this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onPressed != null;
+    return TestId(
+      id,
+      child: Semantics(
+        button: true,
+        enabled: enabled,
+        child: SizedBox(
+          height: HandheldMetrics.primaryActionHeight,
+          child: Material(
+            color: AppColors.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(HandheldMetrics.radiusSm),
+              side: BorderSide(
+                color: enabled ? AppColors.goldDark : AppColors.line,
+              ),
+            ),
+            child: InkWell(
+              onTap: onPressed,
+              borderRadius: BorderRadius.circular(HandheldMetrics.radiusSm),
+              child: Center(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w700,
+                    color: enabled ? AppColors.goldDark : AppColors.mutedText,
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: FutureBuilder<List<Promotion>>(
-                  future: _promotions,
-                  builder: (context, snapshot) {
-                    if (snapshot.hasError) {
-                      return const Center(
-                        child: Text('Can not get promotions list from server'),
-                      );
-                    }
-                    if (!snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    final promotions = snapshot.data!;
-                    if (promotions.isEmpty) {
-                      return const Center(child: Text('No promotions'));
-                    }
-                    return ListView.builder(
-                      itemCount: promotions.length,
-                      itemBuilder: (context, i) {
-                        final p = promotions[i];
-                        return TestId(
-                          DiscountIds.pickerRow(p.code),
-                          child: ListTile(
-                            dense: true,
-                            title: Text('${p.code} : ${p.name}'),
-                            onTap: () => Navigator.of(context).pop(p),
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
+            ),
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close'),
-          ),
-        ],
       ),
     );
   }

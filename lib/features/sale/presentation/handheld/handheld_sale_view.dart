@@ -11,6 +11,8 @@ import '../../domain/entities/cart_item.dart';
 import '../sale_cart_view_model.dart';
 import '../widgets/leave_sale_prompt.dart';
 import '../sale_currency.dart';
+import '../widgets/applied_privilege_card.dart';
+import '../widgets/privilege_picker.dart';
 import 'discount_sheet.dart';
 import 'edit_line_page.dart';
 import 'payment/checkout_page.dart';
@@ -186,6 +188,21 @@ class _HandheldSaleViewState extends State<HandheldSaleView> {
             ),
             const SizedBox(height: 8),
           ],
+          if (widget.viewModel.privileges.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            HandheldChoiceChip(
+              id: SaleIds.privilegeMoreButton,
+              label: 'Privilege Selection',
+              icon: Icons.card_giftcard,
+              height: 48,
+              selected: false,
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                changeOrderPrivilege(context, widget.viewModel);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
           TextButton.icon(
             onPressed: () {
               Navigator.of(sheetContext).pop();
@@ -271,6 +288,11 @@ class _HandheldSaleViewState extends State<HandheldSaleView> {
                 basket: _showBasket,
                 scanError: viewModel.scanError,
                 privilege: viewModel.selectedPrivilege,
+                isMember: viewModel.isMember,
+                onChangePrivilege:
+                    viewModel.privileges.isEmpty || viewModel.isBusy
+                    ? null
+                    : () => changeOrderPrivilege(context, viewModel),
                 onOpen: _openLine,
                 onDiscount: _openDiscount,
                 isSelected: viewModel.isSelected,
@@ -603,6 +625,8 @@ class _LineList extends StatelessWidget {
   final bool basket;
   final String? scanError;
   final Privilege? privilege;
+  final bool isMember;
+  final VoidCallback? onChangePrivilege;
   final void Function(CartItem line, int number) onOpen;
   final void Function(CartItem line, int number) onDiscount;
   final Future<bool> Function(CartItem line) onConfirmVoid;
@@ -619,6 +643,8 @@ class _LineList extends StatelessWidget {
     required this.basket,
     required this.scanError,
     required this.privilege,
+    required this.isMember,
+    required this.onChangePrivilege,
     required this.onOpen,
     required this.onDiscount,
     required this.onConfirmVoid,
@@ -665,7 +691,13 @@ class _LineList extends StatelessWidget {
             text: scanError!,
           ),
         ),
-      if (privilege != null) _PrivilegeRow(privilege: privilege!),
+      if (privilege != null || isMember)
+        AppliedPrivilegeCard(
+          privilege: privilege,
+          canChange: isMember,
+          onChange: onChangePrivilege,
+          compact: true,
+        ),
       if (lines.isEmpty)
         const TestId(
           SaleIds.emptyState,
@@ -976,54 +1008,6 @@ class _Banner extends StatelessWidget {
             child: Text(text, style: TextStyle(fontSize: 12.5, color: color)),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// The privilege picked on Home before this sale — same
-/// `[TypeCode]:PromoCode` display as the desktop Sale page.
-class _PrivilegeRow extends StatelessWidget {
-  final Privilege privilege;
-
-  const _PrivilegeRow({required this.privilege});
-
-  @override
-  Widget build(BuildContext context) {
-    final code = privilege.typeCode.isEmpty && privilege.promoCode.isEmpty
-        ? ''
-        : '[${privilege.typeCode}]:${privilege.promoCode}';
-    return TestId(
-      SaleIds.privilege,
-      child: Container(
-        color: AppColors.cream,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.card_giftcard,
-              size: 18,
-              color: AppColors.goldDark,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    privilege.name.isEmpty ? 'Privilege' : privilege.name,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  if (code.isNotEmpty)
-                    Text(code, style: HandheldText.bodySmall),
-                ],
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

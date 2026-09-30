@@ -261,14 +261,26 @@ class SaleCartViewModel extends GetxController {
   /// session. Items can't be added before it (the sale engine answers "not
   /// found session").
   ///
+  /// A member's chosen [privilege] goes as `member` / `tier` (legacy
+  /// `navParams.tier`) and the sale engine prices the lines with it;
+  /// [privileges] is the customer's list the Sale page can switch between
+  /// (legacy `masterTierList`). Both only count for a member.
+  ///
   /// Then, as legacy does while the order is still unlocked, locks it
   /// (`UpdateOrderStatus` `a`) so the card is held by this Sale. Another
   /// card still locked here is released first.
-  Future<void> openOrder(SaleOrderContext context) async {
-    isMember = context.isMember;
+  Future<void> openOrder(
+    SaleOrderContext context, {
+    Privilege? privilege,
+    List<Privilege> privileges = const [],
+  }) async {
     if (_locked != null && _locked!.card != context.shoppingCard) {
       await releaseOrder();
     }
+    isMember = context.isMember;
+    selectedPrivilege = isMember ? privilege : null;
+    this.privileges = isMember ? privileges : const [];
+    context = _orderContext = context.withTier(selectedPrivilege?.raw);
     shoppingCard = context.shoppingCard;
     scanError = null;
     final sessionKey = await _sessionKey();
@@ -502,6 +514,9 @@ class SaleCartViewModel extends GetxController {
     cart = null;
     scanError = null;
     isMember = false;
+    selectedPrivilege = null;
+    privileges = const [];
+    _orderContext = null;
     update();
     return true;
   }
@@ -574,15 +589,54 @@ class SaleCartViewModel extends GetxController {
     return currencyError == null;
   }
 
-  /// The privilege chosen on the Customers tab before switching here, if
-  /// the customer has any (see `HomePage._goToSale`'s picker). Shown on the
-  /// Sale screen; the sale engine gets it as `GetOrder`'s `member` / `tier`
-  /// attribute and applies it to the lines itself.
+  /// The privilege the open order is priced with (legacy Sale's
+  /// `selectPrivilege`): picked on Home / the customer profile or here.
+  /// The sale engine gets it as `GetOrder`'s `member` / `tier` attribute
+  /// and applies it to the lines itself.
   Privilege? selectedPrivilege;
 
-  void selectPrivilege(Privilege? privilege) {
-    selectedPrivilege = privilege;
+  /// The member's privileges to switch between (legacy `masterTierList`);
+  /// empty for a non-member.
+  List<Privilege> privileges = const [];
+
+  // What the open order was last fetched with.
+  SaleOrderContext? _orderContext;
+
+  /// Legacy compares privileges by `PromoCode` (the picker's active one).
+  static bool samePrivilege(Privilege? a, Privilege? b) =>
+      identical(a, b) ||
+      (a != null &&
+          b != null &&
+          a.promoCode == b.promoCode &&
+          a.name == b.name);
+
+  /// Ports legacy Sale's "Privilege Selection": re-sends `GetOrder` with
+  /// the new `tier` (null = No Privilege) so the sale engine reprices the
+  /// order. Legacy keeps the previous privilege when that fails; the
+  /// server's message is returned for an alert. Picking the current one
+  /// does nothing.
+  Future<String?> changePrivilege(Privilege? privilege) async {
+    final context = _orderContext;
+    if (context == null || !context.isMember || isBusy) return null;
+    if (samePrivilege(privilege, selectedPrivilege)) return null;
+    final sessionKey = await _sessionKey();
+    if (sessionKey == null) return 'No active session.';
+    isBusy = true;
     update();
+    String? error;
+    try {
+      final next = context.withTier(privilege?.raw);
+      cart = await _getCart(sessionKey: sessionKey, context: next);
+      _orderContext = next;
+      selectedPrivilege = privilege;
+    } on ApiException catch (e) {
+      error = e.messageCode == null
+          ? e.messageDesc
+          : '${e.messageCode}: ${e.messageDesc}';
+    }
+    isBusy = false;
+    update();
+    return error;
   }
 
   /// Ports legacy `sale.ts`'s `onSubmit()`: the scanned / typed text goes

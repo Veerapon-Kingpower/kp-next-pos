@@ -87,6 +87,12 @@ abstract class SaleIds {
   static const backToBuyingButton = 'sale.backToBuyingButton';
   static const emptyState = 'sale.emptyState';
   static const privilege = 'sale.privilege';
+  static const privilegeChangeButton = 'sale.privilege.changeButton';
+  static const privilegePicker = 'sale.privilege.picker';
+  static const privilegeMoreButton = 'sale.privilege.moreButton';
+  static const privilegeNone = 'sale.privilege.none';
+
+  static String privilegeOption(int index) => 'sale.privilege.option.$index';
   static const checkoutButton = 'sale.checkoutButton';
   static const customerButton = 'sale.customerButton';
   static const discountButton = 'sale.discountButton';

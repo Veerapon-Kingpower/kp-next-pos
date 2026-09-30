@@ -130,7 +130,7 @@ void main() {
   });
 
   test(
-    'searchCustomer extracts the shopping card number from the SHOPCARD entry in listIdentity',
+    'searchCustomer reads the shopping card, member ID and card codes from listIdentity',
     () async {
       apiClient.response = {
         'isCompleted': true,
@@ -143,6 +143,8 @@ void main() {
               'listIdentity': [
                 {'IdentityType': 'MID', 'IdentityValue': 'M001'},
                 {'IdentityType': 'SHOPCARD', 'IdentityValue': 'CPX0001'},
+                {'IdentityType': 'CARDGROUPCODE', 'IdentityValue': 'KPM'},
+                {'IdentityType': 'CARDTYPECODE', 'IdentityValue': 'GOLD'},
               ],
             },
             'tour': <String, dynamic>{},
@@ -164,6 +166,10 @@ void main() {
       );
 
       expect(result.first.person.shoppingCard, 'CPX0001');
+      // Legacy customer.ts: memberID (MID) makes Sale send the privilege.
+      expect(result.first.person.memberId, 'M001');
+      expect(result.first.person.cardGroupCode, 'KPM');
+      expect(result.first.person.cardTypeCode, 'GOLD');
     },
   );
 

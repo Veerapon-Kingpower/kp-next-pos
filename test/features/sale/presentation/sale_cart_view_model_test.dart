@@ -168,24 +168,92 @@ void main() {
     expect(viewModel.cart?.guid, 'order-1');
   });
 
-  test('selectPrivilege stores the chosen privilege', () {
-    final viewModel = buildViewModel();
-    const privilege = Privilege(name: 'Gold Member', discount: 10);
-
-    viewModel.selectPrivilege(privilege);
-
-    expect(viewModel.selectedPrivilege, privilege);
-  });
-
-  test('selectPrivilege(null) clears a previously chosen privilege', () {
-    final viewModel = buildViewModel();
-    viewModel.selectPrivilege(
-      const Privilege(name: 'Gold Member', discount: 10),
+  group('privilege (legacy Sale Privilege Selection)', () {
+    const gold = Privilege(
+      name: 'Gold 10%',
+      discount: 10,
+      typeCode: 'VIP',
+      promoCode: 'GOLD10',
+      raw: {'Name': 'Gold 10%', 'PromoCode': 'GOLD10'},
     );
+    const elite = Privilege(
+      name: 'Elite 15%',
+      discount: 15,
+      typeCode: 'VIP',
+      promoCode: 'ELITE15',
+      raw: {'Name': 'Elite 15%', 'PromoCode': 'ELITE15'},
+    );
+    const member = SaleOrderContext(shoppingCard: 'SC1', memberId: 'M1');
 
-    viewModel.selectPrivilege(null);
+    test('openOrder sends a member\'s privilege as GetOrder tier', () async {
+      final sale = FakeSaleRepository();
+      final viewModel = buildViewModel(saleRepository: sale);
+      await viewModel.openOrder(
+        member,
+        privilege: gold,
+        privileges: const [gold, elite],
+      );
+      expect(sale.lastOrderContext!.tier, gold.raw);
+      expect(viewModel.selectedPrivilege, gold);
+      expect(viewModel.privileges, [gold, elite]);
+    });
 
-    expect(viewModel.selectedPrivilege, isNull);
+    test('a non-member gets no privilege or list', () async {
+      final sale = FakeSaleRepository();
+      final viewModel = buildViewModel(saleRepository: sale);
+      await viewModel.openOrder(
+        const SaleOrderContext(shoppingCard: 'SC1'),
+        privilege: gold,
+        privileges: const [gold],
+      );
+      expect(sale.lastOrderContext!.tier, isNull);
+      expect(viewModel.selectedPrivilege, isNull);
+      expect(viewModel.privileges, isEmpty);
+    });
+
+    test('changePrivilege re-sends GetOrder with the new tier', () async {
+      final sale = FakeSaleRepository();
+      final viewModel = buildViewModel(saleRepository: sale);
+      await viewModel.openOrder(member, privilege: gold);
+
+      expect(await viewModel.changePrivilege(elite), isNull);
+      expect(sale.lastOrderContext!.tier, elite.raw);
+      expect(sale.lastOrderContext!.shoppingCard, 'SC1');
+      expect(viewModel.selectedPrivilege, elite);
+
+      expect(await viewModel.changePrivilege(null), isNull);
+      expect(sale.lastOrderContext!.tier, isNull, reason: 'No Privilege');
+      expect(viewModel.selectedPrivilege, isNull);
+    });
+
+    test('a failed change keeps the previous privilege', () async {
+      final sale = FakeSaleRepository();
+      final viewModel = buildViewModel(saleRepository: sale);
+      await viewModel.openOrder(member, privilege: gold);
+      sale.mutationError = const ApiException(
+        messageDesc: 'Privilege expired',
+        messageCode: 'P01',
+      );
+
+      expect(await viewModel.changePrivilege(elite), 'P01: Privilege expired');
+      expect(viewModel.selectedPrivilege, gold);
+
+      sale.mutationError = null;
+      await viewModel.changePrivilege(null);
+      expect(
+        sale.lastOrderContext!.tier,
+        isNull,
+        reason: 'the failed tier was not kept',
+      );
+    });
+
+    test('releasing the order forgets its privilege', () async {
+      final viewModel = buildViewModel();
+      await viewModel.openOrder(member, privilege: gold, privileges: [gold]);
+      await viewModel.releaseOrder();
+      expect(viewModel.selectedPrivilege, isNull);
+      expect(viewModel.privileges, isEmpty);
+    });
   });
 
   group('change currency (legacy CurrencyPickerPage)', () {
@@ -354,7 +422,8 @@ void main() {
 
     await viewModel.openOrder(context);
 
-    expect(sale.lastOrderContext, same(context));
+    expect(sale.lastOrderContext!.shoppingCard, 'CPX0001');
+    expect(sale.lastOrderContext!.memberId, 'M1');
     expect(viewModel.shoppingCard, 'CPX0001');
     expect(viewModel.cart?.guid, 'order-1');
     expect(viewModel.scanError, isNull);

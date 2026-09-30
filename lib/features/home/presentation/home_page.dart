@@ -210,10 +210,7 @@ class _HomePageState extends State<HomePage> {
     // same customer, so a prior selection (matched by identity — see
     // `_selectPrivilege`) can never highlight correctly against them.
     // Clearing it here avoids stale/mismatched selection state.
-    if (_selectedPrivilege != null) {
-      setState(() => _selectedPrivilege = null);
-      _saleCartViewModel.selectPrivilege(null);
-    }
+    if (_selectedPrivilege != null) setState(() => _selectedPrivilege = null);
     _selectedResult = 0;
     // A search from elsewhere replaces what the Home lookup was showing.
     _homeLookup = false;
@@ -401,11 +398,7 @@ class _HomePageState extends State<HomePage> {
       await _showSaleBlockedDialog('ShoppingCard is not register');
       return;
     }
-    final selected = _selectedPrivilege;
-    final privilege = person.privileges.any((p) => identical(p, selected))
-        ? selected
-        : null;
-    _saleCartViewModel.selectPrivilege(privilege);
+    final privilege = _privilegeShownFor(customer);
     setState(() => _section = _HomeSection.sale);
     // Legacy `goToSalePage()` params; tier and wallets only for a member.
     final isMember = person.memberId.isNotEmpty;
@@ -413,11 +406,12 @@ class _HomePageState extends State<HomePage> {
       SaleOrderContext(
         shoppingCard: person.shoppingCard,
         memberId: person.memberId,
-        tier: isMember ? privilege?.raw : null,
         walletMembers: isMember ? person.walletMembers : const [],
         cardGroupCode: person.cardGroupCode,
         cardTypeCode: person.cardTypeCode,
       ),
+      privilege: privilege,
+      privileges: person.privileges,
     );
   }
 
@@ -426,7 +420,7 @@ class _HomePageState extends State<HomePage> {
     // The customer Home's Sale button starts the sale for.
     final index = viewModel.customerSearchResults.indexOf(customer);
     if (index >= 0) _selectedResult = index;
-    final selected = _selectedPrivilege;
+    final selected = _privilegeShownFor(customer);
     Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute<void>(
         builder: (_) => CustomerProfilePage(
@@ -439,22 +433,50 @@ class _HomePageState extends State<HomePage> {
           searchFlights: widget
               .customerRegistrationViewModelFactory()
               .searchFlights,
-          onPrivilegeChanged: (privilege) {
-            setState(() => _selectedPrivilege = privilege);
-            _saleCartViewModel.selectPrivilege(privilege);
-          },
+          onPrivilegeChanged: (privilege) =>
+              _selectPrivilegeFor(customer, privilege),
           onEdit: () => _openRegistration(existingCustomer: customer),
         ),
       ),
     );
   }
 
-  // Radio-list pick (null = "No privilege"). Mirrors the choice through to
-  // [_saleCartViewModel] so it's still reflected on the Sale page (see
-  // `SalePage`'s `_SelectedPrivilegeRow`).
-  void _selectPrivilege(Privilege? privilege) {
+  // The privilege shown as picked for [customer]: while its order is open
+  // on Sale, the one that order is priced with (Sale can change it too);
+  // otherwise the pick carried into Start sale.
+  Privilege? _privilegeShownFor(Customer customer) {
+    final sale = _saleCartViewModel;
+    if (!sale.hasCustomer ||
+        sale.shoppingCard != customer.person.shoppingCard) {
+      final selected = _selectedPrivilege;
+      return customer.person.privileges.any((p) => identical(p, selected))
+          ? selected
+          : null;
+    }
+    for (final p in customer.person.privileges) {
+      if (SaleCartViewModel.samePrivilege(p, sale.selectedPrivilege)) return p;
+    }
+    return null;
+  }
+
+  // Radio-list pick (null = "No privilege") for [customer]. When that
+  // customer's order is already open on Sale, the order is re-priced with
+  // it right away (legacy Sale's Privilege Selection → GetOrder `tier`);
+  // otherwise Start sale sends it.
+  Future<void> _selectPrivilegeFor(
+    Customer customer,
+    Privilege? privilege,
+  ) async {
     setState(() => _selectedPrivilege = privilege);
-    _saleCartViewModel.selectPrivilege(privilege);
+    final sale = _saleCartViewModel;
+    if (!sale.hasCustomer ||
+        sale.shoppingCard != customer.person.shoppingCard) {
+      return;
+    }
+    final error = await sale.changePrivilege(privilege);
+    if (!mounted) return;
+    setState(() {});
+    if (error != null) await _showSaleBlockedDialog(error);
   }
 
   Future<void> _showSaleBlockedDialog(String message) {
@@ -787,8 +809,8 @@ class _HomePageState extends State<HomePage> {
             query: _homeQuery,
             foundAt: _homeFoundAt,
             now: DateTime.now(),
-            selectedPrivilege: _selectedPrivilege,
-            onSelectPrivilege: _selectPrivilege,
+            selectedPrivilege: _privilegeShownFor(customer),
+            onSelectPrivilege: (p) => _selectPrivilegeFor(customer, p),
             onStartSale: () => _goToSale(customer),
             onRegister: editProfile,
             onEnquiry: () => setState(() => _section = _HomeSection.enquiry),
@@ -974,7 +996,6 @@ class _HomePageState extends State<HomePage> {
 
   void _newCustomer() {
     _customerSearchController.clear();
-    if (_selectedPrivilege != null) _saleCartViewModel.selectPrivilege(null);
     setState(() {
       _selectedPrivilege = null;
       _selectedResult = 0;
@@ -984,7 +1005,6 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _showResult(int index) {
-    if (_selectedPrivilege != null) _saleCartViewModel.selectPrivilege(null);
     setState(() {
       _selectedPrivilege = null;
       _selectedResult = index;
@@ -1132,8 +1152,8 @@ class _HomePageState extends State<HomePage> {
         const SizedBox(height: 16),
         _CustomerResultCard(
           customer: customer,
-          selectedPrivilege: _selectedPrivilege,
-          onSelectPrivilege: _selectPrivilege,
+          selectedPrivilege: _privilegeShownFor(customer),
+          onSelectPrivilege: (p) => _selectPrivilegeFor(customer, p),
         ),
       ],
     );

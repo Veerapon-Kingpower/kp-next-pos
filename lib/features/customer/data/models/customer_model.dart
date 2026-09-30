@@ -37,6 +37,9 @@ class CustomerPersonModel extends CustomerPerson {
     required super.privileges,
     required super.walletMembers,
     super.shoppingCard,
+    super.memberId,
+    super.cardGroupCode,
+    super.cardTypeCode,
     super.customerTypeCode,
     super.customerTypeDetail,
     super.isActivate,
@@ -65,6 +68,12 @@ class CustomerPersonModel extends CustomerPerson {
       privileges: _privilegeList(json['listPrivilege']),
       walletMembers: _rawList(json['listWalletMember']),
       shoppingCard: _identityValue(json['listIdentity'], 'SHOPCARD'),
+      // Legacy `customer.ts` reads these from `listIdentity` too
+      // (`IdentityTypeEnum` MID / CARDGROUPCODE / CARDTYPECODE); a member
+      // ID is what makes Sale send the privilege (`member` / `tier`).
+      memberId: _identityValue(json['listIdentity'], 'MID'),
+      cardGroupCode: _identityValue(json['listIdentity'], 'CARDGROUPCODE'),
+      cardTypeCode: _identityValue(json['listIdentity'], 'CARDTYPECODE'),
       customerTypeCode: json['customerTypeCode'] as String? ?? '',
       customerTypeDetail: json['customerTypeDetail'] as String? ?? '',
       isActivate: json['isActivate'] as bool? ?? false,

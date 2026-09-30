@@ -21,4 +21,15 @@ class SaleOrderContext {
   });
 
   bool get isMember => memberId.isNotEmpty;
+
+  /// The same order with another privilege ([tier] null = none) — legacy
+  /// Sale's Privilege Selection re-sends `GetOrder` this way.
+  SaleOrderContext withTier(Map<String, dynamic>? tier) => SaleOrderContext(
+    shoppingCard: shoppingCard,
+    memberId: memberId,
+    tier: tier,
+    walletMembers: walletMembers,
+    cardGroupCode: cardGroupCode,
+    cardTypeCode: cardTypeCode,
+  );
 }

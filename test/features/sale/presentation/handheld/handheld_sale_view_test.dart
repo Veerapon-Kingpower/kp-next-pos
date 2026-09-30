@@ -5,6 +5,7 @@ import 'package:kp_pos/core/presentation/test_ids.dart';
 import 'package:kp_pos/core/theme/app_colors.dart';
 import 'package:kp_pos/features/customer/domain/entities/privilege.dart';
 import 'package:kp_pos/features/sale/domain/entities/cart.dart';
+import 'package:kp_pos/features/sale/domain/entities/sale_order_context.dart';
 import 'package:kp_pos/features/sale/presentation/handheld/handheld_sale_view.dart';
 import 'package:kp_pos/features/sale/presentation/handheld/sale_order_type.dart';
 import 'package:kp_pos/features/sale/presentation/sale_cart_view_model.dart';
@@ -232,22 +233,92 @@ void main() {
       tester,
     ) async {
       final viewModel = await pump(tester);
-      viewModel.selectPrivilege(
-        const Privilege(
+      viewModel
+        ..selectedPrivilege = const Privilege(
           name: 'Gold Member',
           discount: 10,
           typeCode: 'VIP',
           promoCode: 'PROMO123',
-        ),
-      );
+        )
+        ..update();
       await tester.pumpAndSettle();
       expect(
         find.descendant(
           of: byTestId(SaleIds.privilege),
-          matching: find.text('[VIP]:PROMO123'),
+          matching: find.text('Gold Member'),
         ),
         findsOneWidget,
       );
+    });
+
+    group('privilege (legacy Privilege Selection)', () {
+      const gold = Privilege(
+        name: 'Gold 10%',
+        discount: 10,
+        typeCode: 'VIP',
+        promoCode: 'GOLD10',
+        raw: {'PromoCode': 'GOLD10'},
+      );
+      const elite = Privilege(
+        name: 'Elite 15%',
+        discount: 15,
+        typeCode: 'VIP',
+        promoCode: 'ELITE15',
+        raw: {'PromoCode': 'ELITE15'},
+      );
+
+      Future<SaleCartViewModel> pumpMember(WidgetTester tester) async {
+        final viewModel = await pump(tester);
+        await viewModel.openOrder(
+          const SaleOrderContext(shoppingCard: 'CPX0001', memberId: 'M1'),
+          privilege: gold,
+          privileges: const [gold, elite],
+        );
+        await tester.pumpAndSettle();
+        return viewModel;
+      }
+
+      testWidgets('Change on the privilege row re-prices the order', (
+        tester,
+      ) async {
+        final viewModel = await pumpMember(tester);
+        await tester.tap(byTestId(SaleIds.privilegeChangeButton));
+        await tester.pumpAndSettle();
+        expect(byTestId(SaleIds.privilegePicker), findsOneWidget);
+        await tester.tap(byTestId(SaleIds.privilegeOption(1)));
+        await tester.pumpAndSettle();
+        expect(sale.lastOrderContext!.tier, elite.raw);
+        expect(viewModel.selectedPrivilege, elite);
+        expect(
+          find.descendant(
+            of: byTestId(SaleIds.privilege),
+            matching: find.text('Elite 15%'),
+          ),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('the More sheet offers Privilege Selection, as legacy', (
+        tester,
+      ) async {
+        final viewModel = await pumpMember(tester);
+        await tester.tap(byTestId(SaleIds.moreButton));
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(byTestId(SaleIds.privilegeMoreButton));
+        await tester.tap(byTestId(SaleIds.privilegeMoreButton));
+        await tester.pumpAndSettle();
+        await tester.tap(byTestId(SaleIds.privilegeNone));
+        await tester.pumpAndSettle();
+        expect(sale.lastOrderContext!.tier, isNull);
+        expect(viewModel.selectedPrivilege, isNull);
+        expect(
+          find.descendant(
+            of: byTestId(SaleIds.privilege),
+            matching: find.text('No Privilege'),
+          ),
+          findsOneWidget,
+        );
+      });
     });
   });
 

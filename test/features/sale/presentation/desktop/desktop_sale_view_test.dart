@@ -343,22 +343,158 @@ void main() {
       tester,
     ) async {
       final viewModel = await pump(tester);
-      viewModel.selectPrivilege(
-        const Privilege(
+      viewModel
+        ..selectedPrivilege = const Privilege(
           name: 'Gold Member',
           discount: 10,
           typeCode: 'VIP',
           promoCode: 'PROMO123',
-        ),
-      );
+        )
+        ..update();
       await tester.pump();
       expect(
         find.descendant(
           of: byTestId(SaleIds.privilege),
-          matching: find.text('[VIP]:PROMO123'),
+          matching: find.text('Gold Member'),
         ),
         findsOneWidget,
       );
+    });
+
+    group('privilege (legacy Privilege Selection)', () {
+      const gold = Privilege(
+        name: 'Gold 10%',
+        discount: 10,
+        typeCode: 'VIP',
+        promoCode: 'GOLD10',
+        raw: {'PromoCode': 'GOLD10'},
+      );
+      const elite = Privilege(
+        name: 'Elite 15%',
+        discount: 15,
+        typeCode: 'VIP',
+        promoCode: 'ELITE15',
+        raw: {'PromoCode': 'ELITE15'},
+      );
+
+      Future<SaleCartViewModel> pumpMember(
+        WidgetTester tester, {
+        Privilege? privilege,
+      }) async {
+        final viewModel = await pump(tester);
+        await viewModel.openOrder(
+          const SaleOrderContext(shoppingCard: 'CPX0001', memberId: 'M1'),
+          privilege: privilege,
+          privileges: const [gold, elite],
+        );
+        await tester.pumpAndSettle();
+        return viewModel;
+      }
+
+      testWidgets('a member without one reads No Privilege', (tester) async {
+        await pumpMember(tester);
+        final row = byTestId(SaleIds.privilege);
+        expect(
+          find.descendant(of: row, matching: find.text('No Privilege')),
+          findsOneWidget,
+        );
+        expect(byTestId(SaleIds.privilegeChangeButton), findsOneWidget);
+      });
+
+      testWidgets('Change picks another privilege and re-prices the order '
+          'through GetOrder', (tester) async {
+        final viewModel = await pumpMember(tester, privilege: gold);
+        await tester.tap(byTestId(SaleIds.privilegeChangeButton));
+        await tester.pumpAndSettle();
+        expect(byTestId(SaleIds.privilegePicker), findsOneWidget);
+        expect(find.text('Privilege Selection'), findsOneWidget);
+
+        await tester.tap(byTestId(SaleIds.privilegeOption(1)));
+        await tester.pumpAndSettle();
+        expect(sale.lastOrderContext!.tier, elite.raw);
+        expect(viewModel.selectedPrivilege, elite);
+        expect(
+          find.descendant(
+            of: byTestId(SaleIds.privilege),
+            matching: find.text('Elite 15%'),
+          ),
+          findsOneWidget,
+        );
+
+        await tester.tap(byTestId(SaleIds.privilegeChangeButton));
+        await tester.pumpAndSettle();
+        await tester.tap(byTestId(SaleIds.privilegeNone));
+        await tester.pumpAndSettle();
+        expect(sale.lastOrderContext!.tier, isNull);
+        expect(viewModel.selectedPrivilege, isNull);
+      });
+
+      testWidgets('a rejected change keeps the privilege and says why', (
+        tester,
+      ) async {
+        final viewModel = await pumpMember(tester, privilege: gold);
+        sale.mutationError = const ApiException(messageDesc: 'Not allowed');
+        await tester.tap(byTestId(SaleIds.privilegeChangeButton));
+        await tester.pumpAndSettle();
+        await tester.tap(byTestId(SaleIds.privilegeOption(1)));
+        await tester.pumpAndSettle();
+        expect(find.text('Not allowed'), findsOneWidget);
+        expect(viewModel.selectedPrivilege, gold);
+      });
+
+      testWidgets('a long name fits the narrow summary: two lines, the code '
+          'on its own line, Change on the heading above, room below', (tester) async {
+        final viewModel = await pump(tester, size: const Size(1100, 700));
+        await viewModel.openOrder(
+          const SaleOrderContext(shoppingCard: 'CPX0001', memberId: 'M1'),
+          privilege: const Privilege(
+            name:
+                'King Power Platinum Member Exclusive Privilege Discount '
+                'For All Luxury Categories 15 Percent',
+            discount: 15,
+            typeCode: 'PLATINUM',
+            promoCode: 'KPPLAT15ALLLUX',
+          ),
+          privileges: const [gold],
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+
+        final name = tester.widget<Text>(
+          find.descendant(
+            of: byTestId(SaleIds.privilege),
+            matching: find.textContaining('King Power Platinum'),
+          ),
+        );
+        expect(name.maxLines, 2);
+        expect(name.overflow, TextOverflow.ellipsis);
+        final code = tester.getRect(find.text('[PLATINUM]:KPPLAT15ALLLUX'));
+
+        final nameRect = tester.getRect(find.textContaining('King Power'));
+        final change = tester.getRect(byTestId(SaleIds.privilegeChangeButton));
+        final card = tester.getRect(byTestId(SaleIds.privilege));
+        expect(code.top, greaterThanOrEqualTo(nameRect.bottom));
+        expect(code.left, closeTo(nameRect.left, 1));
+        final label = tester.getRect(find.text('APPLIED PRIVILEGE'));
+        expect(change.center.dy, closeTo(label.center.dy, 12));
+        expect(change.bottom, lessThanOrEqualTo(card.top), reason: 'above');
+        final visible = tester.getSize(
+          find
+              .descendant(
+                of: byTestId(SaleIds.privilegeChangeButton),
+                matching: find.byType(Material),
+              )
+              .first,
+        );
+        expect(visible.height, 30);
+        final pay = tester.getRect(byTestId(SaleIds.checkoutButton));
+        expect(pay.top - card.bottom, greaterThanOrEqualTo(12));
+      });
+
+      testWidgets('a non-member has no privilege row', (tester) async {
+        await pump(tester);
+        expect(byTestId(SaleIds.privilege), findsNothing);
+      });
     });
 
     testWidgets('Take payment (F12) opens Checkout', (tester) async {
@@ -467,14 +603,14 @@ void main() {
     testWidgets('short ${size.height.toInt()} dp screen with a privilege: '
         'no overflow, bill summary scrolls to Take payment', (tester) async {
       final viewModel = await pump(tester, size: size);
-      viewModel.selectPrivilege(
-        const Privilege(
+      viewModel
+        ..selectedPrivilege = const Privilege(
           name: 'Gold Member',
           discount: 10,
           typeCode: 'VIP',
           promoCode: 'PROMO123',
-        ),
-      );
+        )
+        ..update();
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
 

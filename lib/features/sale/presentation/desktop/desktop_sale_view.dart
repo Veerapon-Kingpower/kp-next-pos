@@ -16,6 +16,8 @@ import '../sale_cart_view_model.dart';
 import '../widgets/leave_sale_prompt.dart';
 import 'desktop_checkout_page.dart';
 import '../sale_currency.dart';
+import '../widgets/applied_privilege_card.dart';
+import '../widgets/privilege_picker.dart';
 import 'desktop_discount_overlay.dart';
 
 /// Desktop Sale (POS Desktop mockup screens 3 + 4): scan row, Buying /
@@ -193,6 +195,11 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
     if (mounted) _scanFocus.requestFocus();
   }
 
+  Future<void> _changePrivilege() async {
+    await changeOrderPrivilege(context, widget.viewModel);
+    if (mounted) _scanFocus.requestFocus();
+  }
+
   Future<void> _saveOrder() async {
     await confirmSaveOrder(
       context,
@@ -315,6 +322,11 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
                   lines: _orderLines,
                   total: _total,
                   privilege: viewModel.selectedPrivilege,
+                  isMember: viewModel.isMember,
+                  onChangePrivilege:
+                      viewModel.privileges.isEmpty || viewModel.isBusy
+                      ? null
+                      : _changePrivilege,
                   onTakePayment: _orderLines.isEmpty ? null : _takePayment,
                   onExit: widget.onExit == null || viewModel.isBusy
                       ? null
@@ -997,6 +1009,13 @@ class _Summary extends StatelessWidget {
   final List<CartItem> lines;
   final double total;
   final Privilege? privilege;
+
+  /// A member always sees the privilege row — "[No Privilege]" when none
+  /// (legacy `sale.html`).
+  final bool isMember;
+
+  /// Legacy Sale's Privilege Selection; null (inert) without a list.
+  final VoidCallback? onChangePrivilege;
   final VoidCallback? onTakePayment;
   final VoidCallback? onExit;
   final VoidCallback? onSaveOrder;
@@ -1013,6 +1032,8 @@ class _Summary extends StatelessWidget {
     required this.lines,
     required this.total,
     required this.privilege,
+    required this.isMember,
+    required this.onChangePrivilege,
     required this.onTakePayment,
     required this.onExit,
     required this.onSaveOrder,
@@ -1229,54 +1250,12 @@ class _Summary extends StatelessWidget {
             ],
           ),
         ),
-        if (privilege != null) ...[
+        if (privilege != null || isMember) ...[
           const SizedBox(height: 12),
-          const Text('APPLIED PRIVILEGE', style: DesktopText.fieldLabel),
-          const SizedBox(height: 6),
-          TestId(
-            SaleIds.privilege,
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.cream,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFF0E8D8)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.card_giftcard,
-                    size: 18,
-                    color: AppColors.goldDark,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          privilege!.name.isEmpty
-                              ? 'Privilege'
-                              : privilege!.name,
-                          style: const TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        if (code != null)
-                          Text(
-                            code,
-                            style: const TextStyle(
-                              fontSize: 12.5,
-                              color: AppColors.goldDark,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          AppliedPrivilegeCard(
+            privilege: privilege,
+            canChange: isMember,
+            onChange: onChangePrivilege,
           ),
         ],
         const Spacer(),

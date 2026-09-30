@@ -346,6 +346,7 @@ void main() {
         action: 'found',
         isFound: true,
         person: CustomerPerson(
+          memberId: 'M1',
           englishName: 'Jane Doe',
           passportNo: 'P1234567',
           nationality: 'THA',
@@ -399,6 +400,7 @@ void main() {
         action: 'found',
         isFound: true,
         person: CustomerPerson(
+          memberId: 'M1',
           englishName: 'Jane Doe',
           passportNo: 'P1234567',
           nationality: 'THA',
@@ -467,6 +469,8 @@ void main() {
         action: 'found',
         isFound: true,
         person: CustomerPerson(
+          memberId: 'M1',
+          shoppingCard: 'CPX0001',
           englishName: 'Jane Doe',
           passportNo: 'P1234567',
           nationality: 'THA',
@@ -516,6 +520,7 @@ void main() {
       action: 'found',
       isFound: true,
       person: CustomerPerson(
+        memberId: 'M1',
         englishName: 'Jane Doe',
         passportNo: 'P1234567',
         nationality: 'THA',
@@ -608,6 +613,7 @@ void main() {
       action: 'REGISTER_EDIT',
       isFound: true,
       person: CustomerPerson(
+        memberId: 'M1',
         englishName: 'Jane Doe',
         passportNo: 'P1234567',
         nationality: 'THA',
@@ -1090,6 +1096,7 @@ void main() {
       action: 'found',
       isFound: true,
       person: CustomerPerson(
+        memberId: 'M1',
         englishName: 'Sofia Almeida',
         passportNo: 'CB912447',
         nationality: 'PRT',
@@ -1102,6 +1109,7 @@ void main() {
             discount: 10,
             typeCode: 'VIP',
             promoCode: 'PROMO123',
+            raw: {'Name': 'Elite 10%', 'PromoCode': 'PROMO123'},
           ),
         ],
         walletMembers: [
@@ -1265,6 +1273,27 @@ void main() {
       expect(find.text('Elite 10%'), findsOneWidget);
       // Legacy getOrder() on entering Sale: opens the card's order.
       expect(saleRepository.lastOrderContext?.shoppingCard, '8823-4419-0027');
+      // The pick goes as GetOrder's member / tier for the engine to price.
+      expect(saleRepository.lastOrderContext?.tier, {
+        'Name': 'Elite 10%',
+        'PromoCode': 'PROMO123',
+      });
+
+      // Sale can switch it (legacy Privilege Selection) — No Privilege
+      // re-prices the order without it.
+      await tester.tap(byTestId(SaleIds.privilegeChangeButton));
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: byTestId(SaleIds.privilegePicker),
+          matching: find.text('Elite 10%'),
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(byTestId(SaleIds.privilegeNone));
+      await tester.pumpAndSettle();
+      expect(saleRepository.lastOrderContext?.tier, isNull);
+      expect(find.text('No Privilege'), findsOneWidget);
     });
 
     testWidgets('leaving Sale from the nav prompts, then unlocks the card '
@@ -1433,6 +1462,7 @@ void main() {
       action: 'found',
       isFound: true,
       person: CustomerPerson(
+        memberId: 'M1',
         englishName: 'Jane Doe',
         passportNo: 'P1234567',
         nationality: 'THA',

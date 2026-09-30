@@ -21,6 +21,9 @@ class CartItemModel extends CartItem {
     super.maxPercentDiscount,
     super.isLockDiscount,
     super.isFreeze,
+    super.isCancel,
+    super.lineNo,
+    super.collectStatus,
   });
 
   factory CartItemModel.fromJson(Map<String, dynamic> json) {
@@ -59,7 +62,19 @@ class CartItemModel extends CartItem {
           ?.toDouble(),
       isLockDiscount: json['IsLockDiscount'] as bool? ?? false,
       isFreeze: json['IsFreeze'] as bool? ?? false,
+      isCancel: json['IsCancel'] as bool? ?? false,
+      lineNo: (json['LineNo'] as num?)?.toInt() ?? 0,
+      collectStatus: _attribute(itemDetail['ItemAttributes'], 'collect_status'),
     );
+  }
+
+  // Legacy `getTakeCollectStatus()`: the attribute's `ValueOfString`.
+  static String _attribute(Object? attributes, String code) {
+    if (attributes is! List) return '';
+    for (final a in attributes.whereType<Map<String, dynamic>>()) {
+      if (a['Code'] == code) return a['ValueOfString'] as String? ?? '';
+    }
+    return '';
   }
 
   // Legacy `ValueAdjust`.

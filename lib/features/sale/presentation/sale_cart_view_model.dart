@@ -184,6 +184,32 @@ class SaleCartViewModel extends GetxController {
       if (line.isBasket == basket && _selected.contains(line.row)) line,
   ];
 
+  /// Legacy's two tabs: Buying (`IsBasket == false`) and Basket — the
+  /// lines of the saved order (`IsBasket == true`).
+  List<CartItem> linesFor({required bool basket}) => [
+    for (final line in _cart?.items ?? const <CartItem>[])
+      if (line.isBasket == basket) line,
+  ];
+
+  /// Legacy `changeTab()`: the tab left behind loses its selection.
+  void clearSelection({required bool basket}) {
+    _selected.removeAll([for (final l in linesFor(basket: basket)) l.row]);
+    update();
+  }
+
+  /// Legacy `doCancelItem()`: cancels (or un-cancels) a Basket line — with
+  /// the other selected Basket lines, as legacy selects it and sends them
+  /// all (`ActionListItemToOrder` `cancel`, `1` / `0`). Returns the error
+  /// to show, or null.
+  Future<String?> cancelBasketLine(CartItem line) {
+    final rows = [
+      for (final l in selectedLines(basket: true))
+        if (l.row != line.row) l.row,
+      line.row,
+    ];
+    return _lineAction(rows, 'cancel', line.isCancel ? '0' : '1');
+  }
+
   /// Legacy `tapToSelect()`.
   void toggleSelected(String row) {
     if (!_selected.remove(row)) _selected.add(row);
@@ -258,6 +284,7 @@ class SaleCartViewModel extends GetxController {
         sessionKey: sessionKey,
         context: context,
       );
+      _basketAtOpen = _basketState(order);
       if (_locked == null && order.orderNo.isNotEmpty) {
         await _updateOrderStatus(
           sessionKey: sessionKey,
@@ -385,6 +412,26 @@ class SaleCartViewModel extends GetxController {
   /// Legacy leave prompt: "Do you want to save order?" is asked only when
   /// the Buying list (lines not `IsBasket`) has something.
   bool get hasBuyingItems => cart?.items.any((line) => !line.isBasket) ?? false;
+
+  // Legacy `listBasketGuid` / `shareData.listBasket`: the basket lines'
+  // cancel state and discounts when Sale opened the order.
+  String _basketAtOpen = '';
+
+  static String _basketState(Cart? order) => [
+    for (final line in order?.items ?? const <CartItem>[])
+      if (line.isBasket)
+        '${line.row}:${line.isCancel}:'
+            '${line.discounts.map((d) => '${d.guid}/${d.percent}/${d.amount}').join(',')}',
+  ].join(';');
+
+  /// Legacy `canSave`: something to save — a net amount, Buying lines, or
+  /// basket lines cancelled / re-discounted since the order was opened.
+  bool get canSaveOrder {
+    final order = cart;
+    if (order == null || !hasCustomer) return false;
+    if ((order.billing?.grand ?? 0) > 0) return true;
+    return hasBuyingItems || _basketState(order) != _basketAtOpen;
+  }
 
   /// Legacy `doSaveOrder()`: saves the order; false (with the server's
   /// message in [scanError]) keeps the cashier on Sale.

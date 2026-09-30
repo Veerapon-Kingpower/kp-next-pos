@@ -72,12 +72,60 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
     super.dispose();
   }
 
-  List<CartItem> get _lines =>
+  // The lines of the tab shown — Buying, or the saved order's Basket.
+  List<CartItem> get _lines => widget.viewModel.linesFor(basket: _basket);
+
+  // The whole order, for the bill summary and Take payment.
+  List<CartItem> get _orderLines =>
       widget.viewModel.cart?.items ?? const <CartItem>[];
 
   int get _selectedIndex => _lines.indexWhere((l) => l.row == _selectedRow);
 
-  double get _total => _lines.fold<double>(0, (s, l) => s + l.lineTotal);
+  double get _total => _orderLines.fold<double>(0, (s, l) => s + l.lineTotal);
+
+  // Legacy `changeTab()`: the other tab's selection is dropped; the scan
+  // field only works on Buying.
+  void _showTab(bool basket) {
+    setState(() {
+      _basket = basket;
+      _selectedRow = null;
+    });
+    widget.viewModel.clearSelection(basket: !basket);
+    _scanFocus.requestFocus();
+  }
+
+  // Legacy Basket swipe "Cancel" / "Uncancel": confirm, then `cancel`.
+  Future<void> _cancelSelected() async {
+    final index = _selectedIndex;
+    if (index < 0) return;
+    final line = _lines[index];
+    final confirmed = await showAppConfirmationDialog(
+      context,
+      title: 'Cancel item',
+      message: 'Do you want to cancel selected item',
+      confirmLabel: 'Confirm',
+      destructive: !line.isCancel,
+    );
+    if (!confirmed || !mounted) return;
+    final error = await widget.viewModel.cancelBasketLine(line);
+    if (!mounted) return;
+    if (error != null) {
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Oops !'),
+          content: Text(error),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
+    _scanFocus.requestFocus();
+  }
 
   Future<void> _submitScan(String value) async {
     // The view model sends the ticked lines as `Rows`, as legacy does.
@@ -145,6 +193,15 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
     if (mounted) _scanFocus.requestFocus();
   }
 
+  Future<void> _saveOrder() async {
+    await confirmSaveOrder(
+      context,
+      widget.viewModel,
+      onSignOut: widget.onSignOut ?? () async {},
+    );
+    if (mounted) _scanFocus.requestFocus();
+  }
+
   Future<void> _exit() async {
     final left = await confirmLeaveSale(
       context,
@@ -162,7 +219,7 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
   }
 
   Future<void> _takePayment() async {
-    if (_lines.isEmpty) return;
+    if (_orderLines.isEmpty) return;
     await openDesktopCheckoutPage(context, viewModel: widget.viewModel);
     if (mounted) _scanFocus.requestFocus();
   }
@@ -194,7 +251,8 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
         bindings: {
           const SingleActivator(LogicalKeyboardKey.f6): _discountSelected,
           const SingleActivator(LogicalKeyboardKey.f9): _searchTyped,
-          const SingleActivator(LogicalKeyboardKey.f8): _removeSelected,
+          const SingleActivator(LogicalKeyboardKey.f8): () =>
+              _basket ? _cancelSelected() : _removeSelected(),
           const SingleActivator(LogicalKeyboardKey.f12): _takePayment,
           const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
               _moveSelection(1),
@@ -241,17 +299,10 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
                         text: viewModel.currencyError!,
                       ),
                     const SizedBox(height: 16),
-                    _tabs(lines.length),
-                    if (_basket)
-                      const _Notice(
-                        id: SaleIds.basketNotice,
-                        icon: Icons.info_outline,
-                        color: AppColors.info,
-                        text:
-                            'Collect / Take grouping, claim checks and '
-                            'cancelled lines are not available yet — all '
-                            'lines are shown as scanned.',
-                      ),
+                    _tabs(
+                      buying: viewModel.linesFor(basket: false).length,
+                      basket: viewModel.linesFor(basket: true).length,
+                    ),
                     const SizedBox(height: 8),
                     Expanded(child: _table(viewModel, lines)),
                   ],
@@ -261,13 +312,16 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
               SizedBox(
                 width: summaryWidth,
                 child: _Summary(
-                  lines: lines,
+                  lines: _orderLines,
                   total: _total,
                   privilege: viewModel.selectedPrivilege,
-                  onTakePayment: lines.isEmpty ? null : _takePayment,
+                  onTakePayment: _orderLines.isEmpty ? null : _takePayment,
                   onExit: widget.onExit == null || viewModel.isBusy
                       ? null
                       : _exit,
+                  onSaveOrder: viewModel.canSaveOrder && !viewModel.isBusy
+                      ? _saveOrder
+                      : null,
                   billing: viewModel.cart?.billing,
                   onCurrency: viewModel.shoppingCard.isEmpty || viewModel.isBusy
                       ? null
@@ -343,14 +397,19 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
                       controller: _scan,
                       focusNode: _scanFocus,
                       autofocus: true,
-                      enabled: !viewModel.isBusy && viewModel.hasCustomer,
+                      enabled:
+                          !viewModel.isBusy &&
+                          viewModel.hasCustomer &&
+                          !_basket,
                       textInputAction: TextInputAction.search,
                       onSubmitted: _submitScan,
                       style: const TextStyle(fontSize: 16),
                       decoration: InputDecoration.collapsed(
-                        hintText: viewModel.hasCustomer
-                            ? 'Scan or type item code'
-                            : SaleCartViewModel.noCustomer,
+                        hintText: !viewModel.hasCustomer
+                            ? SaleCartViewModel.noCustomer
+                            : _basket
+                            ? 'Scanning adds to Buying — switch tab to scan'
+                            : 'Scan or type item code',
                         hintStyle: const TextStyle(
                           fontSize: 16,
                           color: AppColors.hintText,
@@ -377,7 +436,7 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
           hotkey: 'F9',
           secondary: true,
           height: DesktopMetrics.fieldHeight,
-          onPressed: viewModel.isBusy || !viewModel.hasCustomer
+          onPressed: viewModel.isBusy || !viewModel.hasCustomer || _basket
               ? null
               : _searchTyped,
         ),
@@ -385,8 +444,8 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
     );
   }
 
-  Widget _tabs(int count) {
-    Widget tab(String id, String label, bool basket) {
+  Widget _tabs({required int buying, required int basket}) {
+    Widget tab(String id, String label, bool basket, int count) {
       final selected = _basket == basket;
       return TestId(
         id,
@@ -395,10 +454,7 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
           selected: selected,
           inMutuallyExclusiveGroup: true,
           child: InkWell(
-            onTap: () {
-              setState(() => _basket = basket);
-              _scanFocus.requestFocus();
-            },
+            onTap: () => _showTab(basket),
             child: Container(
               height: 44,
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -450,8 +506,8 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
 
     return Row(
       children: [
-        tab(SaleIds.tabBuying, 'Buying', false),
-        tab(SaleIds.tabBasket, 'Basket', true),
+        tab(SaleIds.tabBuying, 'Buying', false, buying),
+        tab(SaleIds.tabBasket, 'Basket', true, basket),
       ],
     );
   }
@@ -512,7 +568,10 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
                       for (var i = 0; i < lines.length; i++)
                         _LineRow(
                           compact: compact,
-                          number: i + 1,
+                          // Basket lines keep their number on the saved order.
+                          number: _basket && lines[i].lineNo > 0
+                              ? lines[i].lineNo
+                              : i + 1,
                           line: lines[i],
                           selected: lines[i].row == _selectedRow,
                           checked: viewModel.isSelected(lines[i].row),
@@ -580,12 +639,20 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
                 ],
                 DesktopButton(
                   id: DesktopSaleIds.removeButton,
-                  label: _basket ? 'Cancel line' : 'Remove',
-                  icon: Icons.delete_outline,
+                  label: !_basket
+                      ? 'Remove'
+                      : hasSelection && lines[_selectedIndex].isCancel
+                      ? 'Uncancel line'
+                      : 'Cancel line',
+                  icon: _basket ? Icons.block : Icons.delete_outline,
                   hotkey: 'F8',
                   secondary: true,
                   height: 44,
-                  onPressed: hasSelection ? _removeSelected : null,
+                  onPressed: !hasSelection || viewModel.isBusy
+                      ? null
+                      : _basket
+                      ? _cancelSelected
+                      : _removeSelected,
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -766,18 +833,48 @@ class _LineRow extends StatelessWidget {
                               : line.articleName,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 15.5,
                             fontWeight: FontWeight.w700,
+                            // Legacy strikes a cancelled Basket line through.
+                            decoration: line.isCancel
+                                ? TextDecoration.lineThrough
+                                : null,
+                            color: line.isCancel ? AppColors.mutedText : null,
                           ),
                         ),
                         const SizedBox(height: 3),
-                        Text(
-                          line.articleCode,
-                          style: const TextStyle(
-                            fontSize: 12.5,
-                            color: AppColors.goldMuted,
-                          ),
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                line.articleCode,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 12.5,
+                                  color: AppColors.goldMuted,
+                                ),
+                              ),
+                            ),
+                            if (line.isCancel)
+                              _LineBadge(
+                                id: DesktopSaleIds.lineCancelled(line.row),
+                                label: 'Cancelled',
+                                color: AppColors.danger,
+                              ),
+                            if (line.isFreeze)
+                              _LineBadge(
+                                id: DesktopSaleIds.lineFreeze(line.row),
+                                label: 'Freeze',
+                                color: AppColors.info,
+                              ),
+                            if (line.isLockDiscount)
+                              _LineBadge(
+                                id: DesktopSaleIds.lineLock(line.row),
+                                label: 'Lock',
+                                color: AppColors.warning,
+                              ),
+                          ],
                         ),
                       ],
                     ),
@@ -797,7 +894,8 @@ class _LineRow extends StatelessWidget {
                             child: IconButton(
                               icon: const Icon(Icons.remove, size: 18),
                               tooltip: 'Decrease quantity',
-                              onPressed: busy || line.quantity <= 1
+                              onPressed:
+                                  busy || line.isBasket || line.quantity <= 1
                                   ? null
                                   : () => onQuantity(line.quantity - 1),
                             ),
@@ -814,7 +912,8 @@ class _LineRow extends StatelessWidget {
                             child: IconButton(
                               icon: const Icon(Icons.add, size: 18),
                               tooltip: 'Increase quantity',
-                              onPressed: busy
+                              // A saved (Basket) line's quantity isn't changed here.
+                              onPressed: busy || line.isBasket
                                   ? null
                                   : () => onQuantity(line.quantity + 1),
                             ),
@@ -863,13 +962,23 @@ class _LineRow extends StatelessWidget {
                   if (!compact)
                     Expanded(
                       flex: _colFlex[6],
-                      child: const Padding(
-                        padding: EdgeInsets.only(left: 16),
-                        child: Text(
-                          '—',
-                          style: TextStyle(
-                            fontSize: 15,
-                            color: AppColors.hintText,
+                      // Legacy `getTakeCollectStatus()`: T = Take, C = Collect.
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 16),
+                        child: TestId(
+                          DesktopSaleIds.lineFulfilment(line.row),
+                          child: Text(
+                            switch (line.collectStatus) {
+                              'T' => 'Take',
+                              'C' => 'Collect',
+                              _ => '—',
+                            },
+                            style: TextStyle(
+                              fontSize: 15,
+                              color: line.collectStatus.isEmpty
+                                  ? AppColors.hintText
+                                  : AppColors.textPrimary,
+                            ),
                           ),
                         ),
                       ),
@@ -890,6 +999,7 @@ class _Summary extends StatelessWidget {
   final Privilege? privilege;
   final VoidCallback? onTakePayment;
   final VoidCallback? onExit;
+  final VoidCallback? onSaveOrder;
 
   /// The sale engine's own amounts, in the order's currency, when the order
   /// carries them; otherwise the summary sums the lines in baht.
@@ -905,6 +1015,7 @@ class _Summary extends StatelessWidget {
     required this.privilege,
     required this.onTakePayment,
     required this.onExit,
+    required this.onSaveOrder,
     required this.billing,
     required this.onCurrency,
   });
@@ -1178,11 +1289,13 @@ class _Summary extends StatelessWidget {
           onPressed: onTakePayment,
         ),
         const SizedBox(height: 10),
-        const DesktopButton(
-          id: DesktopSaleIds.suspendButton,
-          label: 'Suspend bill',
+        // Legacy Save Order (in place of the mockup's Suspend bill).
+        DesktopButton(
+          id: SaleIds.saveOrderButton,
+          label: 'Save order',
           icon: Icons.assignment_turned_in_outlined,
           secondary: true,
+          onPressed: onSaveOrder,
         ),
         const SizedBox(height: 10),
         DesktopButton(
@@ -1230,6 +1343,44 @@ class _Notice extends StatelessWidget {
                 child: Text(text, style: TextStyle(fontSize: 13, color: color)),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A small status tag beside a line's code (Cancelled / Freeze / Lock).
+class _LineBadge extends StatelessWidget {
+  final String id;
+  final String label;
+  final Color color;
+
+  const _LineBadge({
+    required this.id,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 6),
+      child: TestId(
+        id,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
           ),
         ),
       ),

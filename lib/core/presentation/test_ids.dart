@@ -75,6 +75,10 @@ abstract class SaleIds {
   static const unlockFailedDialog = 'sale.unlockFailed';
   static const unlockFailedCancel = 'sale.unlockFailed.cancel';
   static const unlockFailedLogout = 'sale.unlockFailed.logout';
+  static const saveOrderButton = 'sale.saveOrderButton';
+  static const saveOrderDialog = 'sale.saveOrder';
+  static const saveOrderCancel = 'sale.saveOrder.cancel';
+  static const saveOrderOk = 'sale.saveOrder.ok';
   static const scanError = 'sale.scanError';
   static const totalLine = 'sale.totalLine';
   static const netPay = 'sale.netPay';
@@ -83,11 +87,10 @@ abstract class SaleIds {
   static const backToBuyingButton = 'sale.backToBuyingButton';
   static const emptyState = 'sale.emptyState';
   static const privilege = 'sale.privilege';
-  static const basketNotice = 'sale.basketNotice';
   static const checkoutButton = 'sale.checkoutButton';
   static const customerButton = 'sale.customerButton';
   static const discountButton = 'sale.discountButton';
-  static const saveButton = 'sale.saveButton';
+
   static const moreButton = 'sale.moreButton';
   static const moreSheet = 'sale.moreSheet';
 
@@ -99,6 +102,10 @@ abstract class SaleIds {
   /// One cart line, keyed by its cart `row`.
   static String line(String row) => 'sale.line.$row';
   static String lineSelect(String row) => 'sale.line.$row.select';
+  static String lineFulfilment(String row) => 'sale.line.$row.fulfilment';
+  static String lineCancelled(String row) => 'sale.line.$row.cancelled';
+  static String lineFreeze(String row) => 'sale.line.$row.freeze';
+  static String lineLock(String row) => 'sale.line.$row.lock';
 }
 
 abstract class EditLineIds {
@@ -372,13 +379,17 @@ abstract class DesktopSaleIds {
   static const freezeButton = 'desktop.sale.freezeButton';
   static const pickupButton = 'desktop.sale.pickupButton';
   static const selectionHint = 'desktop.sale.selectionHint';
-  static const suspendButton = 'desktop.sale.suspendButton';
   static const printBasketButton = 'desktop.sale.printBasketButton';
   static const claimCheckButton = 'desktop.sale.claimCheckButton';
 
   static String qtyDecrease(String row) => 'desktop.sale.line.$row.qtyDecrease';
   static String qtyIncrease(String row) => 'desktop.sale.line.$row.qtyIncrease';
   static String lineCheck(String row) => 'desktop.sale.line.$row.check';
+  static String lineFulfilment(String row) =>
+      'desktop.sale.line.$row.fulfilment';
+  static String lineCancelled(String row) => 'desktop.sale.line.$row.cancelled';
+  static String lineFreeze(String row) => 'desktop.sale.line.$row.freeze';
+  static String lineLock(String row) => 'desktop.sale.line.$row.lock';
 }
 
 /// Desktop Customer (S8), Flight & passport (S9) and flight date picker

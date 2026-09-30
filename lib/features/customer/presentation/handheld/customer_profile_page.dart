@@ -18,15 +18,14 @@ import 'traveller_details_page.dart';
 /// flight, privileges (radio list), customer type / agent / guide.
 ///
 /// Every privilege pick is reported through [onPrivilegeChanged] straight
-/// away (as on desktop); [onEdit] opens the Update customer form. Start
-/// sale ([onGoToSale]) is enabled only for a registered (`isActivate`) card.
+/// away (as on desktop); [onEdit] opens the Update customer form. The sale
+/// starts from the Sale button on Home, for the customer looked up there.
 class CustomerProfilePage extends StatefulWidget {
   final Customer customer;
   final Privilege? initialPrivilege;
   final Future<List<Flight>> Function(String query) searchFlights;
   final ValueChanged<Privilege?> onPrivilegeChanged;
   final VoidCallback onEdit;
-  final VoidCallback onGoToSale;
 
   const CustomerProfilePage({
     super.key,
@@ -34,7 +33,6 @@ class CustomerProfilePage extends StatefulWidget {
     required this.searchFlights,
     required this.onPrivilegeChanged,
     required this.onEdit,
-    required this.onGoToSale,
     this.initialPrivilege,
   });
 
@@ -156,16 +154,10 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
             ],
           ),
         ),
-        // Start sale is always there but only a registered (`isActivate`)
-        // card can press it; Update customer is how the rest register.
+        // The sale starts from Home's Sale button; here only Update customer
+        // (or Register, for a card not yet registered).
         actionBar: HandheldActionBar(
           primary: HandheldPrimaryButton(
-            id: ProfileIds.goToSaleButton,
-            label: 'Start sale',
-            icon: Icons.shopping_bag_outlined,
-            onPressed: person.isActivate ? widget.onGoToSale : null,
-          ),
-          secondary: HandheldSecondaryButton(
             id: ProfileIds.editButton,
             label: person.isActivate ? 'Update customer' : 'Register',
             onPressed: widget.onEdit,

@@ -28,6 +28,16 @@ class CartItem {
   final bool isLockDiscount;
   final bool isFreeze;
 
+  /// `IsCancel`: a basket line cancelled on this order.
+  final bool isCancel;
+
+  /// `LineNo` — the line's number on the order (0 when not sent).
+  final int lineNo;
+
+  /// `ItemDetail.ItemAttributes` `collect_status`: `T` take now, `C`
+  /// collect (at the airport); empty when not set.
+  final String collectStatus;
+
   const CartItem({
     required this.row,
     required this.articleCode,
@@ -41,5 +51,8 @@ class CartItem {
     this.maxPercentDiscount,
     this.isLockDiscount = false,
     this.isFreeze = false,
+    this.isCancel = false,
+    this.lineNo = 0,
+    this.collectStatus = '',
   });
 }

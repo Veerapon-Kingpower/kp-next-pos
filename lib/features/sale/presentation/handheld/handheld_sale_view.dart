@@ -9,6 +9,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../customer/domain/entities/privilege.dart';
 import '../../domain/entities/cart_item.dart';
 import '../sale_cart_view_model.dart';
+import '../widgets/leave_sale_prompt.dart';
 import '../sale_currency.dart';
 import 'discount_sheet.dart';
 import 'edit_line_page.dart';
@@ -34,6 +35,9 @@ class HandheldSaleView extends StatefulWidget {
   /// Pre-order (legacy `setDefaultShopping`).
   final bool isAirportMpos;
 
+  /// Logs out — after Save order (legacy `signout()`).
+  final Future<void> Function()? onSignOut;
+
   const HandheldSaleView({
     super.key,
     required this.viewModel,
@@ -41,6 +45,7 @@ class HandheldSaleView extends StatefulWidget {
     required this.onCustomer,
     this.orderType = SaleOrderType.normal,
     this.isAirportMpos = false,
+    this.onSignOut,
   });
 
   @override
@@ -69,6 +74,43 @@ class _HandheldSaleViewState extends State<HandheldSaleView> {
       row: line.row,
       lineNumber: number,
     );
+  }
+
+  // Legacy `changeTab()`: the tab left behind loses its selection.
+  void _showTab(bool basket) {
+    setState(() => _showBasket = basket);
+    widget.viewModel.clearSelection(basket: !basket);
+  }
+
+  // Legacy Basket swipe "Cancel" / "Uncancel": confirm, then `cancel`.
+  // Never lets Dismissible remove the row — the list rebuilds from the
+  // returned order.
+  Future<bool> _confirmCancel(CartItem line) async {
+    final confirmed = await showAppConfirmationDialog(
+      context,
+      title: 'Cancel item',
+      message: 'Do you want to cancel selected item',
+      confirmLabel: 'Confirm',
+      destructive: !line.isCancel,
+    );
+    if (!confirmed || !mounted) return false;
+    final error = await widget.viewModel.cancelBasketLine(line);
+    if (error != null && mounted) {
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Oops !'),
+          content: Text(error),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
+    return false;
   }
 
   void _openDiscount(CartItem line, int number) {
@@ -167,13 +209,17 @@ class _HandheldSaleViewState extends State<HandheldSaleView> {
   }
 
   Widget _build(BuildContext context, SaleCartViewModel viewModel) {
-    final lines = viewModel.cart?.items ?? const <CartItem>[];
+    // The whole order for the totals; the tab's lines (Buying, or the
+    // saved order's Basket) for the list.
+    final orderLines = viewModel.cart?.items ?? const <CartItem>[];
+    final lines = viewModel.linesFor(basket: _showBasket);
     final billing = viewModel.cart?.billing;
     final total =
-        billing?.total ?? lines.fold<double>(0, (sum, l) => sum + l.lineTotal);
+        billing?.total ??
+        orderLines.fold<double>(0, (sum, l) => sum + l.lineTotal);
     final netPay = orderNetPay(viewModel.cart);
     final currency = orderCurrency(viewModel.cart);
-    final units = lines.fold<int>(0, (sum, l) => sum + l.quantity);
+    final units = orderLines.fold<int>(0, (sum, l) => sum + l.quantity);
 
     return HandheldScaffold(
       fullWidthBody: true,
@@ -182,9 +228,11 @@ class _HandheldSaleViewState extends State<HandheldSaleView> {
         children: [
           _SaleHeader(
             orderType: widget.orderType,
-            lineCount: lines.length,
+            lineCount: orderLines.length,
             scanController: _scanController,
-            scanEnabled: !viewModel.isBusy && viewModel.hasCustomer,
+            // Legacy: scanning only on the Buying tab.
+            scanEnabled:
+                !viewModel.isBusy && viewModel.hasCustomer && !_showBasket,
             onScan: _scan,
             onExit: widget.onExit,
             total: total,
@@ -201,9 +249,10 @@ class _HandheldSaleViewState extends State<HandheldSaleView> {
             ),
           ),
           _Tabs(
-            lineCount: lines.length,
+            buyingCount: viewModel.linesFor(basket: false).length,
+            basketCount: viewModel.linesFor(basket: true).length,
             showBasket: _showBasket,
-            onSelect: (basket) => setState(() => _showBasket = basket),
+            onSelect: _showTab,
           ),
           if (viewModel.isBusy) const LinearProgressIndicator(minHeight: 2),
           if (viewModel.currencyError != null)
@@ -230,6 +279,7 @@ class _HandheldSaleViewState extends State<HandheldSaleView> {
                     ? null
                     : widget.onCustomer,
                 onConfirmVoid: _confirmVoid,
+                onConfirmCancel: _confirmCancel,
               ),
             ),
           ),
@@ -240,7 +290,7 @@ class _HandheldSaleViewState extends State<HandheldSaleView> {
           id: SaleIds.checkoutButton,
           label: 'Checkout · ${formatMoney(netPay, currency)}',
           icon: Icons.payments_outlined,
-          onPressed: lines.isEmpty
+          onPressed: orderLines.isEmpty
               ? null
               : () => openCheckoutPage(context, viewModel: viewModel),
         ),
@@ -248,7 +298,7 @@ class _HandheldSaleViewState extends State<HandheldSaleView> {
             ? HandheldSecondaryButton(
                 id: SaleIds.backToBuyingButton,
                 label: 'Buying',
-                onPressed: () => setState(() => _showBasket = false),
+                onPressed: () => _showTab(false),
               )
             : null,
         items: _showBasket
@@ -268,11 +318,18 @@ class _HandheldSaleViewState extends State<HandheldSaleView> {
                       ? null
                       : () => _discountSelected(lines),
                 ),
-                // TODO(pos-handheld): suspend / save bill needs an API.
-                const HandheldBarItem(
-                  id: SaleIds.saveButton,
+                // Legacy Save Order.
+                HandheldBarItem(
+                  id: SaleIds.saveOrderButton,
                   icon: Icons.assignment_turned_in_outlined,
                   label: 'Save',
+                  onPressed: viewModel.canSaveOrder && !viewModel.isBusy
+                      ? () => confirmSaveOrder(
+                          context,
+                          viewModel,
+                          onSignOut: widget.onSignOut ?? () async {},
+                        )
+                      : null,
                 ),
                 HandheldBarItem(
                   id: SaleIds.moreButton,
@@ -449,76 +506,84 @@ class _SaleHeader extends StatelessWidget {
 }
 
 class _Tabs extends StatelessWidget {
-  final int lineCount;
+  final int buyingCount;
+  final int basketCount;
   final bool showBasket;
   final ValueChanged<bool> onSelect;
 
   const _Tabs({
-    required this.lineCount,
+    required this.buyingCount,
+    required this.basketCount,
     required this.showBasket,
     required this.onSelect,
   });
 
   @override
   Widget build(BuildContext context) {
-    Widget tab(String id, String label, bool selected, bool basket) => Expanded(
-      child: TestId(
-        id,
-        child: Semantics(
-          button: true,
-          selected: selected,
-          inMutuallyExclusiveGroup: true,
-          child: InkWell(
-            onTap: () => onSelect(basket),
-            child: Container(
-              height: 46,
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: selected ? AppColors.goldDark : AppColors.line,
-                    width: selected ? 3 : 1,
+    Widget tab(String id, String label, bool selected, bool basket) {
+      final count = basket ? basketCount : buyingCount;
+      return Expanded(
+        child: TestId(
+          id,
+          child: Semantics(
+            button: true,
+            selected: selected,
+            inMutuallyExclusiveGroup: true,
+            child: InkWell(
+              onTap: () => onSelect(basket),
+              child: Container(
+                height: 46,
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: selected ? AppColors.goldDark : AppColors.line,
+                      width: selected ? 3 : 1,
+                    ),
                   ),
                 ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
-                      color: selected ? AppColors.ink : AppColors.mutedText,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    constraints: const BoxConstraints(minWidth: 21),
-                    height: 20,
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: selected ? AppColors.goldDark : AppColors.line,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      '$lineCount',
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      label,
                       style: TextStyle(
-                        fontSize: 11,
-                        color: selected ? Colors.white : AppColors.textPrimary,
+                        fontSize: 13.5,
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.w400,
+                        color: selected ? AppColors.ink : AppColors.mutedText,
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    Container(
+                      constraints: const BoxConstraints(minWidth: 21),
+                      height: 20,
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: selected ? AppColors.goldDark : AppColors.line,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '$count',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: selected
+                              ? Colors.white
+                              : AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
         ),
-      ),
-    );
+      );
+    }
 
-    // Both tabs count the same lines until the cart distinguishes
-    // committed (Basket) from in-progress (Buying) lines.
+    // Buying: lines being bought now; Basket: the saved order's lines.
     return ColoredBox(
       color: AppColors.surface,
       child: HandheldContentWidth(
@@ -541,6 +606,7 @@ class _LineList extends StatelessWidget {
   final void Function(CartItem line, int number) onOpen;
   final void Function(CartItem line, int number) onDiscount;
   final Future<bool> Function(CartItem line) onConfirmVoid;
+  final Future<bool> Function(CartItem line) onConfirmCancel;
   final bool Function(String row) isSelected;
   final ValueChanged<String> onToggleSelected;
 
@@ -556,6 +622,7 @@ class _LineList extends StatelessWidget {
     required this.onOpen,
     required this.onDiscount,
     required this.onConfirmVoid,
+    required this.onConfirmCancel,
     required this.isSelected,
     required this.onToggleSelected,
     required this.onFindCustomer,
@@ -599,19 +666,6 @@ class _LineList extends StatelessWidget {
           ),
         ),
       if (privilege != null) _PrivilegeRow(privilege: privilege!),
-      if (basket)
-        // TODO(pos-handheld): group by Collect (flight) / Take now and show
-        // cancelled lines once the cart line carries fulfilment + status.
-        const TestId(
-          SaleIds.basketNotice,
-          child: _Banner(
-            icon: Icons.info_outline,
-            color: AppColors.info,
-            text:
-                'Collect / Take grouping and cancelled lines are not '
-                'available yet — all lines are shown as scanned.',
-          ),
-        ),
       if (lines.isEmpty)
         const TestId(
           SaleIds.emptyState,
@@ -637,19 +691,22 @@ class _LineList extends StatelessWidget {
       for (var i = 0; i < lines.length; i++)
         _LineTile(
           line: lines[i],
-          number: i + 1,
-          swipeable: !basket,
+          // Basket lines keep their number on the saved order.
+          number: basket && lines[i].lineNo > 0 ? lines[i].lineNo : i + 1,
+          basket: basket,
           onOpen: onOpen,
           onDiscount: onDiscount,
-          onConfirmVoid: onConfirmVoid,
+          onConfirmVoid: basket ? onConfirmCancel : onConfirmVoid,
           selected: isSelected(lines[i].row),
           onToggleSelected: () => onToggleSelected(lines[i].row),
         ),
-      if (!basket && lines.isNotEmpty)
-        const Padding(
-          padding: EdgeInsets.all(12),
+      if (lines.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.all(12),
           child: Text(
-            'Swipe a line left to void, right to discount',
+            basket
+                ? 'Tap to select · swipe left to cancel, right to discount'
+                : 'Swipe a line left to void, right to discount',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 12, color: AppColors.mutedText),
           ),
@@ -666,7 +723,10 @@ class _LineList extends StatelessWidget {
 class _LineTile extends StatelessWidget {
   final CartItem line;
   final int number;
-  final bool swipeable;
+
+  /// A saved-order (Basket) line: tap selects it, swipe left cancels /
+  /// un-cancels ([onConfirmVoid] is the cancel then), no edit page.
+  final bool basket;
   final void Function(CartItem line, int number) onOpen;
   final void Function(CartItem line, int number) onDiscount;
   final Future<bool> Function(CartItem line) onConfirmVoid;
@@ -679,7 +739,7 @@ class _LineTile extends StatelessWidget {
   const _LineTile({
     required this.line,
     required this.number,
-    required this.swipeable,
+    required this.basket,
     required this.onOpen,
     required this.onDiscount,
     required this.onConfirmVoid,
@@ -694,7 +754,7 @@ class _LineTile extends StatelessWidget {
         : 'Qty ${line.quantity} × ${formatAmount(line.unitPrice)}';
 
     final tile = InkWell(
-      onTap: () => onOpen(line, number),
+      onTap: basket ? onToggleSelected : () => onOpen(line, number),
       onLongPress: onToggleSelected,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
@@ -751,14 +811,26 @@ class _LineTile extends StatelessWidget {
                         : line.articleName,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13.5,
                       fontWeight: FontWeight.w700,
+                      // Legacy strikes a cancelled Basket line through.
+                      decoration: line.isCancel
+                          ? TextDecoration.lineThrough
+                          : null,
+                      color: line.isCancel ? AppColors.mutedText : null,
                     ),
                   ),
                 ),
               ],
             ),
+            if (_statuses.isNotEmpty) ...[
+              const SizedBox(height: 5),
+              Padding(
+                padding: const EdgeInsets.only(left: 28),
+                child: Wrap(spacing: 6, runSpacing: 4, children: _statuses),
+              ),
+            ],
             const SizedBox(height: 6),
             Padding(
               padding: const EdgeInsets.only(left: 28),
@@ -791,34 +863,65 @@ class _LineTile extends StatelessWidget {
       ),
     );
 
-    final content = !swipeable
-        ? tile
-        : Dismissible(
-            key: ValueKey('dismiss-${line.row}'),
-            background: const _SwipeBackground(
-              alignment: Alignment.centerLeft,
-              color: AppColors.goldDark,
-              icon: Icons.percent,
-              label: 'Discount',
-            ),
-            secondaryBackground: const _SwipeBackground(
-              alignment: Alignment.centerRight,
-              color: AppColors.danger,
-              icon: Icons.delete_outline,
-              label: 'Void',
-            ),
-            confirmDismiss: (direction) async {
-              if (direction == DismissDirection.startToEnd) {
-                onDiscount(line, number);
-                return false;
-              }
-              return onConfirmVoid(line);
-            },
-            child: tile,
-          );
+    final content = Dismissible(
+      key: ValueKey('dismiss-${line.row}'),
+      background: const _SwipeBackground(
+        alignment: Alignment.centerLeft,
+        color: AppColors.goldDark,
+        icon: Icons.percent,
+        label: 'Discount',
+      ),
+      secondaryBackground: _SwipeBackground(
+        alignment: Alignment.centerRight,
+        color: AppColors.danger,
+        icon: basket ? Icons.block : Icons.delete_outline,
+        label: !basket
+            ? 'Void'
+            : line.isCancel
+            ? 'Uncancel'
+            : 'Cancel',
+      ),
+      confirmDismiss: (direction) async {
+        if (direction == DismissDirection.startToEnd) {
+          onDiscount(line, number);
+          return false;
+        }
+        return onConfirmVoid(line);
+      },
+      child: tile,
+    );
 
     return TestId(SaleIds.line(line.row), child: content);
   }
+
+  // Legacy Basket row: Take / Collect (`collect_status`), Freeze, Lock and
+  // Cancelled.
+  List<Widget> get _statuses => [
+    if (line.collectStatus == 'T' || line.collectStatus == 'C')
+      _StatusChip(
+        id: SaleIds.lineFulfilment(line.row),
+        label: line.collectStatus == 'T' ? 'Take' : 'Collect',
+        color: AppColors.goldDark,
+      ),
+    if (line.isCancel)
+      _StatusChip(
+        id: SaleIds.lineCancelled(line.row),
+        label: 'Cancelled',
+        color: AppColors.danger,
+      ),
+    if (line.isFreeze)
+      _StatusChip(
+        id: SaleIds.lineFreeze(line.row),
+        label: 'Freeze',
+        color: AppColors.info,
+      ),
+    if (line.isLockDiscount)
+      _StatusChip(
+        id: SaleIds.lineLock(line.row),
+        label: 'Lock',
+        color: AppColors.warning,
+      ),
+  ];
 }
 
 class _SwipeBackground extends StatelessWidget {
@@ -920,6 +1023,42 @@ class _PrivilegeRow extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A small status tag on a line (Take / Collect / Cancelled / Freeze /
+/// Lock).
+class _StatusChip extends StatelessWidget {
+  final String id;
+  final String label;
+  final Color color;
+
+  const _StatusChip({
+    required this.id,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TestId(
+      id,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
         ),
       ),
     );

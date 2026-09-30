@@ -535,4 +535,144 @@ void main() {
       expect(sale.lastAddedRows, ['a'], reason: 'c is a Basket line');
     });
   });
+
+  group('canSaveOrder (legacy canSave)', () {
+    const basketLine = CartItem(
+      row: 'b1',
+      articleCode: '1',
+      articleName: 'Basket bag',
+      quantity: 1,
+      unitPrice: 0,
+      lineTotal: 0,
+      isBasket: true,
+    );
+    const basketOnly = Cart(
+      guid: 'order-1',
+      isCheckOut: false,
+      items: [basketLine],
+    );
+
+    test('an unchanged basket-only order has nothing to save', () async {
+      final sale = FakeSaleRepository(cartResult: basketOnly);
+      final viewModel = buildViewModel(saleRepository: sale);
+      await viewModel.openOrder(
+        const SaleOrderContext(shoppingCard: 'CPX0001'),
+      );
+      expect(viewModel.canSaveOrder, isFalse);
+    });
+
+    test('a basket line cancelled since opening can be saved', () async {
+      final sale = FakeSaleRepository(cartResult: basketOnly);
+      final viewModel = buildViewModel(saleRepository: sale);
+      await viewModel.openOrder(
+        const SaleOrderContext(shoppingCard: 'CPX0001'),
+      );
+      viewModel.cart = const Cart(
+        guid: 'order-1',
+        isCheckOut: false,
+        items: [
+          CartItem(
+            row: 'b1',
+            articleCode: '1',
+            articleName: 'Basket bag',
+            quantity: 1,
+            unitPrice: 0,
+            lineTotal: 0,
+            isBasket: true,
+            isCancel: true,
+          ),
+        ],
+      );
+      expect(viewModel.canSaveOrder, isTrue);
+    });
+
+    test('Buying lines can be saved', () async {
+      final sale = FakeSaleRepository(
+        cartResult: const Cart(
+          guid: 'order-1',
+          isCheckOut: false,
+          items: [
+            CartItem(
+              row: 'x',
+              articleCode: '2',
+              articleName: 'Wallet',
+              quantity: 1,
+              unitPrice: 0,
+              lineTotal: 0,
+            ),
+          ],
+        ),
+      );
+      final viewModel = buildViewModel(saleRepository: sale);
+      await viewModel.openOrder(
+        const SaleOrderContext(shoppingCard: 'CPX0001'),
+      );
+      expect(viewModel.canSaveOrder, isTrue);
+    });
+  });
+
+  group('Basket (the saved order, legacy IsBasket)', () {
+    const buying = CartItem(
+      row: 'x',
+      articleCode: '1',
+      articleName: 'Wallet',
+      quantity: 1,
+      unitPrice: 1,
+      lineTotal: 1,
+    );
+    const saved = CartItem(
+      row: 'b',
+      articleCode: '2',
+      articleName: 'Bag',
+      quantity: 1,
+      unitPrice: 1,
+      lineTotal: 1,
+      isBasket: true,
+    );
+    const savedToo = CartItem(
+      row: 'c',
+      articleCode: '3',
+      articleName: 'Belt',
+      quantity: 1,
+      unitPrice: 1,
+      lineTotal: 1,
+      isBasket: true,
+      isCancel: true,
+    );
+    const cart = Cart(
+      guid: 'order-1',
+      isCheckOut: false,
+      items: [buying, saved, savedToo],
+    );
+
+    test('lines split by tab', () {
+      final viewModel = buildViewModel()..cart = cart;
+      expect(viewModel.linesFor(basket: false).map((l) => l.row), ['x']);
+      expect(viewModel.linesFor(basket: true).map((l) => l.row), ['b', 'c']);
+    });
+
+    test('switching tab clears the other tab\'s selection', () {
+      final viewModel = buildViewModel()..cart = cart;
+      viewModel
+        ..toggleSelected('x')
+        ..toggleSelected('b');
+      viewModel.clearSelection(basket: false);
+      expect(viewModel.isSelected('x'), isFalse);
+      expect(viewModel.isSelected('b'), isTrue);
+    });
+
+    test('cancel sends the selected Basket lines with this one; a '
+        'cancelled line is un-cancelled', () async {
+      final sale = FakeSaleRepository(cartResult: cart);
+      final viewModel = buildViewModel(saleRepository: sale)..cart = cart;
+      viewModel.toggleSelected('b');
+
+      await viewModel.cancelBasketLine(savedToo);
+
+      final action = sale.lineActions.single;
+      expect(action.action, 'cancel');
+      expect(action.value, '0');
+      expect(action.rows, ['b', 'c']);
+    });
+  });
 }

@@ -65,12 +65,10 @@ const walkIn = Customer(
 void main() {
   late List<Privilege?> picked;
   late int edits;
-  late int sales;
 
   setUp(() {
     picked = [];
     edits = 0;
-    sales = 0;
   });
 
   Future<void> open(
@@ -93,7 +91,6 @@ void main() {
                     searchFlights: (_) async => const <Flight>[],
                     onPrivilegeChanged: picked.add,
                     onEdit: () => edits++,
-                    onGoToSale: () => sales++,
                   ),
                 ),
               ),
@@ -281,8 +278,8 @@ void main() {
     expect(find.text('None on this card'), findsOneWidget);
   });
 
-  testWidgets('a registered customer can Start sale; registration checks '
-      'pass', (tester) async {
+  testWidgets('a registered customer: checks pass; no Start sale here, '
+      'only Update customer', (tester) async {
     await open(tester);
     expect(find.text('Recent purchases'), findsNothing);
     await tester.ensureVisible(byTestId(ProfileIds.registrationChecks));
@@ -296,20 +293,23 @@ void main() {
         reason: 'check $i',
       );
     }
-    await tester.tap(byTestId(ProfileIds.goToSaleButton));
-    expect(sales, 1);
+    expect(
+      byTestId(ProfileIds.goToSaleButton),
+      findsNothing,
+      reason: 'the sale starts from Home\x27s Sale button',
+    );
+    expect(
+      find.descendant(
+        of: byTestId(ProfileIds.editButton),
+        matching: find.text('Update customer'),
+      ),
+      findsOneWidget,
+    );
   });
 
-  testWidgets('an unregistered customer sees Start sale disabled and '
-      'Register', (tester) async {
+  testWidgets('an unregistered customer sees Register', (tester) async {
     final handle = tester.ensureSemantics();
     await open(tester, customer: walkIn);
-    expect(
-      tester.getSemantics(byTestId(ProfileIds.goToSaleButton)),
-      isSemantics(isButton: true, hasEnabledState: true, isEnabled: false),
-    );
-    await tester.tap(byTestId(ProfileIds.goToSaleButton));
-    expect(sales, 0);
     expect(
       find.descendant(
         of: byTestId(ProfileIds.editButton),

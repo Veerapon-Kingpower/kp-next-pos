@@ -715,16 +715,20 @@ void main() {
       expect(byTestId(ProfileIds.caratExpiring), findsNothing);
     });
 
-    testWidgets('Go to Sale takes a registered customer, with the picked '
-        'privilege, to the Sale tab', (tester) async {
+    testWidgets('the Sale nav starts the sale for the looked-up customer, '
+        'with the picked privilege', (tester) async {
       await pumpCustomerTab(tester, buildPage(searchResult: const [found]));
       await search(tester, 'CPX0001');
+      expect(
+        byTestId(ProfileIds.goToSaleButton),
+        findsNothing,
+        reason: 'no Start sale on the Customer tab',
+      );
 
       await tester.ensureVisible(byTestId(ProfileIds.privilege(0)));
       await tester.tap(byTestId(ProfileIds.privilege(0)));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(byTestId(ProfileIds.goToSaleButton));
-      await tester.tap(byTestId(ProfileIds.goToSaleButton));
+      await tester.tap(byTestId(NavIds.sale));
       await tester.pumpAndSettle();
 
       // No second privilege prompt — the radio pick is used as-is.
@@ -737,7 +741,7 @@ void main() {
       );
     });
 
-    testWidgets('an unregistered customer sees Start sale disabled', (
+    testWidgets('an isFound: false card: Sale asks for a customer', (
       tester,
     ) async {
       const unregistered = Customer(
@@ -762,10 +766,9 @@ void main() {
       );
       await search(tester, 'CPX0001');
 
-      expect(
-        tester.getSemantics(byTestId(ProfileIds.goToSaleButton)),
-        isSemantics(isButton: true, hasEnabledState: true, isEnabled: false),
-      );
+      await tester.tap(byTestId(NavIds.sale));
+      await tester.pumpAndSettle();
+      expect(byTestId(SaleIds.noCustomerNotice), findsOneWidget);
     });
 
     testWidgets('a fast-registered card is blocked with legacy "Oops !"', (
@@ -792,8 +795,7 @@ void main() {
       await pumpCustomerTab(tester, buildPage(searchResult: const [fast]));
       await search(tester, 'CPX0001');
 
-      await tester.ensureVisible(byTestId(ProfileIds.goToSaleButton));
-      await tester.tap(byTestId(ProfileIds.goToSaleButton));
+      await tester.tap(byTestId(NavIds.sale));
       await tester.pumpAndSettle();
 
       expect(find.text('Oops !'), findsOneWidget);
@@ -1564,29 +1566,43 @@ void main() {
       expect(byTestId(ProfileIds.page), findsOneWidget);
     });
 
-    testWidgets('Start sale on the profile opens the Sale screen', (
-      tester,
-    ) async {
-      await pumpHandheld(tester, buildPage(searchResult: const [jane]));
-      await scan(tester, 'CPX0001');
-
-      await tester.ensureVisible(byTestId(ProfileIds.privilege(0)));
-      await tester.tap(byTestId(ProfileIds.privilege(0)));
+    Future<void> closeProfile(WidgetTester tester) async {
+      tester.state<NavigatorState>(find.byType(Navigator).first).pop();
       await tester.pumpAndSettle();
-      await tester.tap(byTestId(ProfileIds.goToSaleButton));
-      await tester.pumpAndSettle();
+    }
 
-      expect(byTestId(ProfileIds.page), findsNothing);
-      expect(byTestId(SaleIds.scanField), findsOneWidget);
-      expect(find.text('Gold Member'), findsOneWidget);
-    });
+    testWidgets(
+      'the Home Sale tile starts the sale for the looked-up customer',
+      (tester) async {
+        await pumpHandheld(tester, buildPage(searchResult: const [jane]));
+        await scan(tester, 'CPX0001');
+        expect(
+          byTestId(ProfileIds.goToSaleButton),
+          findsNothing,
+          reason: 'no Start sale on the profile',
+        );
+
+        await tester.ensureVisible(byTestId(ProfileIds.privilege(0)));
+        await tester.tap(byTestId(ProfileIds.privilege(0)));
+        await tester.pumpAndSettle();
+        await closeProfile(tester);
+        await tester.tap(byTestId(HomeIds.tileSale));
+        await tester.pumpAndSettle();
+
+        expect(byTestId(ProfileIds.page), findsNothing);
+        expect(byTestId(SaleIds.noCustomerNotice), findsNothing);
+        expect(byTestId(SaleIds.scanField), findsOneWidget);
+        expect(find.text('Gold Member'), findsOneWidget);
+      },
+    );
 
     testWidgets('Start sale locks the card; leaving Sale unlocks it', (
       tester,
     ) async {
       await pumpHandheld(tester, buildPage(searchResult: const [jane]));
       await scan(tester, 'CPX0001');
-      await tester.tap(byTestId(ProfileIds.goToSaleButton));
+      await closeProfile(tester);
+      await tester.tap(byTestId(HomeIds.tileSale));
       await tester.pumpAndSettle();
       expect(saleRepository.orderStatuses.map((s) => s.status), [
         OrderStatus.lock,

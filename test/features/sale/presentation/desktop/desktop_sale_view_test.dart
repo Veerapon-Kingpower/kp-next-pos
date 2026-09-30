@@ -361,15 +361,9 @@ void main() {
       );
     });
 
-    testWidgets('Take payment (F12) opens Checkout; Suspend is inert', (
-      tester,
-    ) async {
+    testWidgets('Take payment (F12) opens Checkout', (tester) async {
       final handle = tester.ensureSemantics();
       await pump(tester);
-      expect(
-        tester.getSemantics(byTestId(DesktopSaleIds.suspendButton)),
-        isSemantics(hasEnabledState: true, isEnabled: false),
-      );
       await tester.sendKeyEvent(LogicalKeyboardKey.f12);
       await tester.pumpAndSettle();
       expect(byTestId(CheckoutIds.page), findsOneWidget);
@@ -388,19 +382,58 @@ void main() {
   });
 
   group('Basket tab (S4)', () {
-    testWidgets('shows the lines with the fulfilment notice and actions', (
+    testWidgets('Buying and Basket split the order by IsBasket', (
       tester,
     ) async {
+      await pump(tester, cart: mixedCart, cartAfterMutation: mixedCart);
+      expect(byTestId(SaleIds.line('1')), findsOneWidget, reason: 'Buying');
+      expect(byTestId(SaleIds.line('b1')), findsNothing);
+
+      await tester.tap(byTestId(SaleIds.tabBasket));
+      await tester.pumpAndSettle();
+      expect(byTestId(SaleIds.line('1')), findsNothing);
+      expect(byTestId(SaleIds.line('b1')), findsOneWidget);
+      expect(textIn(tester, DesktopSaleIds.lineFulfilment('b1')), 'Take');
+      expect(textIn(tester, DesktopSaleIds.lineFulfilment('b2')), 'Collect');
+      expect(byTestId(DesktopSaleIds.lineCancelled('b2')), findsOneWidget);
+      expect(byTestId(DesktopSaleIds.lineFreeze('b2')), findsOneWidget);
+      expect(byTestId(DesktopSaleIds.lineLock('b2')), findsOneWidget);
+      expect(
+        tester.widget<TextField>(scanField()).enabled,
+        isFalse,
+        reason: 'legacy scans on Buying only',
+      );
+    });
+
+    testWidgets('a Basket line is cancelled (not removed) after confirming', (
+      tester,
+    ) async {
+      await pump(tester, cart: mixedCart, cartAfterMutation: mixedCart);
+      await tester.tap(byTestId(SaleIds.tabBasket));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('SAVED PERFUME'));
+      await tester.pump();
+      await tester.tap(byTestId(DesktopSaleIds.removeButton));
+      await tester.pumpAndSettle();
+      expect(find.text('Do you want to cancel selected item'), findsOneWidget);
+      await tester.tap(find.widgetWithText(FilledButton, 'Confirm'));
+      await tester.pumpAndSettle();
+
+      expect(sale.lineActions.single.action, 'cancel');
+      expect(sale.lineActions.single.value, '1');
+      expect(sale.lineActions.single.rows, ['b1']);
+      expect(sale.lastRemovedRow, isNull);
+    });
+
+    testWidgets('Basket keeps its print / claim actions', (tester) async {
       final handle = tester.ensureSemantics();
-      await pump(tester);
+      await pump(tester, cart: mixedCart);
       await tester.tap(byTestId(SaleIds.tabBasket));
       await tester.pumpAndSettle();
       expect(
         tester.getSemantics(byTestId(SaleIds.tabBasket)),
         isSemantics(isSelected: true),
       );
-      expect(byTestId(SaleIds.basketNotice), findsOneWidget);
-      expect(byTestId(SaleIds.line('1')), findsOneWidget);
       for (final id in [
         DesktopSaleIds.printBasketButton,
         DesktopSaleIds.claimCheckButton,
@@ -743,5 +776,55 @@ void main() {
     await pump(tester);
     expect(byTestId(SaleIds.noCustomerNotice), findsNothing);
     expect(tester.widget<TextField>(scanField()).enabled, isTrue);
+  });
+
+  group('Save order (legacy saveOrder, in place of Suspend bill)', () {
+    Future<void> tapSave(WidgetTester tester) async {
+      await tester.ensureVisible(byTestId(SaleIds.saveOrderButton));
+      await tester.tap(byTestId(SaleIds.saveOrderButton));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('confirms, saves, then signs out', (tester) async {
+      var signedOut = false;
+      await pump(tester, onSignOut: () async => signedOut = true);
+      await tapSave(tester);
+      expect(find.text('Do you want to save order'), findsOneWidget);
+      await tester.tap(byTestId(SaleIds.saveOrderOk));
+      await tester.pumpAndSettle();
+      expect(sale.savedOrders, ['CPX0001']);
+      expect(signedOut, isTrue);
+    });
+
+    testWidgets('Cancel saves nothing', (tester) async {
+      var signedOut = false;
+      await pump(tester, onSignOut: () async => signedOut = true);
+      await tapSave(tester);
+      await tester.tap(byTestId(SaleIds.saveOrderCancel));
+      await tester.pumpAndSettle();
+      expect(sale.savedOrders, isEmpty);
+      expect(signedOut, isFalse);
+    });
+
+    testWidgets('a failed save stays, with the message', (tester) async {
+      var signedOut = false;
+      await pump(tester, onSignOut: () async => signedOut = true);
+      sale.saveOrderError = const ApiException(messageDesc: 'Cannot save');
+      await tapSave(tester);
+      await tester.tap(byTestId(SaleIds.saveOrderOk));
+      await tester.pumpAndSettle();
+      expect(signedOut, isFalse);
+      expect(find.text('Cannot save'), findsOneWidget);
+    });
+
+    testWidgets('nothing to save: disabled', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pump(tester, cart: null);
+      expect(
+        tester.getSemantics(byTestId(SaleIds.saveOrderButton)),
+        isSemantics(hasEnabledState: true, isEnabled: false),
+      );
+      handle.dispose();
+    });
   });
 }

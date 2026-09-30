@@ -89,3 +89,37 @@ SaleCartViewModel buildSaleViewModel(
     ..shoppingCard = shoppingCard;
   return viewModel;
 }
+
+/// A saved order's lines (legacy `IsBasket`) next to one being bought.
+const savedTake = CartItem(
+  row: 'b1',
+  articleCode: '8850001',
+  articleName: 'SAVED PERFUME',
+  quantity: 1,
+  unitPrice: 3000,
+  lineTotal: 3000,
+  isBasket: true,
+  lineNo: 1,
+  collectStatus: 'T',
+);
+
+const savedCancelled = CartItem(
+  row: 'b2',
+  articleCode: '8850002',
+  articleName: 'SAVED WATCH',
+  quantity: 1,
+  unitPrice: 9000,
+  lineTotal: 9000,
+  isBasket: true,
+  lineNo: 2,
+  collectStatus: 'C',
+  isCancel: true,
+  isFreeze: true,
+  isLockDiscount: true,
+);
+
+const mixedCart = Cart(
+  guid: 'order-1',
+  isCheckOut: false,
+  items: [savedTake, savedCancelled, chanel],
+);

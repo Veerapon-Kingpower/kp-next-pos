@@ -252,26 +252,49 @@ void main() {
   });
 
   group('tabs', () {
-    testWidgets('Basket shows the lines plus the fulfilment notice', (
+    testWidgets('Basket shows the lines of the saved order with their status', (
       tester,
     ) async {
       final handle = tester.ensureSemantics();
-      await pump(tester);
+      await pump(tester, cart: mixedCart, cartAfterMutation: mixedCart);
+      expect(byTestId(SaleIds.line('1')), findsOneWidget, reason: 'Buying');
+      expect(byTestId(SaleIds.line('b1')), findsNothing);
+
       await tester.tap(byTestId(SaleIds.tabBasket));
       await tester.pumpAndSettle();
-
       expect(
         tester.getSemantics(byTestId(SaleIds.tabBasket)),
         isSemantics(isSelected: true),
       );
-      expect(byTestId(SaleIds.basketNotice), findsOneWidget);
-      expect(byTestId(SaleIds.line('1')), findsOneWidget);
+      expect(byTestId(SaleIds.line('1')), findsNothing);
+      expect(byTestId(SaleIds.line('b1')), findsOneWidget);
+      expect(byTestId(SaleIds.lineFulfilment('b1')), findsOneWidget);
+      expect(byTestId(SaleIds.lineCancelled('b2')), findsOneWidget);
+      expect(byTestId(SaleIds.lineFreeze('b2')), findsOneWidget);
+      expect(byTestId(SaleIds.lineLock('b2')), findsOneWidget);
 
       // Basket's secondary action returns to Buying.
       await tester.tap(find.widgetWithText(InkWell, 'Buying').last);
       await tester.pumpAndSettle();
-      expect(byTestId(SaleIds.basketNotice), findsNothing);
+      expect(byTestId(SaleIds.line('1')), findsOneWidget);
       handle.dispose();
+    });
+
+    testWidgets('swiping a Basket line left cancels it after confirming', (
+      tester,
+    ) async {
+      await pump(tester, cart: mixedCart, cartAfterMutation: mixedCart);
+      await tester.tap(byTestId(SaleIds.tabBasket));
+      await tester.pumpAndSettle();
+
+      await tester.drag(byTestId(SaleIds.line('b2')), const Offset(-500, 0));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Confirm'));
+      await tester.pumpAndSettle();
+
+      expect(sale.lineActions.single.action, 'cancel');
+      expect(sale.lineActions.single.value, '0', reason: 'b2 was cancelled');
+      expect(sale.lastRemovedRow, isNull, reason: 'never voided');
     });
   });
 
@@ -392,7 +415,7 @@ void main() {
         SaleIds.checkoutButton,
         SaleIds.customerButton,
         SaleIds.discountButton,
-        SaleIds.saveButton,
+        SaleIds.saveOrderButton,
         SaleIds.moreButton,
         SaleIds.line('1'),
       ]) {
@@ -410,5 +433,17 @@ void main() {
     final line = tester.getRect(byTestId(SaleIds.line('1')));
     expect(line.width, lessThanOrEqualTo(720));
     expect(line.center.dx, closeTo(410, 0.5));
+  });
+
+  testWidgets('Save in the action bar saves the order after confirming', (
+    tester,
+  ) async {
+    await pump(tester);
+    await tester.tap(byTestId(SaleIds.saveOrderButton));
+    await tester.pumpAndSettle();
+    expect(find.text('Do you want to save order'), findsOneWidget);
+    await tester.tap(byTestId(SaleIds.saveOrderOk));
+    await tester.pumpAndSettle();
+    expect(sale.savedOrders, ['CPX0001']);
   });
 }

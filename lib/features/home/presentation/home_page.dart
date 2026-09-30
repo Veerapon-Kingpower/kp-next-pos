@@ -336,6 +336,10 @@ class _HomePageState extends State<HomePage> {
       return;
     }
     final target = sections[index];
+    if (target == _HomeSection.sale) {
+      if (_section != _HomeSection.sale) await _startSale();
+      return;
+    }
     // Leaving Sale is leaving legacy's Sale page (`ionViewCanLeave`): the
     // leave prompt runs and the shopping card is unlocked before going
     // anywhere else; Cancel stays on Sale.
@@ -363,6 +367,30 @@ class _HomePageState extends State<HomePage> {
   // Legacy prompts for a privilege here (`presentPrivilegeSelection`); the
   // profile's radio list already asks that up front ("No privilege" by
   // default), so its pick, [_selectedPrivilege], is carried over as-is.
+  // The customer last looked up (the selected result) — who Home's Sale
+  // button starts the sale for; null when none was found.
+  Customer? get _currentCustomer {
+    final results = widget.viewModel.customerSearchResults;
+    if (results.isEmpty) return null;
+    final customer =
+        results[_selectedResult < results.length ? _selectedResult : 0];
+    return customer.isFound ? customer : null;
+  }
+
+  // Home's Sale button (handheld tile, the Sale nav item): starts the sale
+  // for the customer looked up — legacy Customer page's Start sale, with
+  // its guards, GetOrder and lock ([_goToSale]). With no customer (or one
+  // already on Sale) it just shows Sale, which then asks for a customer.
+  Future<void> _startSale() async {
+    final customer = _currentCustomer;
+    if (customer == null ||
+        _saleCartViewModel.shoppingCard == customer.person.shoppingCard) {
+      setState(() => _section = _HomeSection.sale);
+      return;
+    }
+    await _goToSale(customer);
+  }
+
   Future<void> _goToSale(Customer customer) async {
     final person = customer.person;
     if (person.fastRegister) {
@@ -395,6 +423,9 @@ class _HomePageState extends State<HomePage> {
 
   /// Handheld customer profile (mockup screen 8), pushed over Home.
   void _openHandheldProfile(Customer customer, HomeViewModel viewModel) {
+    // The customer Home's Sale button starts the sale for.
+    final index = viewModel.customerSearchResults.indexOf(customer);
+    if (index >= 0) _selectedResult = index;
     final selected = _selectedPrivilege;
     Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute<void>(
@@ -413,10 +444,6 @@ class _HomePageState extends State<HomePage> {
             _saleCartViewModel.selectPrivilege(privilege);
           },
           onEdit: () => _openRegistration(existingCustomer: customer),
-          onGoToSale: () async {
-            Navigator.of(context, rootNavigator: true).pop();
-            await _goToSale(customer);
-          },
         ),
       ),
     );
@@ -555,6 +582,10 @@ class _HomePageState extends State<HomePage> {
                   _openHandheldMenu(viewModel);
                   return;
                 }
+                if (sections[index] == _HomeSection.sale) {
+                  _startSale();
+                  return;
+                }
                 setState(() => _section = sections[index]);
               },
             ),
@@ -614,6 +645,7 @@ class _HomePageState extends State<HomePage> {
         // Customer lookup lives on Home's scan field.
         onCustomer: _leaveHandheldSale,
         isAirportMpos: viewModel.settings.isAirportMpos,
+        onSignOut: _signOutNow,
       );
     }
     if (section != _HomeSection.home) {
@@ -624,7 +656,7 @@ class _HomePageState extends State<HomePage> {
       onSearch: (_) => _lookUpOnHandheld(),
       searchResults: _customerSearchResults(context, viewModel),
       onRegister: () => _openRegistration(),
-      onSale: () => setState(() => _section = _HomeSection.sale),
+      onSale: _startSale,
       onEnquiry: () => setState(() => _section = _HomeSection.enquiry),
     );
   }
@@ -1102,17 +1134,6 @@ class _HomePageState extends State<HomePage> {
           customer: customer,
           selectedPrivilege: _selectedPrivilege,
           onSelectPrivilege: _selectPrivilege,
-        ),
-        // Always shown; only a registered (`isActivate`) card can press it.
-        const SizedBox(height: 16),
-        DesktopButton(
-          id: ProfileIds.goToSaleButton,
-          label: 'Start sale',
-          icon: Icons.shopping_bag_outlined,
-          height: 58,
-          onPressed: customer.person.isActivate
-              ? () => _goToSale(customer)
-              : null,
         ),
       ],
     );

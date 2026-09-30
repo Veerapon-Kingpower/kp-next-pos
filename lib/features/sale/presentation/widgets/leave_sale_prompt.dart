@@ -152,3 +152,50 @@ Future<bool> _askSignOutAfterUnlockFailed(BuildContext context) async {
   );
   return signOut ?? false;
 }
+
+/// Ports legacy `SalePage.saveOrder()`: "Do you want to save order" →
+/// `SaveOrder`, then — the bill handed on — `signout()` ([onSignOut]). A
+/// failed save stays on Sale with the server's message there.
+Future<void> confirmSaveOrder(
+  BuildContext context,
+  SaleCartViewModel viewModel, {
+  required Future<void> Function() onSignOut,
+}) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => TestId(
+      SaleIds.saveOrderDialog,
+      child: AlertDialog(
+        title: const Text('Confirm'),
+        content: const Text('Do you want to save order'),
+        actions: [
+          Row(
+            children: [
+              Expanded(
+                child: TestId(
+                  SaleIds.saveOrderCancel,
+                  child: AppSecondaryButton(
+                    label: 'Cancel',
+                    onPressed: () => Navigator.of(context).pop(false),
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: TestId(
+                  SaleIds.saveOrderOk,
+                  child: AppPrimaryButton(
+                    label: 'OK',
+                    onPressed: () => Navigator.of(context).pop(true),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+  if (confirmed != true) return;
+  if (await viewModel.saveOrder()) await onSignOut();
+}

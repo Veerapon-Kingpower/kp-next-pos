@@ -64,8 +64,13 @@ abstract class SaleIds {
   static const header = 'sale.header';
   static const backButton = 'sale.backButton';
   static const scanField = 'sale.scanField';
+  static const searchButton = 'sale.searchButton';
+  static const leaveDialog = 'sale.leaveDialog';
+  static const leaveCancel = 'sale.leave.cancel';
+  static const leaveNo = 'sale.leave.no';
+  static const leaveYes = 'sale.leave.yes';
+  static const leaveOk = 'sale.leave.ok';
   static const scanError = 'sale.scanError';
-  static const staleNotice = 'sale.staleNotice';
   static const totalLine = 'sale.totalLine';
   static const netPay = 'sale.netPay';
   static const tabBuying = 'sale.tab.buying';
@@ -88,6 +93,7 @@ abstract class SaleIds {
 
   /// One cart line, keyed by its cart `row`.
   static String line(String row) => 'sale.line.$row';
+  static String lineSelect(String row) => 'sale.line.$row.select';
 }
 
 abstract class EditLineIds {
@@ -111,20 +117,25 @@ abstract class EditLineIds {
 abstract class DiscountIds {
   static const sheet = 'discount.sheet';
   static const closeButton = 'discount.closeButton';
-  static const modePercent = 'discount.mode.percent';
-  static const modeAmount = 'discount.mode.amount';
-  static const modePromo = 'discount.mode.promo';
-  static const modeNewPrice = 'discount.mode.newPrice';
-  static const clearButton = 'discount.clearButton';
-  static const lineDiscount = 'discount.lineDiscount';
-  static const billDelta = 'discount.billDelta';
-  static const promotions = 'discount.promotions';
-  static const valueField = 'discount.valueField';
-  static const netPreview = 'discount.netPreview';
-  static const applyButton = 'discount.applyButton';
-  static const cancelButton = 'discount.cancelButton';
+  static const scanField = 'discount.scanField';
+  static const codeField = 'discount.codeField';
+  static const codeClearButton = 'discount.codeClearButton';
+  static const codeSearchButton = 'discount.codeSearchButton';
+  static const promotionName = 'discount.promotionName';
+  static const percentField = 'discount.percentField';
+  static const amountField = 'discount.amountField';
+  static const saveButton = 'discount.saveButton';
+  static const saveCloseButton = 'discount.saveCloseButton';
+  static const lineDetail = 'discount.lineDetail';
+  static const discountList = 'discount.list';
+  static const clearAllButton = 'discount.clearAllButton';
+  static const picker = 'discount.picker';
+  static const pickerSearch = 'discount.picker.search';
+  static const currencyButton = 'discount.currencyButton';
 
-  static String preset(int percent) => 'discount.preset.$percent';
+  static String discountRow(int index) => 'discount.list.$index';
+  static String discountRemove(int index) => 'discount.list.$index.remove';
+  static String pickerRow(String code) => 'discount.picker.$code';
 }
 
 abstract class CheckoutIds {
@@ -245,6 +256,7 @@ abstract class RegisterIds {
   static const travellerSection = 'register.travellerSection';
   static const contactSection = 'register.contactSection';
   static const agentSection = 'register.agentSection';
+  static const takeAwaySwitch = 'register.takeAwaySwitch';
   static const submitButton = 'register.submitButton';
   static const cancelButton = 'register.cancelButton';
   static const statusBanner = 'register.statusBanner';
@@ -342,8 +354,9 @@ abstract class DesktopIds {
 
 /// Desktop Sale (S3 / S4) elements not shared with the handheld Sale.
 abstract class DesktopSaleIds {
-  static const lookupButton = 'desktop.sale.lookupButton';
-  static const qtyButton = 'desktop.sale.qtyButton';
+  static const searchButton = 'desktop.sale.searchButton';
+  static const exitButton = 'desktop.sale.exitButton';
+  static const selectAll = 'desktop.sale.selectAll';
   static const table = 'desktop.sale.table';
   static const summary = 'desktop.sale.summary';
   static const qtyTotal = 'desktop.sale.qtyTotal';
@@ -360,6 +373,7 @@ abstract class DesktopSaleIds {
 
   static String qtyDecrease(String row) => 'desktop.sale.line.$row.qtyDecrease';
   static String qtyIncrease(String row) => 'desktop.sale.line.$row.qtyIncrease';
+  static String lineCheck(String row) => 'desktop.sale.line.$row.check';
 }
 
 /// Desktop Customer (S8), Flight & passport (S9) and flight date picker

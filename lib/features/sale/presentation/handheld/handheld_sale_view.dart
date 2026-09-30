@@ -72,7 +72,29 @@ class _HandheldSaleViewState extends State<HandheldSaleView> {
   }
 
   void _openDiscount(CartItem line, int number) {
-    showDiscountSheet(context, line: line, lineNumber: number);
+    showDiscountSheet(
+      context,
+      viewModel: widget.viewModel,
+      lines: [line],
+      title: 'Discount · line $number',
+    );
+  }
+
+  // Legacy "Discount": the selected lines; with none selected, the last one.
+  void _discountSelected(List<CartItem> lines) {
+    final selected = widget.viewModel.selectedLines(basket: _showBasket);
+    if (selected.length == 1) {
+      _openDiscount(selected.single, lines.indexOf(selected.single) + 1);
+    } else if (selected.isNotEmpty) {
+      showDiscountSheet(
+        context,
+        viewModel: widget.viewModel,
+        lines: selected,
+        title: 'Discount · ${selected.length} lines',
+      );
+    } else {
+      _openDiscount(lines.last, lines.length);
+    }
   }
 
   Future<bool> _confirmVoid(CartItem line) async {
@@ -199,10 +221,11 @@ class _HandheldSaleViewState extends State<HandheldSaleView> {
                 lines: lines,
                 basket: _showBasket,
                 scanError: viewModel.scanError,
-                staleNotice: viewModel.staleNotice,
                 privilege: viewModel.selectedPrivilege,
                 onOpen: _openLine,
                 onDiscount: _openDiscount,
+                isSelected: viewModel.isSelected,
+                onToggleSelected: viewModel.toggleSelected,
                 onConfirmVoid: _confirmVoid,
               ),
             ),
@@ -240,7 +263,7 @@ class _HandheldSaleViewState extends State<HandheldSaleView> {
                   label: 'Discount',
                   onPressed: lines.isEmpty
                       ? null
-                      : () => _openDiscount(lines.last, lines.length),
+                      : () => _discountSelected(lines),
                 ),
                 // TODO(pos-handheld): suspend / save bill needs an API.
                 const HandheldBarItem(
@@ -350,6 +373,7 @@ class _SaleHeader extends StatelessWidget {
                           hintText: 'Scan or type item code',
                           onSubmitted: onScan,
                           enabled: scanEnabled,
+                          searchButtonId: SaleIds.searchButton,
                           onDark: true,
                         ),
                       ),
@@ -510,21 +534,23 @@ class _LineList extends StatelessWidget {
   final List<CartItem> lines;
   final bool basket;
   final String? scanError;
-  final String? staleNotice;
   final Privilege? privilege;
   final void Function(CartItem line, int number) onOpen;
   final void Function(CartItem line, int number) onDiscount;
   final Future<bool> Function(CartItem line) onConfirmVoid;
+  final bool Function(String row) isSelected;
+  final ValueChanged<String> onToggleSelected;
 
   const _LineList({
     required this.lines,
     required this.basket,
     required this.scanError,
-    required this.staleNotice,
     required this.privilege,
     required this.onOpen,
     required this.onDiscount,
     required this.onConfirmVoid,
+    required this.isSelected,
+    required this.onToggleSelected,
   });
 
   @override
@@ -537,15 +563,6 @@ class _LineList extends StatelessWidget {
             icon: Icons.error_outline,
             color: AppColors.danger,
             text: scanError!,
-          ),
-        ),
-      if (staleNotice != null)
-        TestId(
-          SaleIds.staleNotice,
-          child: _Banner(
-            icon: Icons.warning_amber,
-            color: AppColors.warning,
-            text: staleNotice!,
           ),
         ),
       if (privilege != null) _PrivilegeRow(privilege: privilege!),
@@ -592,6 +609,8 @@ class _LineList extends StatelessWidget {
           onOpen: onOpen,
           onDiscount: onDiscount,
           onConfirmVoid: onConfirmVoid,
+          selected: isSelected(lines[i].row),
+          onToggleSelected: () => onToggleSelected(lines[i].row),
         ),
       if (!basket && lines.isNotEmpty)
         const Padding(
@@ -619,6 +638,11 @@ class _LineTile extends StatelessWidget {
   final void Function(CartItem line, int number) onDiscount;
   final Future<bool> Function(CartItem line) onConfirmVoid;
 
+  /// Legacy `isSelected`: what Discount (and a scan) applies to. The number
+  /// badge or a long press toggles it; a tap still opens the line.
+  final bool selected;
+  final VoidCallback onToggleSelected;
+
   const _LineTile({
     required this.line,
     required this.number,
@@ -626,6 +650,8 @@ class _LineTile extends StatelessWidget {
     required this.onOpen,
     required this.onDiscount,
     required this.onConfirmVoid,
+    required this.selected,
+    required this.onToggleSelected,
   });
 
   @override
@@ -636,30 +662,51 @@ class _LineTile extends StatelessWidget {
 
     final tile = InkWell(
       onTap: () => onOpen(line, number),
+      onLongPress: onToggleSelected,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-        decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: Color(0xFFEDEFF3))),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.cream : null,
+          border: const Border(bottom: BorderSide(color: Color(0xFFEDEFF3))),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Container(
-                  width: 19,
-                  height: 19,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: AppColors.goldMuted,
-                    borderRadius: BorderRadius.circular(5),
-                  ),
-                  child: Text(
-                    '$number',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
+                TestId(
+                  SaleIds.lineSelect(line.row),
+                  child: Semantics(
+                    selected: selected,
+                    button: true,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: onToggleSelected,
+                      child: Container(
+                        width: 22,
+                        height: 22,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? AppColors.goldDark
+                              : AppColors.goldMuted,
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        child: selected
+                            ? const Icon(
+                                Icons.check,
+                                size: 15,
+                                color: Colors.white,
+                              )
+                            : Text(
+                                '$number',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                      ),
                     ),
                   ),
                 ),

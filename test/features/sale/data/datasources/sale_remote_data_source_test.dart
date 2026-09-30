@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/error/app_exception.dart';
 import 'package:kp_pos/features/sale/data/datasources/sale_remote_data_source.dart';
+import 'package:kp_pos/features/sale/domain/entities/order_status.dart';
+import 'package:kp_pos/features/sale/domain/entities/sale_order_context.dart';
 
 import '../../../../core/network/fake_api_client.dart';
 
@@ -75,7 +77,7 @@ void main() {
   });
 
   test(
-    'addItemToOrder posts to SaleEngine/AddItemToOrder with the item code, quantity, and session key',
+    'addItemToOrder posts the scanned text as ItemCode and the selected lines as Rows, as legacy onSubmit does',
     () async {
       apiClient.response = {
         'isCompleted': true,
@@ -88,8 +90,8 @@ void main() {
       final result = await dataSource.addItemToOrder(
         saleEngineEndpoint: 'https://sale-engine',
         sessionKey: 'abc123',
-        articleCode: 'ART001',
-        quantity: 5,
+        itemCode: '5*8850012345678',
+        rows: ['line-guid-1'],
       );
 
       expect(
@@ -97,10 +99,9 @@ void main() {
         'https://sale-engine/SaleEngine/AddItemToOrder',
       );
       expect(apiClient.lastData, {
-        'ItemCode': 'ART001',
-        'ItemGWP': '',
         'SessionKey': 'abc123',
-        'Rows': ['5'],
+        'ItemCode': '5*8850012345678',
+        'Rows': ['line-guid-1'],
       });
       expect(result.guid, 'order-1');
     },
@@ -168,7 +169,7 @@ void main() {
   );
 
   test(
-    'getOrder posts to SaleEngine/GetOrder scoped by shoppingCard',
+    'getOrder sends only tran_no / shopping_card for a non-member, as legacy',
     () async {
       apiClient.response = {
         'isCompleted': true,
@@ -181,7 +182,7 @@ void main() {
       await dataSource.getOrder(
         saleEngineEndpoint: 'https://sale-engine',
         sessionKey: 'abc123',
-        shoppingCard: 'CPX0001',
+        context: const SaleOrderContext(shoppingCard: 'CPX0001'),
       );
 
       expect(apiClient.lastUrl, 'https://sale-engine/SaleEngine/GetOrder');
@@ -189,10 +190,62 @@ void main() {
         'SessionKey': 'abc123',
         'Attributes': [
           {
-            'Group': 'BASKET',
-            'Code': 'shoppingCard',
+            'Group': 'tran_no',
+            'Code': 'shopping_card',
             'ValueOfString': 'CPX0001',
           },
+        ],
+      });
+    },
+  );
+
+  test(
+    'getOrder adds the member attributes legacy sends for a member',
+    () async {
+      apiClient.response = {
+        'isCompleted': true,
+        'Data': [
+          {'Guid': 'order-1', 'isCheckOut': false, 'OrderDetails': []},
+        ],
+        'Message': [],
+      };
+
+      await dataSource.getOrder(
+        saleEngineEndpoint: 'https://sale-engine',
+        sessionKey: 'abc123',
+        context: const SaleOrderContext(
+          shoppingCard: 'CPX0001',
+          memberId: 'M001',
+          tier: {'Name': 'Elite 10%', 'Discount': 10},
+          walletMembers: [
+            {'PaymentCode': 'CARAT', 'Balance': 1475.0},
+          ],
+          cardGroupCode: 'KPE',
+          cardTypeCode: 'GOLD',
+        ),
+      );
+
+      expect(apiClient.lastData, {
+        'SessionKey': 'abc123',
+        'Attributes': [
+          {
+            'Group': 'tran_no',
+            'Code': 'shopping_card',
+            'ValueOfString': 'CPX0001',
+          },
+          {'Group': 'member', 'Code': 'member_id', 'ValueOfString': 'M001'},
+          {
+            'Group': 'member',
+            'Code': 'tier',
+            'ValueOfString': '{"Name":"Elite 10%","Discount":10}',
+          },
+          {
+            'Group': 'member',
+            'Code': 'WALLETS',
+            'ValueOfString': '[{"PaymentCode":"CARAT","Balance":1475.0}]',
+          },
+          {'Group': 'member', 'Code': 'cardgroupcode', 'ValueOfString': 'KPE'},
+          {'Group': 'member', 'Code': 'cardtypecode', 'ValueOfString': 'GOLD'},
         ],
       });
     },
@@ -211,7 +264,7 @@ void main() {
         () => dataSource.getOrder(
           saleEngineEndpoint: 'https://sale-engine',
           sessionKey: 'abc123',
-          shoppingCard: 'CPX0001',
+          context: const SaleOrderContext(shoppingCard: 'CPX0001'),
         ),
         throwsA(isA<ApiException>()),
       );
@@ -407,5 +460,149 @@ void main() {
       'SessionKey': 'abc123',
     });
     expect(cart.guid, 'g1');
+  });
+
+  test('updateOrderStatus posts legacy UpdateOrderStatusModel', () async {
+    apiClient.response = {'isCompleted': true, 'Data': null, 'Message': []};
+
+    await dataSource.updateOrderStatus(
+      saleEngineEndpoint: 'https://sale-engine',
+      branchNo: '1001',
+      sessionKey: 'abc123',
+      shoppingCard: 'CPX0001',
+      orderNo: '42',
+      status: OrderStatus.lock,
+    );
+
+    expect(
+      apiClient.lastUrl,
+      'https://sale-engine/SaleEngine/UpdateOrderStatus',
+    );
+    expect(apiClient.lastData, {
+      'branchNo': '1001',
+      'shoppingCard': 'CPX0001',
+      'orderStatus': 'a',
+      'SessionKey': 'abc123',
+      'orderNo': '42',
+    });
+  });
+
+  test('updateOrderStatus throws the server message when not completed', () {
+    apiClient.response = {
+      'isCompleted': false,
+      'Data': null,
+      'Message': [
+        {
+          'MessageType': 'E',
+          'MessageCode': 'S01',
+          'MessageDesc': 'Shopping card is locked',
+        },
+      ],
+    };
+
+    expect(
+      () => dataSource.updateOrderStatus(
+        saleEngineEndpoint: 'https://sale-engine',
+        branchNo: '1001',
+        sessionKey: 'abc123',
+        shoppingCard: 'CPX0001',
+        orderNo: '42',
+        status: OrderStatus.lock,
+      ),
+      throwsA(
+        isA<ApiException>().having(
+          (e) => e.messageDesc,
+          'messageDesc',
+          'Shopping card is locked',
+        ),
+      ),
+    );
+  });
+
+  test('getPromotionList posts legacy PromotionContractModel', () async {
+    apiClient.response = {
+      'isCompleted': true,
+      'Data': [
+        {
+          'promo_code': 'B500',
+          'promo_name': 'Baht 500 off',
+          'allowOverWriteDISC': true,
+          'discAmt': 500,
+          'discRate': 0,
+        },
+      ],
+      'Message': [],
+    };
+
+    final list = await dataSource.getPromotionList(
+      saleEngineEndpoint: 'https://sale-engine',
+      branchNo: '03',
+      subBranchCode: 'CPX',
+      query: 'B5',
+      excludeMember: true,
+    );
+
+    expect(
+      apiClient.lastUrl,
+      'https://sale-engine/SaleEngine/GetPromotionList',
+    );
+    expect(apiClient.lastData, {
+      'branch_no': '03',
+      'subbranch_code': 'CPX',
+      'promo_code': 'B5',
+      'excludeMember': true,
+    });
+    expect(list.single.code, 'B500');
+    expect(list.single.discountAmount, 500);
+    expect(list.single.allowOverwrite, isTrue);
+  });
+
+  test(
+    'getPromotion returns null when the call completes without one',
+    () async {
+      apiClient.response = {'isCompleted': true, 'Data': null, 'Message': []};
+
+      final promotion = await dataSource.getPromotion(
+        saleEngineEndpoint: 'https://sale-engine',
+        sessionKey: 'abc123',
+        branchNo: '03',
+        subBranchCode: 'CPX',
+        code: 'NOPE',
+        excludeMember: false,
+      );
+
+      expect(apiClient.lastData, {
+        'session_key': 'abc123',
+        'branch_no': '03',
+        'subbranch_code': 'CPX',
+        'promo_code': 'NOPE',
+        'excludeMember': false,
+      });
+      expect(promotion, isNull);
+    },
+  );
+
+  test('actionListItemToOrder posts one action on the rows', () async {
+    apiClient.response = {
+      'isCompleted': true,
+      'Data': [
+        {'Guid': 'order-1', 'isCheckOut': false, 'OrderDetails': []},
+      ],
+      'Message': [],
+    };
+
+    await dataSource.actionListItemToOrder(
+      saleEngineEndpoint: 'https://sale-engine',
+      sessionKey: 'abc123',
+      rows: ['line-1'],
+      action: 'clear_item_discount',
+      value: '["va-1"]',
+    );
+
+    expect(apiClient.lastData, {
+      'ActionItemValue': {'Action': 'clear_item_discount', 'Value': '["va-1"]'},
+      'Rows': ['line-1'],
+      'SessionKey': 'abc123',
+    });
   });
 }

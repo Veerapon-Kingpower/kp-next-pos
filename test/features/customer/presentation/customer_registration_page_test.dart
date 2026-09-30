@@ -520,6 +520,60 @@ void main() {
       isMember: false,
     );
 
+    // Legacy `setFormCustomerData()`: a saved take-away comes back as
+    // flight `OP000` / airline `OP`.
+    const takeAwayCustomer = Customer(
+      action: 'REGISTER_EDIT',
+      isFound: true,
+      person: CustomerPerson(
+        englishName: 'Jane Doe',
+        passportNo: 'P1234567',
+        nationality: 'THA',
+        contacts: [],
+        privileges: [],
+        walletMembers: [],
+        customerTypeCode: 'VIP',
+        flightCode: 'OP000',
+        airlineCode: 'OP',
+      ),
+      tour: {},
+      agentCode: '',
+      isMember: false,
+    );
+
+    testWidgets('a saved take-away (OP000 / OP) turns Allow take-away back '
+        'on, without the placeholder flight', (tester) async {
+      await tester.pumpWidget(buildHarness(existingCustomer: takeAwayCustomer));
+      await openPage(tester);
+      await tester.pumpAndSettle();
+
+      final toggle = tester.widget<SwitchListTile>(
+        find.descendant(
+          of: byTestId(RegisterIds.takeAwaySwitch),
+          matching: find.byType(SwitchListTile),
+        ),
+      );
+      expect(toggle.value, isTrue);
+      expect(find.text('OP000'), findsNothing);
+    });
+
+    testWidgets('desktop: a saved take-away re-checks Non-international', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1440, 1400);
+      await tester.pumpWidget(buildHarness(existingCustomer: takeAwayCustomer));
+      await openPage(tester);
+      await tester.pumpAndSettle();
+
+      final checkbox = tester.widget<CheckboxListTile>(
+        find.descendant(
+          of: byTestId(DesktopCustomerIds.nonInternational),
+          matching: find.byType(CheckboxListTile),
+        ),
+      );
+      expect(checkbox.value, isTrue);
+    });
+
     String textOf(WidgetTester tester, String label) {
       final field = tester.widget<TextField>(
         find.byWidgetPredicate(

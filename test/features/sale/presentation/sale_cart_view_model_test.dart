@@ -4,11 +4,15 @@ import 'package:kp_pos/features/auth/domain/entities/authorized_action.dart';
 import 'package:kp_pos/features/auth/domain/entities/user_session.dart';
 import 'package:kp_pos/features/auth/domain/usecases/restore_session_usecase.dart';
 import 'package:kp_pos/features/customer/domain/entities/privilege.dart';
-import 'package:kp_pos/features/sale/domain/entities/article.dart';
 import 'package:kp_pos/features/sale/domain/entities/cart.dart';
 import 'package:kp_pos/features/sale/domain/entities/cart_item.dart';
+import 'package:kp_pos/features/sale/domain/entities/order_status.dart';
+import 'package:kp_pos/features/sale/domain/entities/sale_order_context.dart';
 import 'package:kp_pos/features/sale/domain/usecases/add_item_to_cart_usecase.dart';
-import 'package:kp_pos/features/sale/domain/usecases/lookup_article_by_barcode_usecase.dart';
+import 'package:kp_pos/features/sale/domain/usecases/get_cart_usecase.dart';
+import 'package:kp_pos/features/sale/domain/usecases/leave_sale_usecases.dart';
+import 'package:kp_pos/features/sale/domain/usecases/line_discount_usecases.dart';
+import 'package:kp_pos/features/sale/domain/usecases/update_order_status_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/cash_payment_usecases.dart';
 import 'package:kp_pos/features/sale/domain/usecases/change_order_currency_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/exchange_change_usecase.dart';
@@ -37,7 +41,13 @@ void main() {
     final auth = FakeAuthRepository(currentSessionResult: currentSessionResult);
     return SaleCartViewModel(
       restoreSession: RestoreSessionUseCase(auth),
-      lookupArticle: LookupArticleByBarcodeUseCase(sale),
+      getCart: GetCartUseCase(sale),
+      updateOrderStatus: UpdateOrderStatusUseCase(sale),
+      saveOrder: SaveOrderUseCase(sale),
+      reverseVirtualStock: ReverseVirtualStockUseCase(sale),
+      listPromotions: ListPromotionsUseCase(sale),
+      findPromotion: FindPromotionUseCase(sale),
+      actOnLines: ActOnLinesUseCase(sale),
       addItemToCart: AddItemToCartUseCase(sale),
       updateCartItemQuantity: UpdateCartItemQuantityUseCase(sale),
       removeCartItem: RemoveCartItemUseCase(sale),
@@ -49,31 +59,19 @@ void main() {
     );
   }
 
-  test(
-    'a malformed scan sets scanError without calling the repository',
-    () async {
-      final sale = FakeSaleRepository();
-      final viewModel = buildViewModel(saleRepository: sale);
+  test('an empty scan does nothing', () async {
+    final sale = FakeSaleRepository();
+    final viewModel = buildViewModel(saleRepository: sale);
 
-      await viewModel.scan('not*a*valid*scan');
+    await viewModel.scan('   ');
 
-      expect(viewModel.scanError, isNotNull);
-      expect(viewModel.cart, isNull);
-      expect(sale.lastLookupBarcode, isNull);
-    },
-  );
+    expect(viewModel.scanError, isNull);
+    expect(viewModel.cart, isNull);
+    expect(sale.lastAddedItemCode, isNull);
+  });
 
-  test('a valid scan looks up the article and adds it to the cart', () async {
+  test('a scan adds the typed text as-is, as legacy onSubmit does', () async {
     final sale = FakeSaleRepository(
-      lookupResult: const Article(
-        articleCode: 'ART001',
-        articleName: 'Test Article',
-        eanCode: '8850012345678',
-        brandCode: 'B1',
-        brandName: 'Brand One',
-        price: 100,
-        vatRate: 7,
-      ),
       cartResult: const Cart(
         guid: 'order-1',
         isCheckOut: false,
@@ -89,22 +87,24 @@ void main() {
         ],
       ),
     );
-    final viewModel = buildViewModel(saleRepository: sale);
+    final viewModel = buildViewModel(saleRepository: sale)
+      ..attachShoppingCard('CPX0001');
 
-    await viewModel.scan('3*8850012345678');
+    await viewModel.scan(' 3*8850012345678 ', selectedRows: ['guid-1']);
 
-    expect(sale.lastLookupBarcode, '8850012345678');
-    expect(sale.lastAddedArticleCode, 'ART001');
-    expect(sale.lastAddedQuantity, 3);
+    expect(sale.lastLookupBarcode, isNull, reason: 'no article lookup');
+    expect(sale.lastAddedItemCode, '3*8850012345678');
+    expect(sale.lastAddedRows, ['guid-1']);
     expect(viewModel.cart?.guid, 'order-1');
     expect(viewModel.scanError, isNull);
   });
 
-  test('a lookup failure surfaces the server message as scanError', () async {
+  test('an add failure surfaces the server message as scanError', () async {
     final sale = FakeSaleRepository(
-      lookupError: const ApiException(messageDesc: 'Item not found'),
+      mutationError: const ApiException(messageDesc: 'Item not found'),
     );
-    final viewModel = buildViewModel(saleRepository: sale);
+    final viewModel = buildViewModel(saleRepository: sale)
+      ..attachShoppingCard('CPX0001');
 
     await viewModel.scan('8850000000000');
 
@@ -113,18 +113,18 @@ void main() {
   });
 
   test(
-    'scan without an active session sets scanError and skips the lookup',
+    'scan without an active session sets scanError and skips the add',
     () async {
       final sale = FakeSaleRepository();
       final viewModel = buildViewModel(
         saleRepository: sale,
         currentSessionResult: null,
-      );
+      )..attachShoppingCard('CPX0001');
 
       await viewModel.scan('8850012345678');
 
       expect(viewModel.scanError, isNotNull);
-      expect(sale.lastLookupBarcode, isNull);
+      expect(sale.lastAddedItemCode, isNull);
     },
   );
 
@@ -342,6 +342,167 @@ void main() {
       expect(await viewModel.changeCurrency('USD'), isFalse);
       expect(viewModel.currencyError, 'Rate not found.');
       expect(viewModel.isBusy, isFalse);
+    });
+  });
+
+  test('openOrder opens the customer order with GetOrder', () async {
+    final sale = FakeSaleRepository(
+      cartResult: const Cart(guid: 'order-1', isCheckOut: false, items: []),
+    );
+    final viewModel = buildViewModel(saleRepository: sale);
+    const context = SaleOrderContext(shoppingCard: 'CPX0001', memberId: 'M1');
+
+    await viewModel.openOrder(context);
+
+    expect(sale.lastOrderContext, same(context));
+    expect(viewModel.shoppingCard, 'CPX0001');
+    expect(viewModel.cart?.guid, 'order-1');
+    expect(viewModel.scanError, isNull);
+  });
+
+  test('scanning without a customer asks for one and skips the add', () async {
+    final sale = FakeSaleRepository();
+    final viewModel = buildViewModel(saleRepository: sale);
+
+    await viewModel.scan('8850012345678');
+
+    expect(viewModel.scanError, SaleCartViewModel.noCustomer);
+    expect(sale.lastAddedItemCode, isNull);
+  });
+
+  group('order lock', () {
+    const locked = Cart(
+      guid: 'order-1',
+      isCheckOut: false,
+      items: [],
+      orderNo: '42',
+    );
+
+    test('openOrder locks the opened order, once per card', () async {
+      final sale = FakeSaleRepository(cartResult: locked);
+      final viewModel = buildViewModel(saleRepository: sale);
+      const context = SaleOrderContext(shoppingCard: 'CPX0001');
+
+      await viewModel.openOrder(context);
+      await viewModel.openOrder(context);
+
+      expect(sale.orderStatuses, [
+        (card: 'CPX0001', orderNo: '42', status: OrderStatus.lock),
+      ]);
+    });
+
+    test('opening another card unlocks the held one first', () async {
+      final sale = FakeSaleRepository(cartResult: locked);
+      final viewModel = buildViewModel(saleRepository: sale);
+
+      await viewModel.openOrder(
+        const SaleOrderContext(shoppingCard: 'CPX0001'),
+      );
+      await viewModel.openOrder(
+        const SaleOrderContext(shoppingCard: 'CPX0002'),
+      );
+
+      expect(sale.orderStatuses, [
+        (card: 'CPX0001', orderNo: '42', status: OrderStatus.lock),
+        (card: 'CPX0001', orderNo: '42', status: OrderStatus.unlock),
+        (card: 'CPX0002', orderNo: '42', status: OrderStatus.lock),
+      ]);
+    });
+
+    test('releaseOrder unlocks and detaches the customer', () async {
+      final sale = FakeSaleRepository(cartResult: locked);
+      final viewModel = buildViewModel(saleRepository: sale);
+      await viewModel.openOrder(
+        const SaleOrderContext(shoppingCard: 'CPX0001'),
+      );
+
+      await viewModel.releaseOrder();
+
+      expect(sale.orderStatuses.last.status, OrderStatus.unlock);
+      expect(viewModel.shoppingCard, isEmpty);
+      expect(viewModel.cart, isNull);
+    });
+
+    test('a lock failure is shown', () async {
+      final sale = FakeSaleRepository(cartResult: locked)
+        ..orderStatusError = const ApiException(
+          messageDesc: 'Shopping card is locked',
+        );
+      final viewModel = buildViewModel(saleRepository: sale);
+
+      await viewModel.openOrder(
+        const SaleOrderContext(shoppingCard: 'CPX0001'),
+      );
+
+      expect(viewModel.scanError, 'Shopping card is locked');
+    });
+  });
+
+  group('line selection (legacy isSelected)', () {
+    const cart = Cart(
+      guid: 'order-1',
+      isCheckOut: false,
+      items: [
+        CartItem(
+          row: 'a',
+          articleCode: '1',
+          articleName: 'A',
+          quantity: 1,
+          unitPrice: 1,
+          lineTotal: 1,
+        ),
+        CartItem(
+          row: 'b',
+          articleCode: '2',
+          articleName: 'B',
+          quantity: 1,
+          unitPrice: 1,
+          lineTotal: 1,
+        ),
+        CartItem(
+          row: 'c',
+          articleCode: '3',
+          articleName: 'C',
+          quantity: 1,
+          unitPrice: 1,
+          lineTotal: 1,
+          isBasket: true,
+        ),
+      ],
+    );
+
+    test('toggle and Select All work per tab', () {
+      final viewModel = buildViewModel()..cart = cart;
+      viewModel.toggleSelected('b');
+      expect(viewModel.selectedLines(basket: false).map((l) => l.row), ['b']);
+
+      viewModel.toggleSelectAll(basket: false);
+      expect(viewModel.isAllSelected(basket: false), isTrue);
+      expect(viewModel.selectedLines(basket: true), isEmpty);
+
+      viewModel.toggleSelectAll(basket: false);
+      expect(viewModel.selectedLines(basket: false), isEmpty);
+    });
+
+    test('a new order from the sale engine clears the selection', () {
+      final viewModel = buildViewModel()..cart = cart;
+      viewModel.toggleSelected('a');
+      viewModel.cart = cart;
+      expect(viewModel.isSelected('a'), isFalse);
+    });
+
+    test('a scan sends the selected Buying lines as Rows', () async {
+      final sale = FakeSaleRepository(cartResult: cart);
+      final viewModel = buildViewModel(saleRepository: sale)
+        ..attachShoppingCard('CPX0001')
+        ..cart = cart;
+      viewModel
+        ..toggleSelected('a')
+        ..toggleSelected('c');
+
+      await viewModel.scan('8850012345678');
+
+      expect(sale.lastAddedRows, ['a'], reason: 'c is a Basket line');
     });
   });
 }

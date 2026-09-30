@@ -1,9 +1,13 @@
+import 'package:kp_pos/features/auth/domain/entities/authorized_action.dart';
 import 'package:kp_pos/features/auth/domain/entities/user_session.dart';
 import 'package:kp_pos/features/auth/domain/usecases/restore_session_usecase.dart';
 import 'package:kp_pos/features/sale/domain/entities/cart.dart';
 import 'package:kp_pos/features/sale/domain/entities/cart_item.dart';
 import 'package:kp_pos/features/sale/domain/usecases/add_item_to_cart_usecase.dart';
-import 'package:kp_pos/features/sale/domain/usecases/lookup_article_by_barcode_usecase.dart';
+import 'package:kp_pos/features/sale/domain/usecases/get_cart_usecase.dart';
+import 'package:kp_pos/features/sale/domain/usecases/leave_sale_usecases.dart';
+import 'package:kp_pos/features/sale/domain/usecases/line_discount_usecases.dart';
+import 'package:kp_pos/features/sale/domain/usecases/update_order_status_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/cash_payment_usecases.dart';
 import 'package:kp_pos/features/sale/domain/usecases/change_order_currency_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/exchange_change_usecase.dart';
@@ -20,7 +24,13 @@ const testSession = UserSession(
   branchNo: '03',
   userCode: 'U001',
   userName: 'Test User',
-  authorizedActions: [],
+  // The Discount page's permissions (legacy actBahtDisc / actPerDisc /
+  // actPerDiscAll).
+  authorizedActions: [
+    AuthorizedAction(moduleCode: 'SALE', authCode: 'actBahtDisc', action: ''),
+    AuthorizedAction(moduleCode: 'SALE', authCode: 'actPerDisc', action: ''),
+    AuthorizedAction(moduleCode: 'SALE', authCode: 'actPerDiscAll', action: ''),
+  ],
 );
 
 const chanel = CartItem(
@@ -51,12 +61,20 @@ SaleCartViewModel buildSaleViewModel(
   FakeSaleRepository sale, {
   Cart? cart,
   UserSession session = testSession,
+  // Sale always runs against a customer's shopping card.
+  String shoppingCard = 'CPX0001',
 }) {
   final viewModel = SaleCartViewModel(
     restoreSession: RestoreSessionUseCase(
       FakeAuthRepository(currentSessionResult: session),
     ),
-    lookupArticle: LookupArticleByBarcodeUseCase(sale),
+    getCart: GetCartUseCase(sale),
+    updateOrderStatus: UpdateOrderStatusUseCase(sale),
+    saveOrder: SaveOrderUseCase(sale),
+    reverseVirtualStock: ReverseVirtualStockUseCase(sale),
+    listPromotions: ListPromotionsUseCase(sale),
+    findPromotion: FindPromotionUseCase(sale),
+    actOnLines: ActOnLinesUseCase(sale),
     addItemToCart: AddItemToCartUseCase(sale),
     updateCartItemQuantity: UpdateCartItemQuantityUseCase(sale),
     removeCartItem: RemoveCartItemUseCase(sale),
@@ -66,6 +84,8 @@ SaleCartViewModel buildSaleViewModel(
     addCashPayment: AddCashPaymentUseCase(sale),
     saveChangeExchange: SaveChangeExchangeUseCase(sale),
   );
-  viewModel.cart = cart;
+  viewModel
+    ..cart = cart
+    ..shoppingCard = shoppingCard;
   return viewModel;
 }

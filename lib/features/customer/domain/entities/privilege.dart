@@ -13,6 +13,9 @@ class Privilege {
   final String subTypeCode;
   final double minimumSpendingPerBill;
   final double maxAmountPerBill;
+  // The privilege exactly as `GetCustomer` sent it — what legacy Sale
+  // passes back to `GetOrder` as the `member` / `tier` attribute.
+  final Map<String, dynamic> raw;
 
   const Privilege({
     required this.name,
@@ -22,5 +25,6 @@ class Privilege {
     this.subTypeCode = '',
     this.minimumSpendingPerBill = 0,
     this.maxAmountPerBill = 0,
+    this.raw = const {},
   });
 }

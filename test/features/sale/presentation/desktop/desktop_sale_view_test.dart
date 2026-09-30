@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kp_pos/core/error/app_exception.dart';
 import 'package:kp_pos/core/presentation/desktop/desktop.dart';
 import 'package:kp_pos/core/presentation/test_ids.dart';
 import 'package:kp_pos/features/customer/domain/entities/privilege.dart';
@@ -23,14 +24,26 @@ void main() {
     WidgetTester tester, {
     Cart? cart = sampleCart,
     Cart cartAfterMutation = sampleCart,
+    Object? mutationError,
     Size size = const Size(1440 - 84, 900 - 64),
+    bool isAirportMpos = false,
+    VoidCallback? onExit,
   }) async {
     setDeviceSize(tester, size);
-    sale = FakeSaleRepository(cartResult: cartAfterMutation);
+    sale = FakeSaleRepository(
+      cartResult: cartAfterMutation,
+      mutationError: mutationError,
+    );
     final viewModel = buildSaleViewModel(sale, cart: cart);
     await tester.pumpWidget(
       MaterialApp(
-        home: Scaffold(body: DesktopSaleView(viewModel: viewModel)),
+        home: Scaffold(
+          body: DesktopSaleView(
+            viewModel: viewModel,
+            isAirportMpos: isAirportMpos,
+            onExit: onExit ?? () {},
+          ),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -53,8 +66,8 @@ void main() {
       tester,
     ) async {
       await pump(tester);
+      expect(byTestId(DesktopSaleIds.selectAll), findsOneWidget, reason: '#');
       for (final label in [
-        '#',
         'Item',
         'Qty',
         'Unit price',
@@ -144,6 +157,62 @@ void main() {
       expect(find.text('Discount · line 2'), findsOneWidget);
     });
 
+    testWidgets('Discount opens for the ticked lines; Select All ticks all', (
+      tester,
+    ) async {
+      await pump(tester);
+      await tester.tap(byTestId(DesktopSaleIds.lineCheck('1')));
+      await tester.tap(byTestId(DesktopSaleIds.lineCheck('2')));
+      await tester.pump();
+      expect(find.text('2 lines ticked for Discount'), findsOneWidget);
+      await tester.tap(byTestId(SaleIds.discountButton));
+      await tester.pumpAndSettle();
+      expect(find.text('Discount · 2 lines'), findsOneWidget);
+      expect(
+        byTestId(DiscountIds.lineDetail),
+        findsNothing,
+        reason: 'several lines: the form only, as legacy',
+      );
+      await tester.tap(find.byTooltip('Close'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(byTestId(DesktopSaleIds.selectAll));
+      await tester.pump();
+      expect(
+        tester.widget<Checkbox>(
+          find.descendant(
+            of: byTestId(DesktopSaleIds.selectAll),
+            matching: find.byType(Checkbox),
+          ),
+        ).value,
+        isFalse,
+        reason: 'all were ticked, so Select All clears them',
+      );
+    });
+
+    testWidgets('the Discount column shows the line discount', (tester) async {
+      const discounted = CartItem(
+        row: '9',
+        articleCode: '1001',
+        articleName: 'BAG',
+        quantity: 1,
+        unitPrice: 6200,
+        lineTotal: 5580,
+        discountAmount: 620,
+      );
+      await pump(
+        tester,
+        cart: const Cart(guid: 'o', isCheckOut: false, items: [discounted]),
+      );
+      expect(
+        find.descendant(
+          of: byTestId(SaleIds.line('9')),
+          matching: find.text('−620.00'),
+        ),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('Remove (F8) confirms, then removes the selected line', (
       tester,
     ) async {
@@ -195,38 +264,48 @@ void main() {
       await tester.enterText(scanField(), '2*8850012345678');
       await tester.testTextInput.receiveAction(TextInputAction.search);
       await tester.pumpAndSettle();
-      expect(sale.lastLookupBarcode, '8850012345678');
-      expect(sale.lastAddedQuantity, 2);
+      expect(sale.lastAddedItemCode, '2*8850012345678');
+      expect(sale.lastAddedRows, isEmpty);
       expect(tester.widget<TextField>(scanField()).controller!.text, isEmpty);
       expect(tester.widget<TextField>(scanField()).focusNode!.hasFocus, isTrue);
     });
 
-    testWidgets('Qty × (F7) turns a typed quantity into the qty* prefix', (
-      tester,
-    ) async {
+    testWidgets('the ticked line goes along as Rows', (tester) async {
       await pump(tester);
-      await tester.enterText(scanField(), '3');
-      await tester.sendKeyEvent(LogicalKeyboardKey.f7);
+      await tester.tap(byTestId(DesktopSaleIds.lineCheck('2')));
       await tester.pump();
-      expect(tester.widget<TextField>(scanField()).controller!.text, '3*');
+      await tester.enterText(scanField(), '8850012345678');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+      expect(sale.lastAddedRows, ['2']);
     });
 
     testWidgets('scan errors are shown', (tester) async {
-      await pump(tester);
-      await tester.enterText(scanField(), '');
+      await pump(
+        tester,
+        mutationError: const ApiException(messageDesc: 'Item not found'),
+      );
+      await tester.enterText(scanField(), '8850000000000');
       await tester.testTextInput.receiveAction(TextInputAction.search);
       await tester.pumpAndSettle();
       expect(byTestId(SaleIds.scanError), findsOneWidget);
     });
 
-    testWidgets('Lookup (F9) is inert', (tester) async {
-      final handle = tester.ensureSemantics();
-      await pump(tester);
-      expect(
-        tester.getSemantics(byTestId(DesktopSaleIds.lookupButton)),
-        isSemantics(hasEnabledState: true, isEnabled: false),
-      );
-      handle.dispose();
+    testWidgets('Search submits the typed code, as Enter does', (tester) async {
+      await pump(tester, cart: null);
+      await tester.enterText(scanField(), '8850012345678');
+      await tester.tap(byTestId(DesktopSaleIds.searchButton));
+      await tester.pumpAndSettle();
+      expect(sale.lastAddedItemCode, '8850012345678');
+      expect(tester.widget<TextField>(scanField()).controller!.text, isEmpty);
+    });
+
+    testWidgets('F9 searches the typed code', (tester) async {
+      await pump(tester, cart: null);
+      await tester.enterText(scanField(), '2*8850012345678');
+      await tester.sendKeyEvent(LogicalKeyboardKey.f9);
+      await tester.pumpAndSettle();
+      expect(sale.lastAddedItemCode, '2*8850012345678');
     });
   });
 
@@ -362,15 +441,11 @@ void main() {
     });
   }
 
-  testWidgets('scan field, Lookup and Qty × are standard field height', (
+  testWidgets('scan field and Search are standard field height', (
     tester,
   ) async {
     await pump(tester);
-    for (final id in [
-      SaleIds.scanField,
-      DesktopSaleIds.lookupButton,
-      DesktopSaleIds.qtyButton,
-    ]) {
+    for (final id in [SaleIds.scanField, DesktopSaleIds.searchButton]) {
       expect(
         tester.getSize(byTestId(id)).height,
         DesktopMetrics.fieldHeight,
@@ -517,6 +592,77 @@ void main() {
         ),
         findsOneWidget,
       );
+    });
+  });
+
+  group('Exit sale (legacy showBeforeLeave)', () {
+    Future<void> tapExit(WidgetTester tester) async {
+      await tester.ensureVisible(byTestId(DesktopSaleIds.exitButton));
+      await tester.tap(byTestId(DesktopSaleIds.exitButton));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('with lines it asks to save; Cancel stays', (tester) async {
+      var exited = false;
+      await pump(tester, onExit: () => exited = true);
+      await tapExit(tester);
+
+      expect(find.text('Do you want to save order?'), findsOneWidget);
+      await tester.tap(byTestId(SaleIds.leaveCancel));
+      await tester.pumpAndSettle();
+
+      expect(exited, isFalse);
+      expect(sale.savedOrders, isEmpty);
+      expect(sale.reverseVirtualStockCalls, 0);
+    });
+
+    testWidgets('Yes saves the order, then leaves', (tester) async {
+      var exited = false;
+      final viewModel = await pump(tester, onExit: () => exited = true);
+      await tapExit(tester);
+      await tester.tap(byTestId(SaleIds.leaveYes));
+      await tester.pumpAndSettle();
+
+      expect(sale.savedOrders, ['CPX0001']);
+      expect(exited, isTrue);
+      expect(viewModel.shoppingCard, isEmpty);
+    });
+
+    testWidgets('No reverses the reserved stock, then leaves', (tester) async {
+      var exited = false;
+      await pump(tester, onExit: () => exited = true);
+      await tapExit(tester);
+      await tester.tap(byTestId(SaleIds.leaveNo));
+      await tester.pumpAndSettle();
+
+      expect(sale.reverseVirtualStockCalls, 1);
+      expect(sale.savedOrders, isEmpty);
+      expect(exited, isTrue);
+    });
+
+    testWidgets('a failed save stays on Sale with the message', (tester) async {
+      var exited = false;
+      await pump(tester, onExit: () => exited = true);
+      sale.saveOrderError = const ApiException(messageDesc: 'Cannot save');
+      await tapExit(tester);
+      await tester.tap(byTestId(SaleIds.leaveYes));
+      await tester.pumpAndSettle();
+
+      expect(exited, isFalse);
+      expect(find.text('Cannot save'), findsOneWidget);
+    });
+
+    testWidgets('airport mPOS only asks to go back', (tester) async {
+      var exited = false;
+      await pump(tester, isAirportMpos: true, onExit: () => exited = true);
+      await tapExit(tester);
+
+      expect(find.text('Do you want to go back?'), findsOneWidget);
+      await tester.tap(byTestId(SaleIds.leaveOk));
+      await tester.pumpAndSettle();
+
+      expect(exited, isTrue);
+      expect(sale.reverseVirtualStockCalls, 0);
     });
   });
 }

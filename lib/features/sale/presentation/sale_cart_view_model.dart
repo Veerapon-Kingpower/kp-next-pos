@@ -1,28 +1,42 @@
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 
 import '../../../core/error/app_exception.dart';
 import '../../auth/domain/usecases/restore_session_usecase.dart';
 import '../../customer/domain/entities/privilege.dart';
-import '../domain/barcode_scan_input.dart';
 import '../domain/entities/cart.dart';
+import '../domain/entities/cart_item.dart';
 import '../domain/entities/currency.dart';
 import '../domain/entities/exchange_quote.dart';
+import '../domain/entities/line_discount.dart';
+import '../domain/entities/order_status.dart';
+import '../domain/entities/promotion.dart';
+import '../domain/entities/sale_order_context.dart';
 import '../domain/usecases/add_item_to_cart_usecase.dart';
 import '../domain/usecases/cash_payment_usecases.dart';
 import '../domain/usecases/change_order_currency_usecase.dart';
 import '../domain/usecases/exchange_change_usecase.dart';
+import '../domain/usecases/get_cart_usecase.dart';
+import '../domain/usecases/leave_sale_usecases.dart';
+import '../domain/usecases/line_discount_usecases.dart';
 import '../domain/usecases/list_currencies_usecase.dart';
-import '../domain/usecases/lookup_article_by_barcode_usecase.dart';
 import '../domain/usecases/remove_cart_item_usecase.dart';
 import '../domain/usecases/update_cart_item_quantity_usecase.dart';
+import '../domain/usecases/update_order_status_usecase.dart';
 
-/// Sale cart state: scan-to-add (with `qty*barcode` parsing and format
-/// validation), quantity adjustment, and removal. Sale creation, full
-/// totals, currency, and change calculation are task 4.4's scope, not this
-/// controller's.
+/// Sale cart state: opening the customer's order, scan-to-add, quantity
+/// adjustment, removal, currency and cash payment.
 class SaleCartViewModel extends GetxController {
   final RestoreSessionUseCase _restoreSession;
-  final LookupArticleByBarcodeUseCase _lookupArticle;
+  final GetCartUseCase _getCart;
+  final UpdateOrderStatusUseCase _updateOrderStatus;
+  final SaveOrderUseCase _saveOrder;
+  final ReverseVirtualStockUseCase _reverseVirtualStock;
+  final ListPromotionsUseCase _listPromotions;
+  final FindPromotionUseCase _findPromotion;
+  final ActOnLinesUseCase _actOnLines;
   final AddItemToCartUseCase _addItemToCart;
   final UpdateCartItemQuantityUseCase _updateCartItemQuantity;
   final RemoveCartItemUseCase _removeCartItem;
@@ -35,7 +49,13 @@ class SaleCartViewModel extends GetxController {
 
   SaleCartViewModel({
     required RestoreSessionUseCase restoreSession,
-    required LookupArticleByBarcodeUseCase lookupArticle,
+    required GetCartUseCase getCart,
+    required UpdateOrderStatusUseCase updateOrderStatus,
+    required SaveOrderUseCase saveOrder,
+    required ReverseVirtualStockUseCase reverseVirtualStock,
+    required ListPromotionsUseCase listPromotions,
+    required FindPromotionUseCase findPromotion,
+    required ActOnLinesUseCase actOnLines,
     required AddItemToCartUseCase addItemToCart,
     required UpdateCartItemQuantityUseCase updateCartItemQuantity,
     required RemoveCartItemUseCase removeCartItem,
@@ -45,7 +65,13 @@ class SaleCartViewModel extends GetxController {
     required AddCashPaymentUseCase addCashPayment,
     required SaveChangeExchangeUseCase saveChangeExchange,
   }) : _restoreSession = restoreSession,
-       _lookupArticle = lookupArticle,
+       _getCart = getCart,
+       _updateOrderStatus = updateOrderStatus,
+       _saveOrder = saveOrder,
+       _reverseVirtualStock = reverseVirtualStock,
+       _listPromotions = listPromotions,
+       _findPromotion = findPromotion,
+       _actOnLines = actOnLines,
        _addItemToCart = addItemToCart,
        _updateCartItemQuantity = updateCartItemQuantity,
        _removeCartItem = removeCartItem,
@@ -134,7 +160,58 @@ class SaleCartViewModel extends GetxController {
     return paymentError == null;
   }
 
-  Cart? cart;
+  /// The order as the sale engine last returned it. Replacing it drops the
+  /// line selection, as legacy's re-rendered `OrderDetails` do.
+  Cart? get cart => _cart;
+  set cart(Cart? value) {
+    _cart = value;
+    _selected.clear();
+  }
+
+  Cart? _cart;
+
+  // Legacy `OrderDetail.isSelected`, by line Guid.
+  final Set<String> _selected = {};
+
+  bool isSelected(String row) => _selected.contains(row);
+
+  /// The selected lines, in order — legacy filters them by the tab shown
+  /// (`IsBasket`).
+  List<CartItem> selectedLines({required bool basket}) => [
+    for (final line in _cart?.items ?? const <CartItem>[])
+      if (line.isBasket == basket && _selected.contains(line.row)) line,
+  ];
+
+  /// Legacy `tapToSelect()`.
+  void toggleSelected(String row) {
+    if (!_selected.remove(row)) _selected.add(row);
+    update();
+  }
+
+  /// Legacy `checkAllItems()`: selects every line of the tab, or clears
+  /// them when all are already selected.
+  void toggleSelectAll({required bool basket}) {
+    final rows = [
+      for (final line in _cart?.items ?? const <CartItem>[])
+        if (line.isBasket == basket) line.row,
+    ];
+    if (rows.isEmpty) return;
+    if (rows.every(_selected.contains)) {
+      _selected.removeAll(rows);
+    } else {
+      _selected.addAll(rows);
+    }
+    update();
+  }
+
+  bool isAllSelected({required bool basket}) {
+    final rows = [
+      for (final line in _cart?.items ?? const <CartItem>[])
+        if (line.isBasket == basket) line.row,
+    ];
+    return rows.isNotEmpty && rows.every(_selected.contains);
+  }
+
   bool isBusy = false;
   String? scanError;
 
@@ -147,12 +224,233 @@ class SaleCartViewModel extends GetxController {
     update();
   }
 
+  /// Ports legacy `sale.ts`'s `getOrder()`, run when the Sale page is
+  /// entered: `GetOrder` opens [context]'s shopping-card order in the
+  /// session. Items can't be added before it (the sale engine answers "not
+  /// found session").
+  ///
+  /// Then, as legacy does while the order is still unlocked, locks it
+  /// (`UpdateOrderStatus` `a`) so the card is held by this Sale. Another
+  /// card still locked here is released first.
+  Future<void> openOrder(SaleOrderContext context) async {
+    isMember = context.isMember;
+    if (_locked != null && _locked!.card != context.shoppingCard) {
+      await releaseOrder();
+    }
+    shoppingCard = context.shoppingCard;
+    scanError = null;
+    final sessionKey = await _sessionKey();
+    if (sessionKey == null) {
+      scanError = 'No active session.';
+      update();
+      return;
+    }
+    isBusy = true;
+    update();
+    try {
+      final order = cart = await _getCart(
+        sessionKey: sessionKey,
+        context: context,
+      );
+      if (_locked == null && order.orderNo.isNotEmpty) {
+        await _updateOrderStatus(
+          sessionKey: sessionKey,
+          shoppingCard: context.shoppingCard,
+          orderNo: order.orderNo,
+          status: OrderStatus.lock,
+        );
+        _locked = (card: context.shoppingCard, orderNo: order.orderNo);
+      }
+    } on ApiException catch (e) {
+      scanError = e.messageDesc;
+    }
+    isBusy = false;
+    update();
+  }
+
+  // The shopping card whose order this Sale has locked, if any.
+  ({String card, String orderNo})? _locked;
+
+  /// Ports legacy `onlyUnlockShoppingCard()`, run whenever the Sale page is
+  /// left: unlocks the held order (`UpdateOrderStatus` `A`) and detaches
+  /// the customer, so Sale needs Go to Sale again. An unlock failure is
+  /// swallowed — the cashier is leaving either way.
+  /// The attached customer is a member — legacy passes it to the
+  /// promotion master as `excludeMember`.
+  bool isMember = false;
+
+  /// Legacy `AuthorizeCode`s for the Discount page.
+  static const bahtDiscountAuthCode = 'actBahtDisc';
+  static const percentDiscountAuthCode = 'actPerDisc';
+  static const percentDiscountAllAuthCode = 'actPerDiscAll';
+
+  /// Legacy `SalePage.editDiscount()`'s gate: any of the discount codes.
+  Future<bool> canDiscount() async {
+    final session = await _restoreSession();
+    if (session == null) return false;
+    return session.hasAuthCode(bahtDiscountAuthCode) ||
+        session.hasAuthCode(percentDiscountAuthCode) ||
+        session.hasAuthCode(percentDiscountAllAuthCode);
+  }
+
+  /// Legacy `PromotionPickerPage`: the branch's promotions matching [query].
+  Future<List<Promotion>> searchPromotions(String query) =>
+      _listPromotions(query: query, excludeMember: isMember);
+
+  /// Legacy `DiscountPage.getPromotion()`: null when not found; a server
+  /// failure throws its message.
+  Future<Promotion?> findPromotion(String code) async {
+    final sessionKey = await _sessionKey();
+    if (sessionKey == null) {
+      throw const ApiException(messageDesc: 'No active session.');
+    }
+    return _findPromotion(
+      sessionKey: sessionKey,
+      code: code,
+      excludeMember: isMember,
+    );
+  }
+
+  /// Legacy `DiscountPage.addToList()`: `add_item_discount` (or
+  /// `update_item_discount` when editing) with the `ValueAdjust` JSON.
+  /// One line: percent needs `actPerDisc`, baht `actBahtDisc`; several:
+  /// percent needs `actPerDiscAll` (baht is not checked, as in legacy).
+  /// Returns the error to show, or null once the cart is updated.
+  Future<String?> saveLineDiscount(
+    List<String> rows,
+    LineDiscountDraft draft,
+  ) async {
+    final session = await _restoreSession();
+    if (session == null) return 'No active session.';
+    final authCode = rows.length == 1
+        ? (draft.isPercent ? percentDiscountAuthCode : bahtDiscountAuthCode)
+        : (draft.isPercent ? percentDiscountAllAuthCode : null);
+    if (authCode != null && !session.hasAuthCode(authCode)) {
+      return noCurrencyPermission;
+    }
+    return _lineAction(
+      rows,
+      draft.editing == null
+          ? LineDiscountAction.add
+          : LineDiscountAction.update,
+      jsonEncode(draft.toValueAdjust()),
+    );
+  }
+
+  /// Legacy `doRemoveItem()`: `clear_item_discount` with the discount's Guid.
+  Future<String?> removeLineDiscount(String row, LineDiscount discount) =>
+      _lineAction(
+        [row],
+        LineDiscountAction.remove,
+        jsonEncode([discount.guid]),
+      );
+
+  /// Legacy `clearAll()`: `clear_discount_all` on the line.
+  Future<String?> clearLineDiscounts(List<String> rows) =>
+      _lineAction(rows, LineDiscountAction.clearAll, '');
+
+  /// Legacy `saveDiscountByQrCode()`: a scanned promotion code.
+  Future<String?> addLineDiscountByQrCode(List<String> rows, String code) =>
+      _lineAction(rows, LineDiscountAction.addByQrCode, code);
+
+  Future<String?> _lineAction(
+    List<String> rows,
+    String action,
+    String value,
+  ) async {
+    final sessionKey = await _sessionKey();
+    if (sessionKey == null) return 'No active session.';
+    isBusy = true;
+    update();
+    String? error;
+    try {
+      cart = await _actOnLines(
+        sessionKey: sessionKey,
+        rows: rows,
+        action: action,
+        value: value,
+      );
+    } on ApiException catch (e) {
+      error = e.messageCode == null
+          ? e.messageDesc
+          : '${e.messageCode}: ${e.messageDesc}';
+    }
+    isBusy = false;
+    update();
+    return error;
+  }
+
+  /// Legacy leave prompt: "Do you want to save order?" is asked only when
+  /// the Buying list (lines not `IsBasket`) has something.
+  bool get hasBuyingItems => cart?.items.any((line) => !line.isBasket) ?? false;
+
+  /// Legacy `doSaveOrder()`: saves the order; false (with the server's
+  /// message in [scanError]) keeps the cashier on Sale.
+  Future<bool> saveOrder() async {
+    scanError = null;
+    final sessionKey = await _sessionKey();
+    if (sessionKey == null || shoppingCard.isEmpty) return false;
+    isBusy = true;
+    update();
+    try {
+      cart = await _saveOrder(
+        sessionKey: sessionKey,
+        shoppingCard: shoppingCard,
+      );
+    } on ApiException catch (e) {
+      scanError = e.messageDesc;
+    }
+    isBusy = false;
+    update();
+    return scanError == null;
+  }
+
+  /// Legacy `reverseVirtualStock()`, for leaving without saving. Returns
+  /// the server's message when it fails — legacy alerts it but leaves
+  /// anyway.
+  Future<String?> reverseVirtualStock() async {
+    final sessionKey = await _sessionKey();
+    if (sessionKey == null) return null;
+    try {
+      await _reverseVirtualStock(sessionKey: sessionKey);
+      return null;
+    } on ApiException catch (e) {
+      return e.messageDesc;
+    }
+  }
+
+  Future<void> releaseOrder() async {
+    final locked = _locked;
+    _locked = null;
+    if (locked != null) {
+      final sessionKey = await _sessionKey();
+      if (sessionKey != null) {
+        try {
+          await _updateOrderStatus(
+            sessionKey: sessionKey,
+            shoppingCard: locked.card,
+            orderNo: locked.orderNo,
+            status: OrderStatus.unlock,
+          );
+        } on ApiException {
+          // Nothing to show: the Sale is being left.
+        }
+      }
+    }
+    shoppingCard = '';
+    cart = null;
+    scanError = null;
+    isMember = false;
+    update();
+  }
+
   /// Why the last currency change failed, if it did.
   String? currencyError;
 
   /// Legacy `AuthorizeCode.ChangeCurrency`.
   static const changeCurrencyAuthCode = 'actCurrency';
   static const noCurrencyPermission = "Sorry, you don't have permission.";
+  static const noCustomer = 'Find a customer to start a sale.';
 
   /// The branch rate table for the currency picker.
   Future<List<Currency>> listCurrencies() => _listCurrencies();
@@ -215,9 +513,9 @@ class SaleCartViewModel extends GetxController {
   }
 
   /// The privilege chosen on the Customers tab before switching here, if
-  /// the customer has any (see `HomePage._goToSale`'s picker). Client-side
-  /// only — there's no discount-calculation or backend privilege API wired
-  /// into the cart yet, so this is purely informational for now.
+  /// the customer has any (see `HomePage._goToSale`'s picker). Shown on the
+  /// Sale screen; the sale engine gets it as `GetOrder`'s `member` / `tier`
+  /// attribute and applies it to the lines itself.
   Privilege? selectedPrivilege;
 
   void selectPrivilege(Privilege? privilege) {
@@ -225,49 +523,70 @@ class SaleCartViewModel extends GetxController {
     update();
   }
 
-  /// Set when the most recent scan's article came from the offline cache
-  /// (see openspec/changes/add-offline-article-cache) rather than a fresh
-  /// network lookup, so the cashier knows the price may not be current.
-  String? staleNotice;
-
-  Future<void> scan(String rawInput) async {
+  /// Ports legacy `sale.ts`'s `onSubmit()`: the scanned / typed text goes
+  /// to `AddItemToOrder` as `ItemCode` as-is (no article lookup first, no
+  /// client-side quantity parsing), with the selected Buying lines' Guids as
+  /// `Rows` ([selectedRows] overrides). Empty input does nothing, as in
+  /// legacy.
+  Future<void> scan(String rawInput, {List<String>? selectedRows}) async {
     scanError = null;
-    staleNotice = null;
-
-    final ParsedBarcodeScan parsed;
-    try {
-      parsed = parseBarcodeScan(rawInput);
-    } on BarcodeScanFormatException catch (e) {
-      scanError = e.message;
+    final itemCode = rawInput.trim();
+    _log('[SaleCartViewModel.scan] raw="$rawInput" itemCode="$itemCode"');
+    if (itemCode.isEmpty) {
+      _log('[SaleCartViewModel.scan] skipped: empty input');
+      update();
+      return;
+    }
+    // Legacy only reaches Sale with a customer's shopping card.
+    if (shoppingCard.isEmpty) {
+      _log('[SaleCartViewModel.scan] blocked: no shopping card attached');
+      scanError = noCustomer;
       update();
       return;
     }
 
     final sessionKey = await _sessionKey();
     if (sessionKey == null) {
+      _log('[SaleCartViewModel.scan] blocked: no session');
       scanError = 'No active session.';
       update();
       return;
     }
 
+    final rows =
+        selectedRows ??
+        [for (final line in selectedLines(basket: false)) line.row];
+    _log(
+      '[SaleCartViewModel.scan] AddItemToOrder shoppingCard=$shoppingCard '
+      'sessionKey=$sessionKey rows=$rows',
+    );
     isBusy = true;
     update();
     try {
-      final article = await _lookupArticle(parsed.barcode);
-      if (article.isFromCache) {
-        staleNotice =
-            'Price may be outdated — cached ${_formatCachedAt(article.cachedAt!)}';
-      }
-      cart = await _addItemToCart(
+      final order = cart = await _addItemToCart(
         sessionKey: sessionKey,
-        articleCode: article.articleCode,
-        quantity: parsed.quantity,
+        itemCode: itemCode,
+        rows: rows,
+      );
+      _log(
+        '[SaleCartViewModel.scan] ok order=${order.guid} '
+        'lines=${order.items.length} '
+        '[${order.items.map((l) => '${l.articleCode} x${l.quantity} '
+            '= ${l.lineTotal}').join(', ')}]',
       );
     } on ApiException catch (e) {
+      _log(
+        '[SaleCartViewModel.scan] failed code=${e.messageCode} '
+        'desc=${e.messageDesc}',
+      );
       scanError = e.messageDesc;
     }
     isBusy = false;
     update();
+  }
+
+  static void _log(String message) {
+    if (kDebugMode) debugPrint(message);
   }
 
   Future<void> updateQuantity({
@@ -314,12 +633,5 @@ class SaleCartViewModel extends GetxController {
   Future<String?> _sessionKey() async {
     final session = await _restoreSession();
     return session?.sessionKey;
-  }
-
-  static String _formatCachedAt(DateTime cachedAt) {
-    final local = cachedAt.toLocal();
-    String pad(int n) => n.toString().padLeft(2, '0');
-    return '${local.year}-${pad(local.month)}-${pad(local.day)} '
-        '${pad(local.hour)}:${pad(local.minute)}';
   }
 }

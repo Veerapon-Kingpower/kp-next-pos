@@ -13,6 +13,7 @@ import '../../../customer/domain/entities/privilege.dart';
 import '../../domain/entities/cart.dart';
 import '../../domain/entities/cart_item.dart';
 import '../sale_cart_view_model.dart';
+import '../widgets/leave_sale_prompt.dart';
 import 'desktop_checkout_page.dart';
 import '../sale_currency.dart';
 import 'desktop_discount_overlay.dart';
@@ -20,21 +21,31 @@ import 'desktop_discount_overlay.dart';
 /// Desktop Sale (POS Desktop mockup screens 3 + 4): scan row, Buying /
 /// Basket tabs, the lines table and the permanent bill summary.
 ///
-/// Real (`SaleCartViewModel`): scan-to-add with `qty*barcode`, qty change,
-/// remove, line / unit totals, selected privilege. Keyboard: F6 discount,
-/// F7 qty prefix, F8 remove, ↑↓ move the selection; the scan field keeps
+/// Real (`SaleCartViewModel`): scan-to-add, qty change, remove, line /
+/// unit totals, selected privilege. Keyboard: F6 discount, F8 remove, F9
+/// search the typed code, ↑↓ move the selection; the scan field keeps
 /// focus. Shown as "—" or inert because the cart doesn't carry them yet
 /// (desktop Phase 2 data-reality map): per-line discount and fulfilment,
 /// Collect / Take grouping and cancelled lines on Basket, discount /
-/// Cash-D / VAT breakdown, Lookup (F9), Freeze, Pickup, Print basket,
+/// Cash-D / VAT breakdown, Freeze, Pickup, Print basket,
 /// Claim check, Suspend. Take payment (F12) opens the 2c Checkout.
 // TODO(pos-desktop): line discount / fulfilment /
 // cancelled state once the order API carries them (openspec 4.4 / 5.2 /
 // 6.1).
 class DesktopSaleView extends StatefulWidget {
   final SaleCartViewModel viewModel;
+  final bool isAirportMpos;
 
-  const DesktopSaleView({super.key, required this.viewModel});
+  /// Called once the cashier has left Sale (legacy back / Home) — the
+  /// leave prompt has run and the shopping card is unlocked.
+  final VoidCallback? onExit;
+
+  const DesktopSaleView({
+    super.key,
+    required this.viewModel,
+    this.isAirportMpos = false,
+    this.onExit,
+  });
 
   @override
   State<DesktopSaleView> createState() => _DesktopSaleViewState();
@@ -61,18 +72,17 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
   double get _total => _lines.fold<double>(0, (s, l) => s + l.lineTotal);
 
   Future<void> _submitScan(String value) async {
+    // The view model sends the ticked lines as `Rows`, as legacy does.
     await widget.viewModel.scan(value);
     if (widget.viewModel.scanError == null) _scan.clear();
     _scanFocus.requestFocus();
   }
 
-  void _qtyPrefix() {
-    final text = _scan.text.trim();
-    if (RegExp(r'^\d+$').hasMatch(text)) {
-      _scan.text = '$text*';
-      _scan.selection = TextSelection.collapsed(offset: _scan.text.length);
-    }
-    _scanFocus.requestFocus();
+  // Search (F9): the same as Enter in the scan field, for a code typed
+  // by hand.
+  void _searchTyped() {
+    if (widget.viewModel.isBusy) return;
+    _submitScan(_scan.text);
   }
 
   void _select(String row) {
@@ -89,14 +99,35 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
     setState(() => _selectedRow = _lines[next].row);
   }
 
-  Future<void> _discountSelected() async {
+  // Legacy "Discount": the ticked lines of the tab; with none ticked, the
+  // highlighted line.
+  List<CartItem> get _discountLines {
+    final ticked = widget.viewModel.selectedLines(basket: _basket);
+    if (ticked.isNotEmpty) return ticked;
     final index = _selectedIndex;
-    if (index < 0) return;
+    return index < 0 ? const [] : [_lines[index]];
+  }
+
+  String _hint(SaleCartViewModel viewModel, bool hasSelection) {
+    final ticked = viewModel.selectedLines(basket: _basket).length;
+    if (ticked > 0) {
+      return '$ticked line${ticked == 1 ? '' : 's'} ticked for Discount';
+    }
+    return hasSelection
+        ? 'Line ${_selectedIndex + 1} selected · ↑↓ to move'
+        : 'Select a line to discount or remove it';
+  }
+
+  Future<void> _discountSelected() async {
+    final lines = _discountLines;
+    if (lines.isEmpty) return;
     await showDesktopDiscountOverlay(
       context,
-      line: _lines[index],
-      lineNumber: index + 1,
-      billNet: _total,
+      viewModel: widget.viewModel,
+      lines: lines,
+      title: lines.length == 1
+          ? 'Discount · line ${_lines.indexOf(lines.single) + 1}'
+          : 'Discount · ${lines.length} lines',
     );
     if (mounted) _scanFocus.requestFocus();
   }
@@ -104,6 +135,21 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
   Future<void> _changeCurrency() async {
     await changeOrderCurrency(context, widget.viewModel);
     if (mounted) _scanFocus.requestFocus();
+  }
+
+  Future<void> _exit() async {
+    final left = await confirmLeaveSale(
+      context,
+      widget.viewModel,
+      isAirportMpos: widget.isAirportMpos,
+    );
+    if (!mounted) return;
+    if (left) {
+      setState(() => _selectedRow = null);
+      widget.onExit?.call();
+    } else {
+      _scanFocus.requestFocus();
+    }
   }
 
   Future<void> _takePayment() async {
@@ -138,7 +184,7 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
       builder: (viewModel) => CallbackShortcuts(
         bindings: {
           const SingleActivator(LogicalKeyboardKey.f6): _discountSelected,
-          const SingleActivator(LogicalKeyboardKey.f7): _qtyPrefix,
+          const SingleActivator(LogicalKeyboardKey.f9): _searchTyped,
           const SingleActivator(LogicalKeyboardKey.f8): _removeSelected,
           const SingleActivator(LogicalKeyboardKey.f12): _takePayment,
           const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
@@ -184,13 +230,6 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
                         color: AppColors.danger,
                         text: viewModel.currencyError!,
                       ),
-                    if (viewModel.staleNotice != null)
-                      _Notice(
-                        id: SaleIds.staleNotice,
-                        icon: Icons.warning_amber,
-                        color: AppColors.warning,
-                        text: viewModel.staleNotice!,
-                      ),
                     const SizedBox(height: 16),
                     _tabs(lines.length),
                     if (_basket)
@@ -216,6 +255,9 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
                   total: _total,
                   privilege: viewModel.selectedPrivilege,
                   onTakePayment: lines.isEmpty ? null : _takePayment,
+                  onExit: widget.onExit == null || viewModel.isBusy
+                      ? null
+                      : _exit,
                   billing: viewModel.cart?.billing,
                   onCurrency: viewModel.shoppingCard.isEmpty || viewModel.isBusy
                       ? null
@@ -261,7 +303,7 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
                       onSubmitted: _submitScan,
                       style: const TextStyle(fontSize: 16),
                       decoration: const InputDecoration.collapsed(
-                        hintText: 'Scan or type item code (qty*code)',
+                        hintText: 'Scan or type item code',
                         hintStyle: TextStyle(
                           fontSize: 16,
                           color: AppColors.hintText,
@@ -281,23 +323,14 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
           ),
         ),
         const SizedBox(width: 12),
-        const DesktopButton(
-          id: DesktopSaleIds.lookupButton,
-          label: 'Lookup',
+        DesktopButton(
+          id: DesktopSaleIds.searchButton,
+          label: 'Search',
           icon: Icons.search,
           hotkey: 'F9',
           secondary: true,
           height: DesktopMetrics.fieldHeight,
-        ),
-        const SizedBox(width: 12),
-        DesktopButton(
-          id: DesktopSaleIds.qtyButton,
-          label: 'Qty ×',
-          icon: Icons.calculate_outlined,
-          hotkey: 'F7',
-          secondary: true,
-          height: DesktopMetrics.fieldHeight,
-          onPressed: _qtyPrefix,
+          onPressed: viewModel.isBusy ? null : _searchTyped,
         ),
       ],
     );
@@ -407,6 +440,10 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
           _HeaderRow(
             compact: compact,
             currency: viewModel.cart?.billing?.currencyCode ?? '',
+            allSelected: viewModel.isAllSelected(basket: _basket),
+            onSelectAll: lines.isEmpty
+                ? null
+                : () => viewModel.toggleSelectAll(basket: _basket),
           ),
           Expanded(
             child: lines.isEmpty
@@ -429,8 +466,10 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
                           number: i + 1,
                           line: lines[i],
                           selected: lines[i].row == _selectedRow,
+                          checked: viewModel.isSelected(lines[i].row),
                           busy: viewModel.isBusy,
                           onTap: () => _select(lines[i].row),
+                          onCheck: () => viewModel.toggleSelected(lines[i].row),
                           onQuantity: (q) => viewModel.updateQuantity(
                             row: lines[i].row,
                             quantity: q,
@@ -457,7 +496,7 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
                   hotkey: 'F6',
                   secondary: true,
                   height: 44,
-                  onPressed: hasSelection ? _discountSelected : null,
+                  onPressed: _discountLines.isEmpty ? null : _discountSelected,
                 ),
                 if (_basket) ...[
                   const DesktopButton(
@@ -504,9 +543,7 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
                   child: TestId(
                     DesktopSaleIds.selectionHint,
                     child: Text(
-                      hasSelection
-                          ? 'Line ${_selectedIndex + 1} selected · ↑↓ to move'
-                          : 'Select a line to discount or remove it',
+                      _hint(viewModel, hasSelection),
                       style: const TextStyle(
                         fontSize: 12.5,
                         color: AppColors.mutedText,
@@ -523,8 +560,9 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
   }
 }
 
-const _colFlex = [4, 40, 16, 14, 12, 14, 12];
-const _compactFlex = [4, 38, 24, 14, 0, 16, 0];
+// `#` holds the line's select box (legacy `isSelected`) and its number.
+const _colFlex = [8, 36, 16, 14, 12, 14, 12];
+const _compactFlex = [9, 33, 24, 14, 0, 16, 0];
 
 class _HeaderRow extends StatelessWidget {
   final bool compact;
@@ -532,7 +570,17 @@ class _HeaderRow extends StatelessWidget {
   /// The order's currency; amounts follow it after a `change_currency`.
   final String currency;
 
-  const _HeaderRow({required this.compact, required this.currency});
+  /// Legacy `checkAllItems()`: all lines of the tab selected, and the
+  /// toggle.
+  final bool allSelected;
+  final VoidCallback? onSelectAll;
+
+  const _HeaderRow({
+    required this.compact,
+    required this.currency,
+    required this.allSelected,
+    required this.onSelectAll,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -558,11 +606,26 @@ class _HeaderRow extends StatelessWidget {
             if (!compact || _compactFlex[i] > 0)
               Expanded(
                 flex: compact ? _compactFlex[i] : _colFlex[i],
-                child: Text(
-                  labels[i],
-                  textAlign: i >= 3 && i <= 5 ? TextAlign.end : TextAlign.start,
-                  style: DesktopText.fieldLabel,
-                ),
+                child: i == 0
+                    ? Align(
+                        alignment: Alignment.centerLeft,
+                        child: TestId(
+                          DesktopSaleIds.selectAll,
+                          child: Checkbox(
+                            value: allSelected,
+                            onChanged: onSelectAll == null
+                                ? null
+                                : (_) => onSelectAll!(),
+                          ),
+                        ),
+                      )
+                    : Text(
+                        labels[i],
+                        textAlign: i >= 3 && i <= 5
+                            ? TextAlign.end
+                            : TextAlign.start,
+                        style: DesktopText.fieldLabel,
+                      ),
               ),
         ],
       ),
@@ -575,8 +638,12 @@ class _LineRow extends StatelessWidget {
   final int number;
   final CartItem line;
   final bool selected;
+
+  /// Legacy `isSelected` — what Discount and a scan apply to.
+  final bool checked;
   final bool busy;
   final VoidCallback onTap;
+  final VoidCallback onCheck;
   final ValueChanged<int> onQuantity;
 
   const _LineRow({
@@ -584,8 +651,10 @@ class _LineRow extends StatelessWidget {
     required this.number,
     required this.line,
     required this.selected,
+    required this.checked,
     required this.busy,
     required this.onTap,
+    required this.onCheck,
     required this.onQuantity,
   });
 
@@ -611,17 +680,30 @@ class _LineRow extends StatelessWidget {
                 children: [
                   Expanded(
                     flex: compact ? _compactFlex[0] : _colFlex[0],
-                    child: Text(
-                      '$number',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: selected
-                            ? FontWeight.w700
-                            : FontWeight.w400,
-                        color: selected
-                            ? AppColors.goldDark
-                            : AppColors.mutedText,
-                      ),
+                    child: Row(
+                      children: [
+                        TestId(
+                          DesktopSaleIds.lineCheck(line.row),
+                          child: Checkbox(
+                            value: checked,
+                            onChanged: (_) => onCheck(),
+                          ),
+                        ),
+                        Flexible(
+                          child: Text(
+                            '$number',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: selected
+                                  ? FontWeight.w700
+                                  : FontWeight.w400,
+                              color: selected
+                                  ? AppColors.goldDark
+                                  : AppColors.mutedText,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   Expanded(
@@ -703,12 +785,17 @@ class _LineRow extends StatelessWidget {
                   if (!compact)
                     Expanded(
                       flex: _colFlex[4],
-                      child: const Text(
-                        '—',
+                      child: Text(
+                        line.discountAmount == 0
+                            ? '—'
+                            : formatAmount(-line.discountAmount),
                         textAlign: TextAlign.end,
                         style: TextStyle(
                           fontSize: 15,
-                          color: AppColors.hintText,
+                          color: line.discountAmount == 0
+                              ? AppColors.hintText
+                              : AppColors.danger,
+                          fontFeatures: const [FontFeature.tabularFigures()],
                         ),
                       ),
                     ),
@@ -753,6 +840,7 @@ class _Summary extends StatelessWidget {
   final double total;
   final Privilege? privilege;
   final VoidCallback? onTakePayment;
+  final VoidCallback? onExit;
 
   /// The sale engine's own amounts, in the order's currency, when the order
   /// carries them; otherwise the summary sums the lines in baht.
@@ -767,6 +855,7 @@ class _Summary extends StatelessWidget {
     required this.total,
     required this.privilege,
     required this.onTakePayment,
+    required this.onExit,
     required this.billing,
     required this.onCurrency,
   });
@@ -1045,6 +1134,14 @@ class _Summary extends StatelessWidget {
           label: 'Suspend bill',
           icon: Icons.assignment_turned_in_outlined,
           secondary: true,
+        ),
+        const SizedBox(height: 10),
+        DesktopButton(
+          id: DesktopSaleIds.exitButton,
+          label: 'Exit sale',
+          icon: Icons.logout,
+          secondary: true,
+          onPressed: onExit,
         ),
       ],
     );

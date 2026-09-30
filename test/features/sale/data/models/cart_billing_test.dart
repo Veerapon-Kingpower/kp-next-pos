@@ -74,4 +74,19 @@ void main() {
     expect(item.unitPrice, 50);
     expect(item.lineTotal, 90);
   });
+
+  test('CartModel reads order_no from HeaderAttributes, as a whole number', () {
+    final cart = CartModel.fromJson({
+      'Guid': 'o',
+      'HeaderAttributes': [
+        {'Code': 'ShipAddress', 'ValueOfString': ''},
+        {'Code': 'order_no', 'ValueOfDecimal': 20260930001.0},
+      ],
+    });
+    expect(cart.orderNo, '20260930001');
+  });
+
+  test('CartModel has no orderNo without an order_no attribute', () {
+    expect(CartModel.fromJson({'Guid': 'o'}).orderNo, '');
+  });
 }

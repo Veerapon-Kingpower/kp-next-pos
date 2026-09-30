@@ -20,7 +20,10 @@ import 'package:kp_pos/features/flight/domain/usecases/get_flight_by_code_usecas
 import 'package:kp_pos/features/home/presentation/home_view_model.dart';
 import 'package:kp_pos/features/nationality/domain/usecases/list_nationalities_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/add_item_to_cart_usecase.dart';
-import 'package:kp_pos/features/sale/domain/usecases/lookup_article_by_barcode_usecase.dart';
+import 'package:kp_pos/features/sale/domain/usecases/get_cart_usecase.dart';
+import 'package:kp_pos/features/sale/domain/usecases/leave_sale_usecases.dart';
+import 'package:kp_pos/features/sale/domain/usecases/line_discount_usecases.dart';
+import 'package:kp_pos/features/sale/domain/usecases/update_order_status_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/cash_payment_usecases.dart';
 import 'package:kp_pos/features/sale/domain/usecases/change_order_currency_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/exchange_change_usecase.dart';
@@ -81,7 +84,13 @@ SaleCartViewModel _saleCartViewModel() {
   final auth = FakeAuthRepository();
   return SaleCartViewModel(
     restoreSession: RestoreSessionUseCase(auth),
-    lookupArticle: LookupArticleByBarcodeUseCase(FakeSaleRepository()),
+    getCart: GetCartUseCase(FakeSaleRepository()),
+    updateOrderStatus: UpdateOrderStatusUseCase(FakeSaleRepository()),
+    saveOrder: SaveOrderUseCase(FakeSaleRepository()),
+    reverseVirtualStock: ReverseVirtualStockUseCase(FakeSaleRepository()),
+    listPromotions: ListPromotionsUseCase(FakeSaleRepository()),
+    findPromotion: FindPromotionUseCase(FakeSaleRepository()),
+    actOnLines: ActOnLinesUseCase(FakeSaleRepository()),
     addItemToCart: AddItemToCartUseCase(FakeSaleRepository()),
     updateCartItemQuantity: UpdateCartItemQuantityUseCase(FakeSaleRepository()),
     removeCartItem: RemoveCartItemUseCase(FakeSaleRepository()),

@@ -8,9 +8,20 @@ import '../sale_cart_view_model.dart';
 /// `HandheldSaleView` instead (see `HomePage`).
 class SalePage extends StatelessWidget {
   final SaleCartViewModel viewModel;
+  final bool isAirportMpos;
+  final VoidCallback? onExit;
 
-  const SalePage({super.key, required this.viewModel});
+  const SalePage({
+    super.key,
+    required this.viewModel,
+    this.isAirportMpos = false,
+    this.onExit,
+  });
 
   @override
-  Widget build(BuildContext context) => DesktopSaleView(viewModel: viewModel);
+  Widget build(BuildContext context) => DesktopSaleView(
+    viewModel: viewModel,
+    isAirportMpos: isAirportMpos,
+    onExit: onExit,
+  );
 }

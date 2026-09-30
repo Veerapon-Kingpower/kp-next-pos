@@ -22,6 +22,10 @@ class Cart {
   /// `ChangeAmount.BaseCurrAmt` — change due in baht after cash tenders.
   final double change;
 
+  /// The `order_no` header attribute (`ValueOfDecimal`) — what
+  /// `UpdateOrderStatus` takes as `orderNo`.
+  final String orderNo;
+
   const Cart({
     required this.guid,
     required this.isCheckOut,
@@ -30,6 +34,7 @@ class Cart {
     this.payments = const [],
     this.remaining,
     this.change = 0,
+    this.orderNo = '',
   });
 
   int get itemCount => items.length;

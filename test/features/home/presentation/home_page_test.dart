@@ -23,8 +23,13 @@ import 'package:kp_pos/features/flight/domain/usecases/get_flight_by_code_usecas
 import 'package:kp_pos/features/home/presentation/home_page.dart';
 import 'package:kp_pos/features/home/presentation/home_view_model.dart';
 import 'package:kp_pos/features/nationality/domain/usecases/list_nationalities_usecase.dart';
+import 'package:kp_pos/features/sale/domain/entities/cart.dart';
+import 'package:kp_pos/features/sale/domain/entities/order_status.dart';
 import 'package:kp_pos/features/sale/domain/usecases/add_item_to_cart_usecase.dart';
-import 'package:kp_pos/features/sale/domain/usecases/lookup_article_by_barcode_usecase.dart';
+import 'package:kp_pos/features/sale/domain/usecases/get_cart_usecase.dart';
+import 'package:kp_pos/features/sale/domain/usecases/leave_sale_usecases.dart';
+import 'package:kp_pos/features/sale/domain/usecases/line_discount_usecases.dart';
+import 'package:kp_pos/features/sale/domain/usecases/update_order_status_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/cash_payment_usecases.dart';
 import 'package:kp_pos/features/sale/domain/usecases/change_order_currency_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/exchange_change_usecase.dart';
@@ -84,11 +89,29 @@ void main() {
     ),
   );
 
+  // The Sale tab's repository in the last built page.
+  late FakeSaleRepository saleRepository;
+
   SaleCartViewModel buildSaleCartViewModel() {
-    final sale = FakeSaleRepository();
+    final sale = saleRepository = FakeSaleRepository(
+      cartResult: const Cart(
+        guid: 'order-1',
+        isCheckOut: false,
+        items: [],
+        orderNo: '42',
+      ),
+    );
     return SaleCartViewModel(
-      restoreSession: RestoreSessionUseCase(FakeAuthRepository()),
-      lookupArticle: LookupArticleByBarcodeUseCase(sale),
+      restoreSession: RestoreSessionUseCase(
+        FakeAuthRepository(currentSessionResult: _session),
+      ),
+      getCart: GetCartUseCase(sale),
+      updateOrderStatus: UpdateOrderStatusUseCase(sale),
+      saveOrder: SaveOrderUseCase(sale),
+      reverseVirtualStock: ReverseVirtualStockUseCase(sale),
+      listPromotions: ListPromotionsUseCase(sale),
+      findPromotion: FindPromotionUseCase(sale),
+      actOnLines: ActOnLinesUseCase(sale),
       addItemToCart: AddItemToCartUseCase(sale),
       updateCartItemQuantity: UpdateCartItemQuantityUseCase(sale),
       removeCartItem: RemoveCartItemUseCase(sale),
@@ -925,8 +948,8 @@ void main() {
       expect(byTestId(DesktopCustomerIds.profileEmpty), findsOneWidget);
     });
 
-    testWidgets('saving the form looks the customer up again by the saved '
-        'shopping card', (tester) async {
+    testWidgets('saving the form returns to Home, looking the customer up '
+        'by the saved shopping card', (tester) async {
       final searchRepo = FakeCustomerRepository(searchResult: const [found]);
       final formRepo = FakeCustomerRepository(
         agentsResult: const [
@@ -981,8 +1004,11 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(searchRepo.searchedShoppingCards, ['CPX0001']);
-      expect(inProfile(byTestId(ProfileIds.privileges)), findsOneWidget);
-      expect(find.text('UPDATE CUSTOMER'), findsOneWidget);
+      expect(
+        tester.getSemantics(byTestId(NavIds.home)),
+        isSemantics(isSelected: true),
+      );
+      expect(byTestId(DesktopIds.homeLookup), findsOneWidget);
     });
   });
 
@@ -1235,6 +1261,8 @@ void main() {
 
       expect(byTestId(SaleIds.scanField), findsOneWidget);
       expect(find.text('Elite 10%'), findsOneWidget);
+      // Legacy getOrder() on entering Sale: opens the card's order.
+      expect(saleRepository.lastOrderContext?.shoppingCard, '8823-4419-0027');
     });
 
     testWidgets('an unregistered customer shows on Home; Start sale is '
@@ -1380,6 +1408,7 @@ void main() {
           ),
         ],
         walletMembers: [],
+        shoppingCard: 'CPX0001',
         isActivate: true,
       ),
       tour: {},
@@ -1516,6 +1545,32 @@ void main() {
       expect(find.text('Gold Member'), findsOneWidget);
     });
 
+    testWidgets('Start sale locks the card; leaving Sale unlocks it', (
+      tester,
+    ) async {
+      await pumpHandheld(tester, buildPage(searchResult: const [jane]));
+      await scan(tester, 'CPX0001');
+      await tester.tap(byTestId(ProfileIds.goToSaleButton));
+      await tester.pumpAndSettle();
+      expect(saleRepository.orderStatuses.map((s) => s.status), [
+        OrderStatus.lock,
+      ]);
+
+      await tester.tap(byTestId(SaleIds.backButton));
+      await tester.pumpAndSettle();
+
+      // An empty order: legacy asks "Do you want to go back?".
+      expect(find.text('Do you want to go back?'), findsOneWidget);
+      await tester.tap(byTestId(SaleIds.leaveOk));
+      await tester.pumpAndSettle();
+
+      expect(byTestId(HomeIds.tileRegister), findsOneWidget);
+      expect(saleRepository.orderStatuses.map((s) => s.status), [
+        OrderStatus.lock,
+        OrderStatus.unlock,
+      ]);
+    });
+
     testWidgets('a scan that finds nothing opens Register', (tester) async {
       await pumpHandheld(tester, buildPage());
       await scan(tester, 'CPX9999');
@@ -1544,6 +1599,60 @@ void main() {
       await scan(tester, 'CB999999');
       expect(byTestId(ProfileIds.page), findsNothing);
       expect(byTestId(RegisterIds.page), findsOneWidget);
+    });
+
+    testWidgets('registering returns to Home, looking up the saved card', (
+      tester,
+    ) async {
+      const takeAway = Customer(
+        action: 'REGISTER_ADD',
+        isFound: false,
+        person: CustomerPerson(
+          englishName: '',
+          passportNo: 'CB999999',
+          nationality: '',
+          contacts: [],
+          privileges: [],
+          walletMembers: [],
+          customerTypeCode: 'VIP',
+          flightCode: 'OP000',
+          airlineCode: 'OP',
+        ),
+        tour: {},
+        agentCode: '',
+        isMember: false,
+      );
+      final searchRepo = FakeCustomerRepository(searchResult: const [takeAway]);
+      final formRepo = FakeCustomerRepository(
+        registerResult: const RegisterResult(
+          outputs: [
+            RegisterOutput(
+              runningNo: '1',
+              shoppingCard: 'CPX0009',
+              qrShoppingCard: 'QR-CPX0009',
+              coupons: [],
+            ),
+          ],
+          messages: [],
+          isComplete: true,
+        ),
+      );
+      await pumpHandheld(
+        tester,
+        buildPage(searchRepository: searchRepo, formRepository: formRepo),
+      );
+      await scan(tester, 'CB999999');
+      expect(byTestId(RegisterIds.page), findsOneWidget);
+
+      await tester.ensureVisible(byTestId(RegisterIds.submitButton));
+      await tester.tap(byTestId(RegisterIds.submitButton));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+
+      expect(byTestId(RegisterIds.page), findsNothing);
+      expect(byTestId(HomeIds.tileRegister), findsOneWidget);
+      expect(searchRepo.searchedShoppingCards, ['CB999999', 'CPX0009']);
     });
 
     testWidgets('Update customer opens the form with the registered status', (

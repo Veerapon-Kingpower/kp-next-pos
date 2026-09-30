@@ -24,9 +24,11 @@ import '../../customer/presentation/handheld/customer_profile_page.dart';
 import '../../customer/presentation/widgets/privilege_radio_list.dart';
 import '../../enquiry/presentation/enquiry_page.dart';
 import '../../enquiry/presentation/handheld_enquiry_view.dart';
+import '../../sale/domain/entities/sale_order_context.dart';
 import '../../sale/presentation/handheld/handheld_sale_view.dart';
 import '../../sale/presentation/handheld/sale_order_type.dart';
 import '../../sale/presentation/sale_cart_view_model.dart';
+import '../../sale/presentation/widgets/leave_sale_prompt.dart';
 import '../../sale/presentation/widgets/sale_page.dart';
 import '../../settings/presentation/settings_page.dart';
 import '../../settings/presentation/settings_view_model.dart';
@@ -188,6 +190,9 @@ class _HomePageState extends State<HomePage> {
     );
     if (!confirmed) return;
 
+    // Legacy `unlockShoppingCard()` before logging out; needs the session
+    // key, so it runs first.
+    await _saleCartViewModel.releaseOrder();
     await widget.logoutUseCase();
     widget.sessionState.signedOut();
   }
@@ -275,10 +280,12 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void _openRegistration({Customer? existingCustomer}) {
+  Future<void> _openRegistration({Customer? existingCustomer}) async {
     final session = widget.viewModel.session;
     if (session == null) return;
-    Navigator.of(context, rootNavigator: true).push(
+    final navigator = Navigator.of(context, rootNavigator: true);
+    final homeRoute = ModalRoute.of(context);
+    final shoppingCard = await navigator.push<String>(
       MaterialPageRoute(
         builder: (_) => CustomerRegistrationPage(
           viewModel: widget.customerRegistrationViewModelFactory(),
@@ -288,6 +295,28 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
     );
+    // Null = backed out without saving.
+    if (shoppingCard == null || !mounted) return;
+    // Saved: close anything still over Home (e.g. the handheld profile the
+    // edit started from).
+    if (homeRoute != null) navigator.popUntil((route) => route == homeRoute);
+    _showSavedCustomerOnHome(shoppingCard);
+  }
+
+  // After a register / update: back to Home, looking up the saved card so
+  // Home shows what the server now holds.
+  void _showSavedCustomerOnHome(String shoppingCard) {
+    setState(() => _section = _HomeSection.home);
+    if (shoppingCard.isEmpty) {
+      _clearHomeLookup();
+      return;
+    }
+    if (AppBreakpoints.isWide(context)) {
+      _lookUpFromHome(shoppingCard);
+      return;
+    }
+    _customerSearchController.text = shoppingCard;
+    _searchCustomer();
   }
 
   void _onDestinationSelected(int index, List<_HomeSection> sections) {
@@ -300,11 +329,10 @@ class _HomePageState extends State<HomePage> {
 
   // Ports the two cheap, data-only guards from `customer.ts`'s
   // `checkConditionToSalePage()` — same order, same "Oops !"/"Got it"
-  // copy. The rest of that method (POS-authorization checks, shopping-card
-  // locking, order-type resolution) needs infrastructure this app doesn't
-  // have yet (no `AuthorizeCode` system, no shopping-card-aware
-  // `SaleCartViewModel`), so this deliberately stops at switching to the
-  // Sale tab rather than attempting to fabricate that machinery.
+  // copy. The rest of that method (POS-authorization checks, order-type
+  // resolution) needs infrastructure this app doesn't have yet (no
+  // `AuthorizeCode` system). Entering Sale then opens and locks the card's
+  // order, as legacy Sale's `getOrder()` does.
   //
   // Legacy prompts for a privilege here (`presentPrivilegeSelection`); the
   // profile's radio list already asks that up front ("No privilege" by
@@ -320,12 +348,23 @@ class _HomePageState extends State<HomePage> {
       return;
     }
     final selected = _selectedPrivilege;
-    _saleCartViewModel
-      ..attachShoppingCard(person.shoppingCard)
-      ..selectPrivilege(
-        person.privileges.any((p) => identical(p, selected)) ? selected : null,
-      );
+    final privilege = person.privileges.any((p) => identical(p, selected))
+        ? selected
+        : null;
+    _saleCartViewModel.selectPrivilege(privilege);
     setState(() => _section = _HomeSection.sale);
+    // Legacy `goToSalePage()` params; tier and wallets only for a member.
+    final isMember = person.memberId.isNotEmpty;
+    await _saleCartViewModel.openOrder(
+      SaleOrderContext(
+        shoppingCard: person.shoppingCard,
+        memberId: person.memberId,
+        tier: isMember ? privilege?.raw : null,
+        walletMembers: isMember ? person.walletMembers : const [],
+        cardGroupCode: person.cardGroupCode,
+        cardTypeCode: person.cardTypeCode,
+      ),
+    );
   }
 
   /// Handheld customer profile (mockup screen 8), pushed over Home.
@@ -498,6 +537,17 @@ class _HomePageState extends State<HomePage> {
 
   void _showHandheldHome() => setState(() => _section = _HomeSection.home);
 
+  // Leaving the handheld Sale screen is leaving legacy's Sale page: the
+  // leave prompt runs, then the held shopping card is unlocked.
+  Future<void> _leaveHandheldSale() async {
+    final left = await confirmLeaveSale(
+      context,
+      _saleCartViewModel,
+      isAirportMpos: widget.viewModel.settings.isAirportMpos,
+    );
+    if (left && mounted) _showHandheldHome();
+  }
+
   Widget _handheldHeaderFor(_HomeSection section, HomeViewModel viewModel) {
     switch (section) {
       case _HomeSection.home:
@@ -533,9 +583,9 @@ class _HomePageState extends State<HomePage> {
     if (section == _HomeSection.sale) {
       return HandheldSaleView(
         viewModel: _saleCartViewModel,
-        onExit: _showHandheldHome,
+        onExit: _leaveHandheldSale,
         // Customer lookup lives on Home's scan field.
-        onCustomer: _showHandheldHome,
+        onCustomer: _leaveHandheldSale,
         isAirportMpos: viewModel.settings.isAirportMpos,
       );
     }
@@ -616,7 +666,11 @@ class _HomePageState extends State<HomePage> {
       case _HomeSection.customers:
         return _customerSearchSection(context, viewModel);
       case _HomeSection.sale:
-        return SalePage(viewModel: _saleCartViewModel);
+        return SalePage(
+          viewModel: _saleCartViewModel,
+          isAirportMpos: viewModel.settings.isAirportMpos,
+          onExit: () => setState(() => _section = _HomeSection.home),
+        );
       case _HomeSection.enquiry:
         return const EnquiryPage();
     }
@@ -851,17 +905,10 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // Re-runs the lookup with the saved shopping card so the profile shows
-  // what the server now holds.
+  // The embedded form saved: back to Home with the saved card looked up.
   void _onCustomerSaved(String shoppingCard) {
-    if (shoppingCard.isNotEmpty) {
-      _customerSearchController.text = shoppingCard;
-    }
-    if (_customerSearchController.text.trim().isEmpty) {
-      setState(() => _formGeneration++);
-      return;
-    }
-    _searchCustomer();
+    setState(() => _formGeneration++);
+    _showSavedCustomerOnHome(shoppingCard);
   }
 
   void _newCustomer() {

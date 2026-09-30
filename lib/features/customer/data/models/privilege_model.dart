@@ -14,6 +14,7 @@ class PrivilegeModel extends Privilege {
     super.subTypeCode,
     super.minimumSpendingPerBill,
     super.maxAmountPerBill,
+    super.raw,
   });
 
   factory PrivilegeModel.fromJson(Map<String, dynamic> json) => PrivilegeModel(
@@ -25,5 +26,6 @@ class PrivilegeModel extends Privilege {
     minimumSpendingPerBill:
         (json['MinimumSpendingPerBill'] as num?)?.toDouble() ?? 0,
     maxAmountPerBill: (json['MaxAmountPerBill'] as num?)?.toDouble() ?? 0,
+    raw: json,
   );
 }

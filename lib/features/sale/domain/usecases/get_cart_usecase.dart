@@ -1,4 +1,5 @@
 import '../entities/cart.dart';
+import '../entities/sale_order_context.dart';
 import '../repositories/sale_repository.dart';
 
 class GetCartUseCase {
@@ -8,6 +9,6 @@ class GetCartUseCase {
 
   Future<Cart> call({
     required String sessionKey,
-    required String shoppingCard,
-  }) => _repository.getCart(sessionKey: sessionKey, shoppingCard: shoppingCard);
+    required SaleOrderContext context,
+  }) => _repository.getCart(sessionKey: sessionKey, context: context);
 }

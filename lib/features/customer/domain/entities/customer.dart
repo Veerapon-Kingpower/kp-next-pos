@@ -50,6 +50,10 @@ class CustomerPerson {
   // Drives the Registered/Not Registered status in legacy — not `isFound`.
   final bool isActivate;
   final String flightCode;
+  // With [flightCode] `OP000`, `OP` marks a take-away (non-international)
+  // registration — legacy `setFormCustomerData()` restores Allow take-away
+  // from exactly that pair.
+  final String airlineCode;
   final String flightDate;
   final String flightTime;
   final String flightRouteDetail;
@@ -87,6 +91,12 @@ class CustomerPerson {
   // `checkConditionToSalePage()`'s first guard): a fast-registered card
   // can't be used to start a sale.
   final bool fastRegister;
+  // From `listIdentity` (`MID`, `CARDGROUPCODE`, `CARDTYPECODE`) — legacy
+  // `customer.ts` hands these to the Sale page, which sends them on
+  // `GetOrder`.
+  final String memberId;
+  final String cardGroupCode;
+  final String cardTypeCode;
 
   const CustomerPerson({
     required this.englishName,
@@ -100,6 +110,7 @@ class CustomerPerson {
     this.customerTypeDetail = '',
     this.isActivate = false,
     this.flightCode = '',
+    this.airlineCode = '',
     this.flightDate = '',
     this.flightTime = '',
     this.flightRouteDetail = '',
@@ -112,6 +123,9 @@ class CustomerPerson {
     this.cityCode = '',
     this.dateOfBirth,
     this.fastRegister = false,
+    this.memberId = '',
+    this.cardGroupCode = '',
+    this.cardTypeCode = '',
   });
 
   /// Carat balance — the `listWalletMember` entry whose `PaymentCode` is

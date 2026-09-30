@@ -6,6 +6,8 @@ import '../../domain/entities/article.dart';
 import '../../domain/entities/cart.dart';
 import '../../domain/entities/currency.dart';
 import '../../domain/entities/exchange_quote.dart';
+import '../../domain/entities/promotion.dart';
+import '../../domain/entities/sale_order_context.dart';
 import '../../domain/repositories/sale_repository.dart';
 import '../datasources/sale_remote_data_source.dart';
 import '../local/article_local_data_source.dart';
@@ -70,15 +72,15 @@ class SaleRepositoryImpl implements SaleRepository {
   @override
   Future<Cart> addItemToCart({
     required String sessionKey,
-    required String articleCode,
-    required int quantity,
+    required String itemCode,
+    List<String> rows = const [],
   }) async {
     final settings = await _deviceSettingsStorage.read();
     return _remote.addItemToOrder(
       saleEngineEndpoint: settings.saleEngineEndpoint,
       sessionKey: sessionKey,
-      articleCode: articleCode,
-      quantity: quantity,
+      itemCode: itemCode,
+      rows: rows,
     );
   }
 
@@ -192,13 +194,102 @@ class SaleRepositoryImpl implements SaleRepository {
   @override
   Future<Cart> getCart({
     required String sessionKey,
-    required String shoppingCard,
+    required SaleOrderContext context,
   }) async {
     final settings = await _deviceSettingsStorage.read();
     return _remote.getOrder(
       saleEngineEndpoint: settings.saleEngineEndpoint,
       sessionKey: sessionKey,
+      context: context,
+    );
+  }
+
+  @override
+  Future<List<Promotion>> listPromotions({
+    required String query,
+    required bool excludeMember,
+  }) async {
+    final settings = await _deviceSettingsStorage.read();
+    return _remote.getPromotionList(
+      saleEngineEndpoint: settings.saleEngineEndpoint,
+      branchNo: settings.branch,
+      subBranchCode: settings.subBranchCode,
+      query: query,
+      excludeMember: excludeMember,
+    );
+  }
+
+  @override
+  Future<Promotion?> findPromotion({
+    required String sessionKey,
+    required String code,
+    required bool excludeMember,
+  }) async {
+    final settings = await _deviceSettingsStorage.read();
+    return _remote.getPromotion(
+      saleEngineEndpoint: settings.saleEngineEndpoint,
+      sessionKey: sessionKey,
+      branchNo: settings.branch,
+      subBranchCode: settings.subBranchCode,
+      code: code,
+      excludeMember: excludeMember,
+    );
+  }
+
+  @override
+  Future<Cart> actOnLines({
+    required String sessionKey,
+    required List<String> rows,
+    required String action,
+    required String value,
+  }) async {
+    final settings = await _deviceSettingsStorage.read();
+    return _remote.actionListItemToOrder(
+      saleEngineEndpoint: settings.saleEngineEndpoint,
+      sessionKey: sessionKey,
+      rows: rows,
+      action: action,
+      value: value,
+    );
+  }
+
+  @override
+  Future<Cart> saveOrder({
+    required String sessionKey,
+    required String shoppingCard,
+  }) async {
+    final settings = await _deviceSettingsStorage.read();
+    return _remote.saveOrder(
+      saleEngineEndpoint: settings.saleEngineEndpoint,
+      sessionKey: sessionKey,
       shoppingCard: shoppingCard,
+    );
+  }
+
+  @override
+  Future<void> reverseVirtualStock({required String sessionKey}) async {
+    final settings = await _deviceSettingsStorage.read();
+    await _remote.reverseVirtualStock(
+      saleEngineEndpoint: settings.saleEngineEndpoint,
+      sessionKey: sessionKey,
+    );
+  }
+
+  @override
+  Future<void> updateOrderStatus({
+    required String sessionKey,
+    required String shoppingCard,
+    required String orderNo,
+    required String status,
+  }) async {
+    final settings = await _deviceSettingsStorage.read();
+    await _remote.updateOrderStatus(
+      saleEngineEndpoint: settings.saleEngineEndpoint,
+      branchNo: settings.branch,
+      sessionKey: sessionKey,
+      shoppingCard: shoppingCard,
+      orderNo: orderNo,
+      status: status,
     );
   }
 }

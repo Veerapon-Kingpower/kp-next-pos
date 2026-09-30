@@ -8,11 +8,11 @@ class AddItemToCartUseCase {
 
   Future<Cart> call({
     required String sessionKey,
-    required String articleCode,
-    required int quantity,
+    required String itemCode,
+    List<String> rows = const [],
   }) => _repository.addItemToCart(
     sessionKey: sessionKey,
-    articleCode: articleCode,
-    quantity: quantity,
+    itemCode: itemCode,
+    rows: rows,
   );
 }

@@ -8,6 +8,8 @@ import 'data/repositories/sale_repository_impl.dart';
 import 'domain/repositories/sale_repository.dart';
 import 'domain/usecases/add_item_to_cart_usecase.dart';
 import 'domain/usecases/get_cart_usecase.dart';
+import 'domain/usecases/leave_sale_usecases.dart';
+import 'domain/usecases/line_discount_usecases.dart';
 import 'domain/usecases/cash_payment_usecases.dart';
 import 'domain/usecases/change_order_currency_usecase.dart';
 import 'domain/usecases/exchange_change_usecase.dart';
@@ -15,6 +17,7 @@ import 'domain/usecases/list_currencies_usecase.dart';
 import 'domain/usecases/lookup_article_by_barcode_usecase.dart';
 import 'domain/usecases/remove_cart_item_usecase.dart';
 import 'domain/usecases/update_cart_item_quantity_usecase.dart';
+import 'domain/usecases/update_order_status_usecase.dart';
 import 'presentation/sale_cart_view_model.dart';
 
 void setupSaleServiceLocator() {
@@ -46,6 +49,24 @@ void setupSaleServiceLocator() {
   sl.registerFactory<GetCartUseCase>(
     () => GetCartUseCase(sl<SaleRepository>()),
   );
+  sl.registerFactory<UpdateOrderStatusUseCase>(
+    () => UpdateOrderStatusUseCase(sl<SaleRepository>()),
+  );
+  sl.registerFactory<ListPromotionsUseCase>(
+    () => ListPromotionsUseCase(sl<SaleRepository>()),
+  );
+  sl.registerFactory<FindPromotionUseCase>(
+    () => FindPromotionUseCase(sl<SaleRepository>()),
+  );
+  sl.registerFactory<ActOnLinesUseCase>(
+    () => ActOnLinesUseCase(sl<SaleRepository>()),
+  );
+  sl.registerFactory<SaveOrderUseCase>(
+    () => SaveOrderUseCase(sl<SaleRepository>()),
+  );
+  sl.registerFactory<ReverseVirtualStockUseCase>(
+    () => ReverseVirtualStockUseCase(sl<SaleRepository>()),
+  );
   sl.registerFactory<ListCurrenciesUseCase>(
     () => ListCurrenciesUseCase(sl<SaleRepository>()),
   );
@@ -64,7 +85,13 @@ void setupSaleServiceLocator() {
   sl.registerFactory<SaleCartViewModel>(
     () => SaleCartViewModel(
       restoreSession: sl<RestoreSessionUseCase>(),
-      lookupArticle: sl<LookupArticleByBarcodeUseCase>(),
+      getCart: sl<GetCartUseCase>(),
+      updateOrderStatus: sl<UpdateOrderStatusUseCase>(),
+      saveOrder: sl<SaveOrderUseCase>(),
+      reverseVirtualStock: sl<ReverseVirtualStockUseCase>(),
+      listPromotions: sl<ListPromotionsUseCase>(),
+      findPromotion: sl<FindPromotionUseCase>(),
+      actOnLines: sl<ActOnLinesUseCase>(),
       addItemToCart: sl<AddItemToCartUseCase>(),
       updateCartItemQuantity: sl<UpdateCartItemQuantityUseCase>(),
       removeCartItem: sl<RemoveCartItemUseCase>(),

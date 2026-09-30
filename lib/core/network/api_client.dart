@@ -1,4 +1,6 @@
+import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio/dio.dart';
+import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'package:flutter/foundation.dart';
 
 import '../error/app_exception.dart';
@@ -28,16 +30,29 @@ abstract class ApiClient {
 class DioApiClient implements ApiClient {
   final Dio _dio;
 
-  DioApiClient({Dio? dio}) : _dio = dio ?? _buildDio();
+  DioApiClient({
+    Dio? dio,
+    CookieJar? cookieJar,
+    @visibleForTesting HttpClientAdapter? adapter,
+  }) : _dio = dio ?? _buildDio(cookieJar ?? CookieJar(), adapter);
 
-  static Dio _buildDio() {
+  // Cookies are kept and sent back like the legacy WebView does for its
+  // `withCredentials: true` requests: the Sale Engine keeps the login
+  // session in ASP.NET session state, keyed by the `ASP.NET_SessionId`
+  // cookie (legacy `interceptor.ts` even has it hard-coded, commented out).
+  // Without it every call is a new server session, and order calls answer
+  // "not found session".
+  static Dio _buildDio(CookieJar cookieJar, HttpClientAdapter? adapter) {
     final dio = Dio(
       BaseOptions(
         connectTimeout: const Duration(seconds: 60),
         receiveTimeout: const Duration(seconds: 60),
       ),
     );
-    dio.interceptors.add(AuthInterceptor());
+    dio.interceptors
+      ..add(CookieManager(cookieJar))
+      ..add(AuthInterceptor());
+    if (adapter != null) dio.httpClientAdapter = adapter;
     return dio;
   }
 

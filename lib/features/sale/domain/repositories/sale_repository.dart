@@ -2,16 +2,19 @@ import '../entities/article.dart';
 import '../entities/cart.dart';
 import '../entities/currency.dart';
 import '../entities/exchange_quote.dart';
+import '../entities/promotion.dart';
+import '../entities/sale_order_context.dart';
 
 abstract class SaleRepository {
   /// `SaleEngine/GetMasterByBarcodeDLL` (`api-contracts.md` op 47).
   Future<Article> lookupArticleByBarcode(String barcode);
 
-  /// `SaleEngine/AddItemToOrder` (op 9).
+  /// `SaleEngine/AddItemToOrder` (op 9): [itemCode] is the scanned / typed
+  /// text as-is, [rows] the selected lines' Guids (legacy `onSubmit()`).
   Future<Cart> addItemToCart({
     required String sessionKey,
-    required String articleCode,
-    required int quantity,
+    required String itemCode,
+    List<String> rows = const [],
   });
 
   /// `SaleEngine/ActionItemToOrder` with `Action: "change_qty"` (op 10).
@@ -75,6 +78,45 @@ abstract class SaleRepository {
   /// `SaleEngine/GetOrder` (op 8).
   Future<Cart> getCart({
     required String sessionKey,
+    required SaleOrderContext context,
+  });
+
+  /// `SaleEngine/GetPromotionList`: the branch's promotion master.
+  Future<List<Promotion>> listPromotions({
+    required String query,
+    required bool excludeMember,
+  });
+
+  /// `SaleEngine/GetPromotion`: null when there is no such promotion.
+  Future<Promotion?> findPromotion({
+    required String sessionKey,
+    required String code,
+    required bool excludeMember,
+  });
+
+  /// `SaleEngine/ActionListItemToOrder`: [action] with [value] on [rows].
+  Future<Cart> actOnLines({
+    required String sessionKey,
+    required List<String> rows,
+    required String action,
+    required String value,
+  });
+
+  /// `SaleEngine/SaveOrder`: saves the shopping card's order.
+  Future<Cart> saveOrder({
+    required String sessionKey,
     required String shoppingCard,
+  });
+
+  /// `SaleEngine/ReverseVirtualStock`: releases the unsaved lines' stock.
+  Future<void> reverseVirtualStock({required String sessionKey});
+
+  /// `SaleEngine/UpdateOrderStatus`: [status] is an `OrderStatus` code
+  /// (lock / unlock the shopping card's order).
+  Future<void> updateOrderStatus({
+    required String sessionKey,
+    required String shoppingCard,
+    required String orderNo,
+    required String status,
   });
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 
 import 'core/app/app.dart';
 import 'core/app/router.dart';
@@ -21,7 +22,8 @@ import 'features/settings/settings_injection.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  setupCoreServiceLocator();
+  final support = await getApplicationSupportDirectory();
+  setupCoreServiceLocator(cookieDirectory: '${support.path}/cookies/');
   setupAuthServiceLocator();
   setupCustomerServiceLocator();
   setupFlightServiceLocator();

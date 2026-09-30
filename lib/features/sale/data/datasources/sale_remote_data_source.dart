@@ -1,10 +1,16 @@
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
+
 import '../../../../core/error/app_exception.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/return_object.dart';
+import '../../domain/entities/sale_order_context.dart';
 import '../models/article_model.dart';
 import '../models/cart_model.dart';
 import '../models/currency_model.dart';
 import '../models/exchange_quote_model.dart';
+import '../models/promotion_model.dart';
 
 /// Sale Engine (`{saleEngineEndpoint}`) cart calls (`api-contracts.md`
 /// section 5b, ops 8-11 and 47).
@@ -34,25 +40,33 @@ class SaleRemoteDataSource {
     return result.unwrap();
   }
 
-  /// `Rows` semantics beyond api-contracts.md's own single-unit example
-  /// (`Rows:["1"]`) are unverified — mapped to the requested quantity as the
-  /// closest documented fit; confirm against live UAT before relying on
-  /// multi-unit adds.
+  /// Ports legacy `sale.ts`'s `onSubmit()` `OrderAddContract`: `ItemCode`
+  /// is the scanned / typed text as-is and `Rows` the Guids of the lines
+  /// selected in the cart (empty when none). `ItemGWP` is left unset there,
+  /// so it is not sent.
   Future<CartModel> addItemToOrder({
     required String saleEngineEndpoint,
     required String sessionKey,
-    required String articleCode,
-    required int quantity,
+    required String itemCode,
+    List<String> rows = const [],
   }) async {
-    final response = await _apiClient.post(
-      '$saleEngineEndpoint/SaleEngine/AddItemToOrder',
-      data: {
-        'ItemCode': articleCode,
-        'ItemGWP': '',
-        'SessionKey': sessionKey,
-        'Rows': [quantity.toString()],
-      },
-    );
+    final url = '$saleEngineEndpoint/SaleEngine/AddItemToOrder';
+    final data = {'SessionKey': sessionKey, 'ItemCode': itemCode, 'Rows': rows};
+    if (kDebugMode) {
+      debugPrint(
+        '[SaleRemoteDataSource.addItemToOrder] POST $url\n'
+        '  request: ${jsonEncode(data)}',
+      );
+    }
+    final response = await _apiClient.post(url, data: data);
+    if (kDebugMode) {
+      debugPrint(
+        '[SaleRemoteDataSource.addItemToOrder] '
+        'isCompleted=${response['isCompleted']} '
+        'Message=${jsonEncode(response['Message'])}\n'
+        '  response: ${jsonEncode(response)}',
+      );
+    }
     return _firstOrder(response);
   }
 
@@ -91,22 +105,192 @@ class SaleRemoteDataSource {
     return _firstOrder(response);
   }
 
+  /// Ports legacy `sale.ts`'s `getOrder()` (run on every Sale page enter):
+  /// opens [context]'s shopping-card order in the session, which
+  /// `AddItemToOrder` and the other order calls then work against.
   Future<CartModel> getOrder({
     required String saleEngineEndpoint,
     required String sessionKey,
-    required String shoppingCard,
+    required SaleOrderContext context,
   }) async {
+    Map<String, dynamic> attribute(String group, String code, String value) => {
+      'Group': group,
+      'Code': code,
+      'ValueOfString': value,
+    };
+    final tier = context.tier;
     final response = await _apiClient.post(
       '$saleEngineEndpoint/SaleEngine/GetOrder',
       data: {
         'SessionKey': sessionKey,
         'Attributes': [
+          attribute('tran_no', 'shopping_card', context.shoppingCard),
+          if (context.isMember) ...[
+            attribute('member', 'member_id', context.memberId),
+            attribute('member', 'tier', tier == null ? '' : jsonEncode(tier)),
+            attribute('member', 'WALLETS', jsonEncode(context.walletMembers)),
+          ],
+          if (context.cardGroupCode.isNotEmpty)
+            attribute('member', 'cardgroupcode', context.cardGroupCode),
+          if (context.cardTypeCode.isNotEmpty)
+            attribute('member', 'cardtypecode', context.cardTypeCode),
+        ],
+      },
+    );
+    return _firstOrder(response);
+  }
+
+  /// Ports legacy `sale.ts`'s `updateOrderStatus()` /
+  /// `onlyUnlockShoppingCard()`: `UpdateOrderStatusModel` posted to
+  /// `SaleEngine/UpdateOrderStatus`. Only `isCompleted` matters there; a
+  /// failure throws with the server's first message.
+  Future<void> updateOrderStatus({
+    required String saleEngineEndpoint,
+    required String branchNo,
+    required String sessionKey,
+    required String shoppingCard,
+    required String orderNo,
+    required String status,
+  }) async {
+    final response = await _apiClient.post(
+      '$saleEngineEndpoint/SaleEngine/UpdateOrderStatus',
+      data: {
+        'branchNo': branchNo,
+        'shoppingCard': shoppingCard,
+        'orderStatus': status,
+        'SessionKey': sessionKey,
+        'orderNo': orderNo,
+      },
+    );
+    final result = ReturnObject<Object?>.fromJson(response, (data) => data);
+    if (result.isCompleted) return;
+    final message = result.messages.isEmpty ? null : result.messages.first;
+    throw ApiException(
+      messageDesc: message?.messageDesc ?? 'The order status was not updated.',
+      messageCode: message?.messageCode,
+    );
+  }
+
+  /// Ports legacy `sale.ts`'s `doSaveOrder()`: `SaleEngine/SaveOrder`
+  /// with the same `tran_no` / `shopping_card` attribute `GetOrder` takes.
+  Future<CartModel> saveOrder({
+    required String saleEngineEndpoint,
+    required String sessionKey,
+    required String shoppingCard,
+  }) async {
+    final response = await _apiClient.post(
+      '$saleEngineEndpoint/SaleEngine/SaveOrder',
+      data: {
+        'SessionKey': sessionKey,
+        'Attributes': [
           {
-            'Group': 'BASKET',
-            'Code': 'shoppingCard',
+            'Group': 'tran_no',
+            'Code': 'shopping_card',
             'ValueOfString': shoppingCard,
           },
         ],
+      },
+    );
+    return _firstOrder(response);
+  }
+
+  /// Ports legacy `sale.ts`'s `reverseVirtualStock()`: releases the stock
+  /// the unsaved lines reserved. Fails (with the first message) as legacy
+  /// alerts: not completed or no `Data`, and a message sent.
+  Future<void> reverseVirtualStock({
+    required String saleEngineEndpoint,
+    required String sessionKey,
+  }) async {
+    final response = await _apiClient.post(
+      '$saleEngineEndpoint/SaleEngine/ReverseVirtualStock',
+      data: {'SessionKey': sessionKey},
+    );
+    final result = ReturnObject<Object?>.fromJson(response, (data) => data);
+    if ((result.isCompleted && result.data == true) ||
+        result.messages.isEmpty) {
+      return;
+    }
+    throw ApiException(
+      messageDesc: result.messages.first.messageDesc,
+      messageCode: result.messages.first.messageCode,
+    );
+  }
+
+  /// Legacy `PromotionPickerPage.setItems()`: the promotion master for the
+  /// branch, filtered by [query] (code). No session key, as in legacy.
+  Future<List<PromotionModel>> getPromotionList({
+    required String saleEngineEndpoint,
+    required String branchNo,
+    required String subBranchCode,
+    required String query,
+    required bool excludeMember,
+  }) async {
+    final response = await _apiClient.post(
+      '$saleEngineEndpoint/SaleEngine/GetPromotionList',
+      data: {
+        'branch_no': branchNo,
+        'subbranch_code': subBranchCode,
+        'promo_code': query,
+        'excludeMember': excludeMember,
+      },
+    );
+    final result = ReturnObject<List<PromotionModel>>.fromJson(
+      response,
+      (data) => (data as List<dynamic>)
+          .whereType<Map<String, dynamic>>()
+          .map(PromotionModel.fromJson)
+          .toList(growable: false),
+    );
+    // Legacy shows an empty list when not completed.
+    return result.isCompleted ? result.data ?? const [] : const [];
+  }
+
+  /// Legacy `DiscountPage.getPromotion()`: one promotion by code; null when
+  /// the call completes without one ("not found"), a failure throws the
+  /// server's message.
+  Future<PromotionModel?> getPromotion({
+    required String saleEngineEndpoint,
+    required String sessionKey,
+    required String branchNo,
+    required String subBranchCode,
+    required String code,
+    required bool excludeMember,
+  }) async {
+    final response = await _apiClient.post(
+      '$saleEngineEndpoint/SaleEngine/GetPromotion',
+      data: {
+        'session_key': sessionKey,
+        'branch_no': branchNo,
+        'subbranch_code': subBranchCode,
+        'promo_code': code,
+        'excludeMember': excludeMember,
+      },
+    );
+    final result = ReturnObject<PromotionModel>.fromJson(
+      response,
+      (data) => PromotionModel.fromJson(data as Map<String, dynamic>),
+    );
+    if (result.isCompleted) return result.data;
+    return result.unwrap();
+  }
+
+  /// `SaleEngine/ActionListItemToOrder` with one action on [rows] — the
+  /// Discount page's `add_item_discount`, `update_item_discount`,
+  /// `clear_item_discount`, `clear_discount_all` and
+  /// `add_item_discount_by_qrcode`.
+  Future<CartModel> actionListItemToOrder({
+    required String saleEngineEndpoint,
+    required String sessionKey,
+    required List<String> rows,
+    required String action,
+    required String value,
+  }) async {
+    final response = await _apiClient.post(
+      '$saleEngineEndpoint/SaleEngine/ActionListItemToOrder',
+      data: {
+        'ActionItemValue': {'Action': action, 'Value': value},
+        'Rows': rows,
+        'SessionKey': sessionKey,
       },
     );
     return _firstOrder(response);

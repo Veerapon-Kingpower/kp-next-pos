@@ -21,6 +21,9 @@ class ScanField extends StatelessWidget {
   final bool autofocus;
   final bool enabled;
   final bool onDark;
+  // When set, a trailing search button (with this id) submits the typed
+  // text, for a code keyed in by hand rather than scanned.
+  final String? searchButtonId;
 
   const ScanField({
     super.key,
@@ -32,6 +35,7 @@ class ScanField extends StatelessWidget {
     this.autofocus = false,
     this.enabled = true,
     this.onDark = false,
+    this.searchButtonId,
   });
 
   @override
@@ -97,6 +101,18 @@ class ScanField extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (searchButtonId != null)
+                  TestId(
+                    searchButtonId!,
+                    child: IconButton(
+                      tooltip: 'Search',
+                      visualDensity: VisualDensity.compact,
+                      icon: Icon(Icons.search, color: foreground),
+                      onPressed: enabled
+                          ? () => onSubmitted(controller.text)
+                          : null,
+                    ),
+                  ),
               ],
             ),
           ),

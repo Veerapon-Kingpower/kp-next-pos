@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/config/device_settings.dart';
 import 'package:kp_pos/core/error/app_exception.dart';
+import 'package:kp_pos/features/sale/domain/entities/sale_order_context.dart';
 import 'package:kp_pos/features/sale/data/datasources/sale_remote_data_source.dart';
 import 'package:kp_pos/features/sale/data/repositories/sale_repository_impl.dart';
 import 'package:kp_pos/features/sale/domain/entities/article.dart';
@@ -51,9 +52,7 @@ void main() {
       final apiClient = FakeApiClient(response: articleResponse);
       final built = buildRepo(apiClient, deviceSettings);
 
-      final result = await built.repo.lookupArticleByBarcode(
-        '8850012345678',
-      );
+      final result = await built.repo.lookupArticleByBarcode('8850012345678');
 
       expect(
         apiClient.lastUrl,
@@ -66,27 +65,22 @@ void main() {
     },
   );
 
-  test(
-    'lookupArticleByBarcode caches a successful network result',
-    () async {
-      final apiClient = FakeApiClient(response: articleResponse);
-      final built = buildRepo(apiClient, deviceSettings);
+  test('lookupArticleByBarcode caches a successful network result', () async {
+    final apiClient = FakeApiClient(response: articleResponse);
+    final built = buildRepo(apiClient, deviceSettings);
 
-      await built.repo.lookupArticleByBarcode('8850012345678');
+    await built.repo.lookupArticleByBarcode('8850012345678');
 
-      final cached = built.local.getByBarcode('8850012345678');
-      expect(cached, isNotNull);
-      expect(cached!.articleCode, 'ART001');
-    },
-  );
+    final cached = built.local.getByBarcode('8850012345678');
+    expect(cached, isNotNull);
+    expect(cached!.articleCode, 'ART001');
+  });
 
   test(
     'lookupArticleByBarcode falls back to the cache when the network is unreachable',
     () async {
       final apiClient = FakeApiClient(
-        errorToThrow: const ApiException(
-          messageDesc: 'No network connection.',
-        ),
+        errorToThrow: const ApiException(messageDesc: 'No network connection.'),
       );
       final built = buildRepo(apiClient, deviceSettings);
       built.local.upsert(
@@ -102,9 +96,7 @@ void main() {
         ),
       );
 
-      final result = await built.repo.lookupArticleByBarcode(
-        '8850012345678',
-      );
+      final result = await built.repo.lookupArticleByBarcode('8850012345678');
 
       expect(result.articleCode, 'ART001');
       expect(result.isFromCache, isTrue);
@@ -115,9 +107,7 @@ void main() {
     'lookupArticleByBarcode still fails when the network is unreachable and nothing is cached',
     () async {
       final apiClient = FakeApiClient(
-        errorToThrow: const ApiException(
-          messageDesc: 'No network connection.',
-        ),
+        errorToThrow: const ApiException(messageDesc: 'No network connection.'),
       );
       final built = buildRepo(apiClient, deviceSettings);
 
@@ -192,9 +182,7 @@ void main() {
         ),
       );
 
-      final result = await built.repo.lookupArticleByBarcode(
-        '8850012345678',
-      );
+      final result = await built.repo.lookupArticleByBarcode('8850012345678');
 
       expect(apiClient.lastUrl, isNull);
       expect(result.articleCode, 'ART001');
@@ -235,8 +223,7 @@ void main() {
 
       await built.repo.addItemToCart(
         sessionKey: 'abc123',
-        articleCode: 'ART001',
-        quantity: 3,
+        itemCode: '8850012345678',
       );
 
       expect(
@@ -244,10 +231,9 @@ void main() {
         'https://sale-engine/SaleEngine/AddItemToOrder',
       );
       expect(apiClient.lastData, {
-        'ItemCode': 'ART001',
-        'ItemGWP': '',
         'SessionKey': 'abc123',
-        'Rows': ['3'],
+        'ItemCode': '8850012345678',
+        'Rows': <String>[],
       });
     },
   );
@@ -268,7 +254,7 @@ void main() {
 
       final result = await built.repo.getCart(
         sessionKey: 'abc123',
-        shoppingCard: 'CPX0001',
+        context: const SaleOrderContext(shoppingCard: 'CPX0001'),
       );
 
       expect(apiClient.lastUrl, 'https://sale-engine/SaleEngine/GetOrder');

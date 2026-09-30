@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kp_pos/core/error/app_exception.dart';
 import 'package:kp_pos/core/presentation/test_ids.dart';
 import 'package:kp_pos/core/theme/app_colors.dart';
 import 'package:kp_pos/features/customer/domain/entities/privilege.dart';
@@ -19,6 +20,7 @@ void main() {
     WidgetTester tester, {
     Cart? cart = sampleCart,
     Cart cartAfterMutation = sampleCart,
+    Object? mutationError,
     Size size = compactSize,
     SaleOrderType orderType = SaleOrderType.normal,
     bool isAirportMpos = false,
@@ -26,7 +28,10 @@ void main() {
     VoidCallback? onCustomer,
   }) async {
     setDeviceSize(tester, size);
-    sale = FakeSaleRepository(cartResult: cartAfterMutation);
+    sale = FakeSaleRepository(
+      cartResult: cartAfterMutation,
+      mutationError: mutationError,
+    );
     final viewModel = buildSaleViewModel(sale, cart: cart);
     await tester.pumpWidget(
       MaterialApp(
@@ -114,23 +119,42 @@ void main() {
       await tester.testTextInput.receiveAction(TextInputAction.search);
       await tester.pumpAndSettle();
 
-      expect(sale.lastLookupBarcode, '8850012345678');
-      expect(sale.lastAddedQuantity, 2);
+      expect(sale.lastAddedItemCode, '2*8850012345678');
+      expect(sale.lastAddedRows, isEmpty);
       expect(byTestId(SaleIds.line('1')), findsOneWidget);
     });
 
-    testWidgets('a malformed scan shows the error and keeps the text', (
+    testWidgets('the search button submits the typed code', (tester) async {
+      await pump(tester, cart: null);
+      await tester.enterText(
+        find.descendant(
+          of: byTestId(SaleIds.scanField),
+          matching: find.byType(TextField),
+        ),
+        '8850012345678',
+      );
+      await tester.tap(byTestId(SaleIds.searchButton));
+      await tester.pumpAndSettle();
+      expect(sale.lastAddedItemCode, '8850012345678');
+      expect(byTestId(SaleIds.line('1')), findsOneWidget);
+    });
+
+    testWidgets('a rejected scan shows the error and keeps the text', (
       tester,
     ) async {
-      await pump(tester);
+      await pump(
+        tester,
+        mutationError: const ApiException(messageDesc: 'Item not found'),
+      );
       final field = find.descendant(
         of: byTestId(SaleIds.scanField),
         matching: find.byType(TextField),
       );
-      await tester.enterText(field, '');
+      await tester.enterText(field, '8850000000000');
       await tester.testTextInput.receiveAction(TextInputAction.search);
       await tester.pumpAndSettle();
       expect(byTestId(SaleIds.scanError), findsOneWidget);
+      expect(tester.widget<TextField>(field).controller!.text, '8850000000000');
     });
   });
 
@@ -284,6 +308,24 @@ void main() {
       await tester.tap(byTestId(SaleIds.discountButton));
       await tester.pumpAndSettle();
       expect(find.text('Discount · line 2'), findsOneWidget);
+    });
+
+    testWidgets('the number badge selects lines; Discount opens for them', (
+      tester,
+    ) async {
+      await pump(tester);
+      await tester.tap(byTestId(SaleIds.lineSelect('1')));
+      await tester.pump();
+      expect(
+        tester.getSemantics(byTestId(SaleIds.lineSelect('1'))),
+        isSemantics(isButton: true, isSelected: true),
+      );
+      await tester.tap(byTestId(SaleIds.lineSelect('2')));
+      await tester.pump();
+
+      await tester.tap(byTestId(SaleIds.discountButton));
+      await tester.pumpAndSettle();
+      expect(find.text('Discount · 2 lines'), findsOneWidget);
     });
 
     testWidgets('Discount is disabled on an empty bill', (tester) async {

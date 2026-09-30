@@ -10,6 +10,7 @@ class CartModel extends Cart {
     super.payments,
     super.remaining,
     super.change,
+    super.orderNo,
   });
 
   factory CartModel.fromJson(Map<String, dynamic> json) {
@@ -37,7 +38,25 @@ class CartModel extends Cart {
           ? _num(remaining['CurrAmt'])
           : null,
       change: _num(_map(json['ChangeAmount'])['BaseCurrAmt']),
+      orderNo: _orderNo(json['HeaderAttributes']),
     );
+  }
+
+  // Legacy: `HeaderAttributes.find(x => x.Code == "order_no")
+  // .ValueOfDecimal.toString()` — a whole number, sent without a decimal
+  // point.
+  static String _orderNo(Object? headerAttributes) {
+    if (headerAttributes is! List) return '';
+    for (final attribute
+        in headerAttributes.whereType<Map<String, dynamic>>()) {
+      if (attribute['Code'] != 'order_no') continue;
+      final value = attribute['ValueOfDecimal'];
+      if (value is! num) return '';
+      return value == value.truncate()
+          ? value.toInt().toString()
+          : value.toString();
+    }
+    return '';
   }
 
   // Field names from legacy `OrderClass.ts` (`BillingAmount`,

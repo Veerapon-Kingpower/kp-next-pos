@@ -176,7 +176,14 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
         customerTypeDesc: '',
       );
     }
-    if (person.flightCode.isNotEmpty) {
+    // Ports `setFormCustomerData()`: a saved take-away comes back as flight
+    // `OP000` / airline `OP` and re-checks Allow take-away (never on
+    // airport mPOS) instead of showing that placeholder flight.
+    if (person.flightCode == 'OP000' &&
+        person.airlineCode == 'OP' &&
+        !widget.isAirportMpos) {
+      _allowTakeAway = true;
+    } else if (person.flightCode.isNotEmpty) {
       _flight = Flight(
         flightCode: person.flightCode,
         flightDescription: '',
@@ -614,7 +621,8 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
       widget.onSaved?.call(shoppingCard);
       return;
     }
-    Navigator.of(context).pop();
+    // The saved card goes back to whoever pushed the form (Home).
+    Navigator.of(context).pop(shoppingCard);
   }
 
   @override
@@ -1367,10 +1375,13 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
     onChanged: (_) => setState(() {}),
   );
 
-  Widget _takeAwaySwitch() => SwitchListTile(
-    contentPadding: EdgeInsets.zero,
-    title: const Text('Allow take-away'),
-    value: _allowTakeAway,
-    onChanged: (value) => setState(() => _allowTakeAway = value),
+  Widget _takeAwaySwitch() => TestId(
+    RegisterIds.takeAwaySwitch,
+    child: SwitchListTile(
+      contentPadding: EdgeInsets.zero,
+      title: const Text('Allow take-away'),
+      value: _allowTakeAway,
+      onChanged: (value) => setState(() => _allowTakeAway = value),
+    ),
   );
 }

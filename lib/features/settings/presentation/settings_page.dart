@@ -11,9 +11,7 @@ import '../../../core/config/device_settings.dart';
 import '../../../core/presentation/desktop/desktop.dart';
 import '../../../core/presentation/handheld/handheld.dart';
 import '../../../core/presentation/test_ids.dart';
-import '../../../core/presentation/widgets/app_buttons.dart';
 import '../../../core/presentation/widgets/app_shell.dart';
-import '../../../core/presentation/widgets/app_text_field.dart';
 import '../../../core/presentation/widgets/loading_view.dart';
 import '../../../core/presentation/widgets/retryable_error_view.dart';
 import '../../../core/presentation/widgets/test_id.dart';
@@ -243,10 +241,6 @@ class _SettingsPageState extends State<SettingsPage> {
     await widget.viewModel.save(updated);
   }
 
-  String? _required(String? value) {
-    return (value == null || value.isEmpty) ? 'Required' : null;
-  }
-
   @override
   Widget build(BuildContext context) {
     return GetBuilder<SettingsViewModel>(
@@ -285,7 +279,7 @@ class _SettingsPageState extends State<SettingsPage> {
   /// Desktop layout (POS Desktop mockup screen 11): Terminal identity +
   /// Peripherals, Service endpoints and Device panels side by side, with
   /// Save / Cancel in the top bar. Same fields, validation and save as the
-  /// handheld layout.
+  /// handheld layout; short fields pair up two to a row.
   ///
   /// Like handheld, the mockup's supervisor lock is not applied (this page
   /// is also first-run setup and card verification has no API), and live
@@ -300,75 +294,25 @@ class _SettingsPageState extends State<SettingsPage> {
     final canPop = Navigator.of(context).canPop();
     final module = _moduleKey.text.isEmpty ? '—' : _moduleKey.text;
 
-    Widget fields(List<Widget> children) => Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (var i = 0; i < children.length; i++) ...[
-          if (i > 0) const SizedBox(height: AppSpacing.sm),
-          children[i],
-        ],
-      ],
-    );
-
     final terminal = DesktopPanel(
       id: DesktopIds.settingsTerminalPanel,
       title: 'Terminal identity',
-      child: fields([
-        _moduleField(),
-        _validatedField(_branch, 'Branch number'),
+      child: _fields([
+        _pair(_moduleField(), _branchField()),
         _subBranchField(),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Airport MPOS device'),
-          value: _isAirportMpos,
-          onChanged: (value) => setState(() => _isAirportMpos = value),
-        ),
-        const Text('SALE MODE', style: DesktopText.fieldLabel),
-        Row(
-          children: [
-            Expanded(
-              child: _SaleModeOption(
-                id: SettingsIds.sellOnline,
-                icon: Icons.wifi,
-                label: 'Sell online',
-                selected: !_forceOfflineMode,
-                onTap: () => setState(() => _forceOfflineMode = false),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.xs),
-            Expanded(
-              child: _SaleModeOption(
-                id: SettingsIds.sellOffline,
-                icon: Icons.cloud_off_outlined,
-                label: 'Sell offline',
-                selected: _forceOfflineMode,
-                onTap: () => setState(() => _forceOfflineMode = true),
-              ),
-            ),
-          ],
-        ),
-        Text(
-          _forceOfflineMode
-              ? 'Selling offline prices items from the local article cache '
-                    'and skips server lookups. Switch back once the RC '
-                    'server is reachable.'
-              : 'Live price and stock from the sale engine.',
-          style: const TextStyle(fontSize: 12.5, color: AppColors.mutedText),
-        ),
+        _airportSwitch(),
+        _saleMode(),
       ]),
     );
 
     final peripherals = DesktopPanel(
       id: DesktopIds.settingsPeripheralsPanel,
       title: 'Peripherals',
-      child: fields([
-        AppTextField(controller: _printerName, label: 'Printer name'),
-        AppTextField(controller: _edcPort, label: 'EDC port'),
-        const Text(
+      child: _fields([
+        _pair(_printerField(), _edcField()),
+        _note(
           'Live device status (ready / paired / offline) is not available '
           'yet.',
-          style: TextStyle(fontSize: 12.5, color: AppColors.mutedText),
         ),
       ]),
     );
@@ -376,35 +320,18 @@ class _SettingsPageState extends State<SettingsPage> {
     final endpoints = DesktopPanel(
       id: DesktopIds.settingsEndpointsPanel,
       title: 'Service endpoints',
-      child: fields([
-        _validatedField(_saleEngineEndpoint, 'Sale Engine endpoint'),
-        _validatedField(
-          _webServiceEndpoint,
-          'Register endpoint',
-          focusNode: _webServiceEndpointFocus,
-        ),
-        _validatedField(_flightApi, 'Flight API endpoint'),
-        AppTextField(controller: _cashCardApi, label: 'Cash Card API endpoint'),
-        AppTextField(controller: _updateEndpoint, label: 'App update endpoint'),
-      ]),
+      child: _fields(_endpointFields()),
     );
 
     final device = DesktopPanel(
       id: DesktopIds.settingsDevicePanel,
       title: 'Device',
-      child: fields([
+      child: _fields([
         _uuidRow(),
         ?_uuidQrCode(context),
-        AppTextField(controller: _location, label: 'Location'),
-        AppTextField(
-          controller: _machine,
-          label: 'Machine number',
-          keyboardType: TextInputType.number,
-        ),
-        AppTextField(controller: _company, label: 'Company'),
-        AppTextField(controller: _serial, label: 'Serial'),
-        AppTextField(controller: _macAddress, label: 'MAC address'),
-        AppTextField(controller: _ipAddress, label: 'IP address'),
+        _pair(_machineField(), _locationField()),
+        _pair(_companyField(), _serialField()),
+        _pair(_macField(), _ipField()),
       ]),
     );
 
@@ -434,10 +361,7 @@ class _SettingsPageState extends State<SettingsPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (viewModel.saveStatus == SettingsSaveStatus.failure) ...[
-                Text(
-                  viewModel.errorMessage ?? 'Could not save.',
-                  style: const TextStyle(color: AppColors.danger),
-                ),
+                _saveError(viewModel),
                 const SizedBox(height: AppSpacing.md),
               ],
               LayoutBuilder(
@@ -498,18 +422,17 @@ class _SettingsPageState extends State<SettingsPage> {
     final canPop = Navigator.of(context).canPop();
     final module = _moduleKey.text.isEmpty ? '—' : _moduleKey.text;
 
-    Widget fields(List<Widget> children) => Padding(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (var i = 0; i < children.length; i++) ...[
-            if (i > 0) const SizedBox(height: AppSpacing.sm),
-            children[i],
+    Widget section(String id, String title, List<Widget> children) =>
+        HandheldSection(
+          id: id,
+          title: title,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: _fields(children),
+            ),
           ],
-        ],
-      ),
-    );
+        );
 
     return HandheldScaffold(
       header: HandheldHeader(
@@ -531,126 +454,38 @@ class _SettingsPageState extends State<SettingsPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              HandheldSection(
-                id: SettingsIds.terminalSection,
-                title: 'Terminal',
-                children: [
-                  fields([
-                    _moduleField(),
-                    _validatedField(_branch, 'Branch number'),
-                    _subBranchField(),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Airport MPOS device'),
-                      value: _isAirportMpos,
-                      onChanged: (value) =>
-                          setState(() => _isAirportMpos = value),
-                    ),
-                  ]),
-                ],
+              section(SettingsIds.terminalSection, 'Terminal', [
+                _moduleField(),
+                _branchField(),
+                _subBranchField(),
+                _airportSwitch(),
+              ]),
+              const SizedBox(height: AppSpacing.md),
+              section(SettingsIds.saleModeSection, 'Sale mode', [
+                _saleMode(label: false),
+              ]),
+              const SizedBox(height: AppSpacing.md),
+              section(
+                SettingsIds.endpointsSection,
+                'Endpoints',
+                _endpointFields(),
               ),
               const SizedBox(height: AppSpacing.md),
-              HandheldSection(
-                id: SettingsIds.saleModeSection,
-                title: 'Sale mode',
-                children: [
-                  fields([
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _SaleModeOption(
-                            id: SettingsIds.sellOnline,
-                            icon: Icons.wifi,
-                            label: 'Sell online',
-                            selected: !_forceOfflineMode,
-                            onTap: () =>
-                                setState(() => _forceOfflineMode = false),
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.xs),
-                        Expanded(
-                          child: _SaleModeOption(
-                            id: SettingsIds.sellOffline,
-                            icon: Icons.cloud_off_outlined,
-                            label: 'Sell offline',
-                            selected: _forceOfflineMode,
-                            onTap: () =>
-                                setState(() => _forceOfflineMode = true),
-                          ),
-                        ),
-                      ],
-                    ),
-                    Text(
-                      _forceOfflineMode
-                          ? 'Selling offline: prices from the local cache '
-                                'and no server lookups. Switch back once the '
-                                'network or backend is restored.'
-                          : 'Selling online: articles and prices come from '
-                                'the sale engine.',
-                      style: HandheldText.bodySmall,
-                    ),
-                  ]),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.md),
-              HandheldSection(
-                id: SettingsIds.endpointsSection,
-                title: 'Endpoints',
-                children: [
-                  fields([
-                    _validatedField(
-                      _saleEngineEndpoint,
-                      'Sale Engine endpoint',
-                    ),
-                    _validatedField(
-                      _webServiceEndpoint,
-                      'Register endpoint',
-                      focusNode: _webServiceEndpointFocus,
-                    ),
-                    _validatedField(_flightApi, 'Flight API endpoint'),
-                    AppTextField(
-                      controller: _cashCardApi,
-                      label: 'Cash Card API endpoint',
-                    ),
-                    AppTextField(
-                      controller: _updateEndpoint,
-                      label: 'App update endpoint',
-                    ),
-                  ]),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.md),
-              HandheldSection(
-                id: SettingsIds.deviceSection,
-                title: 'Device',
-                children: [
-                  fields([
-                    AppTextField(controller: _location, label: 'Location'),
-                    AppTextField(
-                      controller: _machine,
-                      label: 'Machine number',
-                      keyboardType: TextInputType.number,
-                    ),
-                    AppTextField(controller: _company, label: 'Company'),
-                    AppTextField(controller: _serial, label: 'Serial'),
-                    AppTextField(controller: _macAddress, label: 'MAC address'),
-                    AppTextField(controller: _ipAddress, label: 'IP address'),
-                    AppTextField(
-                      controller: _printerName,
-                      label: 'Printer name',
-                    ),
-                    AppTextField(controller: _edcPort, label: 'EDC port'),
-                    _uuidRow(),
-                    ?_uuidQrCode(context),
-                  ]),
-                ],
-              ),
+              section(SettingsIds.deviceSection, 'Device', [
+                _machineField(),
+                _locationField(),
+                _companyField(),
+                _serialField(),
+                _macField(),
+                _ipField(),
+                _printerField(),
+                _edcField(),
+                _uuidRow(),
+                ?_uuidQrCode(context),
+              ]),
               if (viewModel.saveStatus == SettingsSaveStatus.failure) ...[
                 const SizedBox(height: AppSpacing.md),
-                Text(
-                  viewModel.errorMessage ?? 'Could not save.',
-                  style: const TextStyle(color: AppColors.danger),
-                ),
+                _saveError(viewModel),
               ],
             ],
           ),
@@ -674,19 +509,275 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  // ── Form building blocks, shared by both layouts ──────────────────────
+
+  Widget _fields(List<Widget> children) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      for (var i = 0; i < children.length; i++) ...[
+        if (i > 0) const SizedBox(height: 14),
+        children[i],
+      ],
+    ],
+  );
+
+  /// Two short fields side by side (desktop panels only — on a phone the
+  /// labels would wrap and the boxes stop lining up).
+  Widget _pair(Widget a, Widget b) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Expanded(child: a),
+      const SizedBox(width: 12),
+      Expanded(child: b),
+    ],
+  );
+
+  Widget _note(String text) => Text(
+    text,
+    style: const TextStyle(fontSize: 12.5, color: AppColors.mutedText),
+  );
+
+  Widget _saveError(SettingsViewModel viewModel) => Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: AppColors.danger.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(9),
+      border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
+    ),
+    child: Row(
+      children: [
+        const Icon(Icons.error_outline, size: 18, color: AppColors.danger),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            viewModel.errorMessage ?? 'Could not save.',
+            style: const TextStyle(color: AppColors.danger),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _branchField() => _SettingsInput(
+    id: SettingsIds.branchField,
+    label: 'Branch number',
+    controller: _branch,
+    required: true,
+  );
+
+  Widget _printerField() => _SettingsInput(
+    id: SettingsIds.printerField,
+    label: 'Printer name',
+    controller: _printerName,
+  );
+
+  Widget _edcField() => _SettingsInput(
+    id: SettingsIds.edcPortField,
+    label: 'EDC port',
+    controller: _edcPort,
+  );
+
+  Widget _machineField() => _SettingsInput(
+    id: SettingsIds.machineField,
+    label: 'Machine number',
+    controller: _machine,
+    keyboardType: TextInputType.number,
+  );
+
+  Widget _locationField() => _SettingsInput(
+    id: SettingsIds.locationField,
+    label: 'Location',
+    controller: _location,
+  );
+
+  Widget _companyField() => _SettingsInput(
+    id: SettingsIds.companyField,
+    label: 'Company',
+    controller: _company,
+  );
+
+  Widget _serialField() => _SettingsInput(
+    id: SettingsIds.serialField,
+    label: 'Serial',
+    controller: _serial,
+  );
+
+  Widget _macField() => _SettingsInput(
+    id: SettingsIds.macAddressField,
+    label: 'MAC address',
+    controller: _macAddress,
+  );
+
+  Widget _ipField() => _SettingsInput(
+    id: SettingsIds.ipAddressField,
+    label: 'IP address',
+    controller: _ipAddress,
+  );
+
+  List<Widget> _endpointFields() => [
+    _SettingsInput(
+      id: SettingsIds.saleEngineField,
+      label: 'Sale Engine endpoint',
+      controller: _saleEngineEndpoint,
+      required: true,
+      hint: 'https://',
+      keyboardType: TextInputType.url,
+    ),
+    _SettingsInput(
+      id: SettingsIds.registerField,
+      label: 'Register endpoint',
+      controller: _webServiceEndpoint,
+      focusNode: _webServiceEndpointFocus,
+      required: true,
+      hint: 'https://',
+      keyboardType: TextInputType.url,
+    ),
+    _SettingsInput(
+      id: SettingsIds.flightApiField,
+      label: 'Flight API endpoint',
+      controller: _flightApi,
+      required: true,
+      hint: 'https://',
+      keyboardType: TextInputType.url,
+    ),
+    _SettingsInput(
+      id: SettingsIds.cashCardApiField,
+      label: 'Cash Card API endpoint',
+      controller: _cashCardApi,
+      hint: 'https://',
+      keyboardType: TextInputType.url,
+    ),
+    _SettingsInput(
+      id: SettingsIds.updateEndpointField,
+      label: 'App update endpoint',
+      controller: _updateEndpoint,
+      hint: 'https://',
+      keyboardType: TextInputType.url,
+    ),
+  ];
+
+  Widget _airportSwitch() {
+    return TestId(
+      SettingsIds.airportMposSwitch,
+      child: Material(
+        color: _isAirportMpos ? AppColors.cream : AppColors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(9),
+          side: BorderSide(
+            color: _isAirportMpos ? AppColors.goldMuted : _fieldBorder,
+          ),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(9),
+          onTap: () => setState(() => _isAirportMpos = !_isAirportMpos),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.flight_takeoff,
+                  size: 18,
+                  color: _isAirportMpos
+                      ? AppColors.goldDark
+                      : AppColors.mutedText,
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Airport MPOS device',
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                Switch(
+                  value: _isAirportMpos,
+                  activeTrackColor: AppColors.goldDark,
+                  onChanged: (value) => setState(() => _isAirportMpos = value),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _saleMode({bool label = true}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (label) ...[
+          const _FieldLabel('Sale mode'),
+          const SizedBox(height: 6),
+        ],
+        Row(
+          children: [
+            Expanded(
+              child: _SaleModeOption(
+                id: SettingsIds.sellOnline,
+                icon: Icons.wifi,
+                label: 'Sell online',
+                selected: !_forceOfflineMode,
+                onTap: () => setState(() => _forceOfflineMode = false),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.xs),
+            Expanded(
+              child: _SaleModeOption(
+                id: SettingsIds.sellOffline,
+                icon: Icons.cloud_off_outlined,
+                label: 'Sell offline',
+                selected: _forceOfflineMode,
+                onTap: () => setState(() => _forceOfflineMode = true),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _note(
+          _forceOfflineMode
+              ? 'Selling offline: prices from the local cache and no server '
+                    'lookups. Switch back once the network or backend is '
+                    'restored.'
+              : 'Selling online: articles and prices come from the sale '
+                    'engine.',
+        ),
+      ],
+    );
+  }
+
   Widget _uuidRow() {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         Expanded(
-          child: AppTextField(controller: _uuid, label: 'Device UUID'),
+          child: _SettingsInput(
+            id: SettingsIds.uuidField,
+            label: 'Device UUID',
+            controller: _uuid,
+          ),
         ),
-        const SizedBox(width: AppSpacing.sm),
-        SizedBox(
-          width: 120,
-          child: AppSecondaryButton(
-            label: 'Generate',
-            onPressed: _generateUuid,
+        const SizedBox(width: 8),
+        TestId(
+          SettingsIds.generateUuidButton,
+          child: SizedBox(
+            height: _SettingsInput.height,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.goldDark,
+                side: const BorderSide(color: AppColors.goldMuted),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(9),
+                ),
+              ),
+              icon: const Icon(Icons.autorenew, size: 16),
+              label: const Text('Generate'),
+              onPressed: _generateUuid,
+            ),
           ),
         ),
       ],
@@ -696,33 +787,25 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget? _uuidQrCode(BuildContext context) {
     if (!_showUuidQrCode || _uuid.text.isEmpty) return null;
     return Center(
-      child: Column(
-        children: [
-          QrImageView(
-            data: _uuid.text,
-            size: 160,
-            backgroundColor: Colors.white,
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(_uuid.text, style: Theme.of(context).textTheme.bodySmall),
-        ],
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: _fieldBorder),
+        ),
+        child: Column(
+          children: [
+            QrImageView(
+              data: _uuid.text,
+              size: 160,
+              backgroundColor: Colors.white,
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(_uuid.text, style: Theme.of(context).textTheme.bodySmall),
+          ],
+        ),
       ),
-    );
-  }
-
-  Widget _validatedField(
-    TextEditingController controller,
-    String label, {
-    FocusNode? focusNode,
-  }) {
-    return TextFormField(
-      controller: controller,
-      focusNode: focusNode,
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
-      ),
-      validator: _required,
     );
   }
 
@@ -731,15 +814,11 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget _moduleField() {
     final currentCode = _moduleKey.text;
     final hasMatch = _moduleCodes.contains(currentCode);
-    return DropdownButtonFormField<String>(
-      initialValue: hasMatch ? currentCode : null,
-      decoration: const InputDecoration(
-        labelText: 'Module',
-        border: OutlineInputBorder(),
-      ),
-      items: _moduleCodes
-          .map((code) => DropdownMenuItem(value: code, child: Text(code)))
-          .toList(growable: false),
+    return _SettingsDropdown(
+      id: SettingsIds.moduleField,
+      label: 'Module',
+      value: hasMatch ? currentCode : null,
+      items: {for (final code in _moduleCodes) code: code},
       onChanged: (value) => setState(() => _moduleKey.text = value ?? ''),
     );
   }
@@ -747,29 +826,174 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget _subBranchField() {
     final subBranches = widget.viewModel.subBranches;
     if (subBranches.isEmpty) {
-      return AppTextField(controller: _subBranchCode, label: 'Sub-branch code');
+      return _SettingsInput(
+        id: SettingsIds.subBranchField,
+        label: 'Sub-branch code',
+        controller: _subBranchCode,
+      );
     }
     final currentCode = _subBranchCode.text;
     final hasMatch = subBranches.any((s) => s.subbranchCode == currentCode);
-    return DropdownButtonFormField<String>(
-      initialValue: hasMatch ? currentCode : null,
-      isExpanded: true,
-      decoration: const InputDecoration(
-        labelText: 'Sub-branch',
-        border: OutlineInputBorder(),
-      ),
-      items: subBranches
-          .map(
-            (s) => DropdownMenuItem(
-              value: s.subbranchCode,
-              child: Text(
-                '${s.subbranchCode} — ${s.subbranchName}',
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          )
-          .toList(growable: false),
+    return _SettingsDropdown(
+      id: SettingsIds.subBranchField,
+      label: 'Sub-branch',
+      value: hasMatch ? currentCode : null,
+      items: {
+        for (final s in subBranches)
+          s.subbranchCode: '${s.subbranchCode} — ${s.subbranchName}',
+      },
       onChanged: (value) => setState(() => _subBranchCode.text = value ?? ''),
+    );
+  }
+}
+
+const _fieldBorder = Color(0xFFD8DDE5);
+
+/// The page's field label: small, muted, uppercase-tracked (the POS kit's
+/// field label), with a gold `*` on required fields.
+class _FieldLabel extends StatelessWidget {
+  final String text;
+  final bool required;
+
+  const _FieldLabel(this.text, {this.required = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text.rich(
+      TextSpan(
+        text: text.toUpperCase(),
+        children: [
+          if (required)
+            const TextSpan(
+              text: ' *',
+              style: TextStyle(color: AppColors.goldDark),
+            ),
+        ],
+      ),
+      semanticsLabel: text,
+      style: DesktopText.fieldLabel,
+    );
+  }
+}
+
+/// One outlined, white box for every input on the page: gold when focused,
+/// red with the message below when invalid.
+InputDecoration _inputDecoration({String? hint, double vertical = 14}) {
+  OutlineInputBorder border(Color color, [double width = 1]) =>
+      OutlineInputBorder(
+        borderRadius: BorderRadius.circular(9),
+        borderSide: BorderSide(color: color, width: width),
+      );
+  return InputDecoration(
+    hintText: hint,
+    hintStyle: const TextStyle(color: AppColors.hintText, fontSize: 14),
+    isDense: true,
+    filled: true,
+    fillColor: Colors.white,
+    contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: vertical),
+    border: border(_fieldBorder),
+    enabledBorder: border(_fieldBorder),
+    focusedBorder: border(AppColors.goldDark, 1.5),
+    errorBorder: border(AppColors.danger),
+    focusedErrorBorder: border(AppColors.danger, 1.5),
+  );
+}
+
+class _SettingsInput extends StatelessWidget {
+  /// The box's height, which the UUID Generate button matches.
+  static const height = 48.0;
+
+  final String id;
+  final String label;
+  final TextEditingController controller;
+  final bool required;
+  final String? hint;
+  final FocusNode? focusNode;
+  final TextInputType? keyboardType;
+
+  const _SettingsInput({
+    required this.id,
+    required this.label,
+    required this.controller,
+    this.required = false,
+    this.hint,
+    this.focusNode,
+    this.keyboardType,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _FieldLabel(label, required: required),
+        const SizedBox(height: 6),
+        TestId(
+          id,
+          child: TextFormField(
+            controller: controller,
+            focusNode: focusNode,
+            keyboardType: keyboardType,
+            style: const TextStyle(fontSize: 14.5),
+            decoration: _inputDecoration(hint: hint),
+            validator: required
+                ? (value) =>
+                      (value == null || value.isEmpty) ? 'Required' : null
+                : null,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SettingsDropdown extends StatelessWidget {
+  final String id;
+  final String label;
+  final String? value;
+
+  /// Value → shown text, in order.
+  final Map<String, String> items;
+  final ValueChanged<String?> onChanged;
+
+  const _SettingsDropdown({
+    required this.id,
+    required this.label,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _FieldLabel(label),
+        const SizedBox(height: 6),
+        TestId(
+          id,
+          child: DropdownButtonFormField<String>(
+            initialValue: value,
+            isExpanded: true,
+            icon: const Icon(Icons.expand_more, color: AppColors.mutedText),
+            borderRadius: BorderRadius.circular(9),
+            style: const TextStyle(fontSize: 14.5, color: AppColors.ink),
+            // The menu button sits 2 dp taller than text; this lines the boxes up.
+            decoration: _inputDecoration(hint: 'Select', vertical: 13),
+            items: [
+              for (final entry in items.entries)
+                DropdownMenuItem(
+                  value: entry.key,
+                  child: Text(entry.value, overflow: TextOverflow.ellipsis),
+                ),
+            ],
+            onChanged: onChanged,
+          ),
+        ),
+      ],
     );
   }
 }

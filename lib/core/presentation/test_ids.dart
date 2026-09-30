@@ -58,6 +58,25 @@ abstract class SettingsIds {
   static const sellOffline = 'settings.saleMode.offline';
   static const endpointsSection = 'settings.endpointsSection';
   static const deviceSection = 'settings.deviceSection';
+  static const moduleField = 'settings.field.module';
+  static const branchField = 'settings.field.branch';
+  static const subBranchField = 'settings.field.subBranch';
+  static const airportMposSwitch = 'settings.field.airportMpos';
+  static const saleEngineField = 'settings.field.saleEngine';
+  static const registerField = 'settings.field.register';
+  static const flightApiField = 'settings.field.flightApi';
+  static const cashCardApiField = 'settings.field.cashCardApi';
+  static const updateEndpointField = 'settings.field.updateEndpoint';
+  static const uuidField = 'settings.field.uuid';
+  static const generateUuidButton = 'settings.generateUuidButton';
+  static const locationField = 'settings.field.location';
+  static const machineField = 'settings.field.machine';
+  static const companyField = 'settings.field.company';
+  static const serialField = 'settings.field.serial';
+  static const macAddressField = 'settings.field.macAddress';
+  static const ipAddressField = 'settings.field.ipAddress';
+  static const printerField = 'settings.field.printer';
+  static const edcPortField = 'settings.field.edcPort';
 }
 
 abstract class SaleIds {

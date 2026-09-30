@@ -169,17 +169,19 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Device settings'), findsOneWidget);
 
-    Future<void> enterByLabel(String label, String value) async {
-      final finder = find.byWidgetPredicate(
-        (w) => w is TextField && w.decoration?.labelText == label,
+    Future<void> enterById(String id, String value) async {
+      final finder = find.descendant(
+        of: byTestId(id),
+        matching: find.byType(TextField),
       );
+      await tester.ensureVisible(finder);
       await tester.enterText(finder, value);
     }
 
-    await enterByLabel('Branch number', '03');
-    await enterByLabel('Sale Engine endpoint', 'https://sale');
-    await enterByLabel('Register endpoint', 'https://register');
-    await enterByLabel('Flight API endpoint', 'https://flight');
+    await enterById(SettingsIds.branchField, '03');
+    await enterById(SettingsIds.saleEngineField, 'https://sale');
+    await enterById(SettingsIds.registerField, 'https://register');
+    await enterById(SettingsIds.flightApiField, 'https://flight');
 
     await tester.ensureVisible(find.text('Save'));
     await tester.pumpAndSettle();
@@ -204,9 +206,7 @@ void main() {
       ('handheld', compactSize),
       ('desktop', expandedSize),
     ]) {
-      testWidgets('$name: username and password take no Thai', (
-        tester,
-      ) async {
+      testWidgets('$name: username and password take no Thai', (tester) async {
         setDeviceSize(tester, size);
         await tester.pumpWidget(MaterialApp(home: buildPage()));
 

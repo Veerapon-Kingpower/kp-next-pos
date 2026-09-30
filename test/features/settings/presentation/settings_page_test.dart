@@ -39,14 +39,28 @@ void main() {
     );
   }
 
+  // Labels sit above the boxes now, so each field is found by its TestId.
+  const fieldIds = {
+    'Branch number': SettingsIds.branchField,
+    'Sale Engine endpoint': SettingsIds.saleEngineField,
+    'Register endpoint': SettingsIds.registerField,
+    'Flight API endpoint': SettingsIds.flightApiField,
+    'EDC port': SettingsIds.edcPortField,
+    'Location': SettingsIds.locationField,
+  };
+
+  Finder fieldFor(String label) => find.descendant(
+    of: byTestId(fieldIds[label]!),
+    matching: find.byType(TextField),
+  );
+
   Future<void> enterByLabel(
     WidgetTester tester,
     String label,
     String value,
   ) async {
-    final finder = find.byWidgetPredicate(
-      (w) => w is TextField && w.decoration?.labelText == label,
-    );
+    final finder = fieldFor(label);
+    await tester.ensureVisible(finder);
     expect(finder, findsOneWidget, reason: 'Field "$label" not found');
     await tester.enterText(finder, value);
   }
@@ -190,25 +204,24 @@ void main() {
       await tester.pumpAndSettle();
 
       // No Register endpoint entered yet — sub-branch is still free text.
-      expect(find.text('Sub-branch code'), findsOneWidget);
-      expect(find.text('Sub-branch'), findsNothing);
+      expect(find.text('SUB-BRANCH CODE'), findsOneWidget);
+      expect(find.text('SUB-BRANCH'), findsNothing);
 
       await enterByLabel(tester, 'Register endpoint', 'https://register');
       await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pumpAndSettle();
 
-      expect(find.text('Sub-branch code'), findsNothing);
-      expect(find.text('Sub-branch'), findsOneWidget);
+      expect(find.text('SUB-BRANCH CODE'), findsNothing);
+      expect(find.text('SUB-BRANCH'), findsOneWidget);
       expect(viewModel.subBranches.single.subbranchCode, 'CPX-DT');
       expect(
         viewModel.subBranches.single.subbranchName,
         'Rangnam Complex Downtown',
       );
 
-      // The page also has a Module dropdown, so scope to the one labelled
-      // "Sub-branch" specifically.
-      final subBranchDropdown = find.ancestor(
-        of: find.text('Sub-branch'),
+      // The page also has a Module dropdown, so scope to the Sub-branch one.
+      final subBranchDropdown = find.descendant(
+        of: byTestId(SettingsIds.subBranchField),
         matching: find.byType(DropdownButtonFormField<String>),
       );
       expect(subBranchDropdown, findsOneWidget);
@@ -260,7 +273,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(AlertDialog), findsNothing);
-      expect(find.text('Sub-branch code'), findsOneWidget);
+      expect(find.text('SUB-BRANCH CODE'), findsOneWidget);
     },
   );
 
@@ -299,15 +312,12 @@ void main() {
 
       // Tap straight into another field instead of pressing the keyboard's
       // "Done" action — focus moves away without an editing-complete event.
-      final flightApiField = find.byWidgetPredicate(
-        (w) =>
-            w is TextField && w.decoration?.labelText == 'Flight API endpoint',
-      );
+      final flightApiField = fieldFor('Flight API endpoint');
       await tester.tap(flightApiField);
       await tester.pumpAndSettle();
 
       expect(viewModel.subBranches.single.subbranchCode, 'CPX-DT');
-      expect(find.text('Sub-branch'), findsOneWidget);
+      expect(find.text('SUB-BRANCH'), findsOneWidget);
     },
   );
 
@@ -461,6 +471,50 @@ void main() {
       await pumpDesktop(tester, size: const Size(1024, 1400));
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets('one form style: labels above the boxes, * on required, '
+        'short fields paired, Airport as a tappable card', (tester) async {
+      await pumpDesktop(tester);
+      for (final label in [
+        'BRANCH NUMBER *',
+        'SALE ENGINE ENDPOINT *',
+        'REGISTER ENDPOINT *',
+        'FLIGHT API ENDPOINT *',
+      ]) {
+        expect(find.text(label), findsOneWidget, reason: label);
+      }
+      expect(find.text('CASH CARD API ENDPOINT'), findsOneWidget);
+
+      Rect rect(String id) => tester.getRect(byTestId(id));
+      expect(
+        rect(SettingsIds.branchField).left,
+        greaterThan(rect(SettingsIds.moduleField).right),
+        reason: 'Module | Branch on one row',
+      );
+      expect(
+        rect(SettingsIds.branchField).height,
+        rect(SettingsIds.moduleField).height,
+        reason: 'dropdown and text boxes match',
+      );
+      expect(
+        rect(SettingsIds.branchField).top,
+        rect(SettingsIds.moduleField).top,
+      );
+      expect(
+        rect(SettingsIds.ipAddressField).top,
+        rect(SettingsIds.macAddressField).top,
+      );
+
+      final airport = find.descendant(
+        of: byTestId(SettingsIds.airportMposSwitch),
+        matching: find.byType(Switch),
+      );
+      expect(tester.widget<Switch>(airport).value, isFalse);
+      await tester.ensureVisible(find.text('Airport MPOS device'));
+      await tester.tap(find.text('Airport MPOS device'));
+      await tester.pump();
+      expect(tester.widget<Switch>(airport).value, isTrue);
+    });
   });
 
   group('handheld settings (below desktop width)', () {
@@ -503,6 +557,17 @@ void main() {
       await tester.pumpAndSettle();
       return repo;
     }
+
+    testWidgets('one field per row on a 360 dp phone, no overflow', (
+      tester,
+    ) async {
+      await pumpSettings(tester, size: const Size(360, 2400));
+      expect(tester.takeException(), isNull);
+      final module = tester.getRect(byTestId(SettingsIds.moduleField));
+      final branch = tester.getRect(byTestId(SettingsIds.branchField));
+      expect(branch.top, greaterThan(module.bottom));
+      expect(branch.width, module.width);
+    });
 
     testWidgets('dark header, grouped sections and automation ids', (
       tester,

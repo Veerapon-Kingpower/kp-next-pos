@@ -224,17 +224,19 @@ void main() {
       expect(find.text('Loading device settings...'), findsNothing);
       expect(byTestId(SettingsIds.saveButton), findsOneWidget);
 
-      Future<void> enterByLabel(String label, String value) async {
-        final finder = find.byWidgetPredicate(
-          (w) => w is TextField && w.decoration?.labelText == label,
+      Future<void> enterById(String id, String value) async {
+        final finder = find.descendant(
+          of: byTestId(id),
+          matching: find.byType(TextField),
         );
+        await tester.ensureVisible(finder);
         await tester.enterText(finder, value);
       }
 
-      await enterByLabel('Branch number', '03');
-      await enterByLabel('Sale Engine endpoint', 'https://sale');
-      await enterByLabel('Register endpoint', 'https://register');
-      await enterByLabel('Flight API endpoint', 'https://flight');
+      await enterById(SettingsIds.branchField, '03');
+      await enterById(SettingsIds.saleEngineField, 'https://sale');
+      await enterById(SettingsIds.registerField, 'https://register');
+      await enterById(SettingsIds.flightApiField, 'https://flight');
 
       await tester.ensureVisible(find.text('Save'));
       await tester.pumpAndSettle();
@@ -283,17 +285,19 @@ void main() {
 
       expect(find.text('Device settings'), findsOneWidget);
 
-      Future<void> enterByLabel(String label, String value) async {
-        final finder = find.byWidgetPredicate(
-          (w) => w is TextField && w.decoration?.labelText == label,
+      Future<void> enterById(String id, String value) async {
+        final finder = find.descendant(
+          of: byTestId(id),
+          matching: find.byType(TextField),
         );
+        await tester.ensureVisible(finder);
         await tester.enterText(finder, value);
       }
 
-      await enterByLabel('Branch number', '03');
-      await enterByLabel('Sale Engine endpoint', 'https://sale');
-      await enterByLabel('Register endpoint', 'https://register');
-      await enterByLabel('Flight API endpoint', 'https://flight');
+      await enterById(SettingsIds.branchField, '03');
+      await enterById(SettingsIds.saleEngineField, 'https://sale');
+      await enterById(SettingsIds.registerField, 'https://register');
+      await enterById(SettingsIds.flightApiField, 'https://flight');
 
       await tester.ensureVisible(find.text('Save'));
       await tester.pumpAndSettle();

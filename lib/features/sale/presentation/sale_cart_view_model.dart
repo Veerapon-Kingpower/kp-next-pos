@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 
 import '../../../core/error/app_exception.dart';
+import '../../../core/error/failure.dart';
+import '../../../core/network/api_client.dart';
 import '../../auth/domain/usecases/restore_session_usecase.dart';
 import '../../customer/domain/entities/privilege.dart';
 import '../domain/entities/cart.dart';
@@ -219,6 +221,10 @@ class SaleCartViewModel extends GetxController {
   /// runs against one and sends it as `Row` on `change_currency`.
   String shoppingCard = '';
 
+  /// Legacy only opens Sale from a customer: without a shopping card
+  /// there is no order to add to.
+  bool get hasCustomer => shoppingCard.isNotEmpty;
+
   void attachShoppingCard(String card) {
     shoppingCard = card;
     update();
@@ -271,10 +277,6 @@ class SaleCartViewModel extends GetxController {
   // The shopping card whose order this Sale has locked, if any.
   ({String card, String orderNo})? _locked;
 
-  /// Ports legacy `onlyUnlockShoppingCard()`, run whenever the Sale page is
-  /// left: unlocks the held order (`UpdateOrderStatus` `A`) and detaches
-  /// the customer, so Sale needs Go to Sale again. An unlock failure is
-  /// swallowed — the cashier is leaving either way.
   /// The attached customer is a member — legacy passes it to the
   /// promotion master as `excludeMember`.
   bool isMember = false;
@@ -419,9 +421,16 @@ class SaleCartViewModel extends GetxController {
     }
   }
 
-  Future<void> releaseOrder() async {
+  /// Ports legacy `onlyUnlockShoppingCard()`, run whenever the Sale page is
+  /// left: unlocks the held order (`UpdateOrderStatus` `A`) and detaches
+  /// the customer, so Sale needs Go to Sale again.
+  ///
+  /// Legacy leaves whatever the sale engine answers, but when the call
+  /// itself fails (no network / timeout) it does not leave — it alerts and
+  /// logs out. That case returns false with the card still held here, for
+  /// the caller to ask about logging out.
+  Future<bool> releaseOrder() async {
     final locked = _locked;
-    _locked = null;
     if (locked != null) {
       final sessionKey = await _sessionKey();
       if (sessionKey != null) {
@@ -432,16 +441,22 @@ class SaleCartViewModel extends GetxController {
             orderNo: locked.orderNo,
             status: OrderStatus.unlock,
           );
-        } on ApiException {
-          // Nothing to show: the Sale is being left.
+        } on ApiException catch (e) {
+          final failure = mapExceptionToFailure(e);
+          if (failure is NetworkFailure || failure is TimeoutFailure) {
+            return false;
+          }
+          // The sale engine answered: legacy leaves regardless.
         }
       }
     }
+    _locked = null;
     shoppingCard = '';
     cart = null;
     scanError = null;
     isMember = false;
     update();
+    return true;
   }
 
   /// Why the last currency change failed, if it did.

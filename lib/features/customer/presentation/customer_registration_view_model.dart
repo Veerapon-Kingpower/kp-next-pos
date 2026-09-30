@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 
 import '../../../core/error/app_exception.dart';
@@ -115,6 +116,13 @@ class CustomerRegistrationViewModel extends GetxController {
     status = CustomerRegistrationStatus.submitting;
     errorMessage = null;
     update();
+    _log(
+      '[CustomerRegistrationViewModel.submit] '
+      'action=${isEdit ? _registerEditAction : _registerAddAction} '
+      'isActivate=$isActivate allowTakeAway=$allowTakeAway '
+      'isAirport=$isAirportMpos flight=$flightCode $flightDate $flightTime '
+      'airline=$airlineCode listIdentity=${listIdentity.length}',
+    );
 
     try {
       result = await _registerCustomer(
@@ -156,6 +164,10 @@ class CustomerRegistrationViewModel extends GetxController {
         ],
       );
       status = CustomerRegistrationStatus.success;
+      _log(
+        '[CustomerRegistrationViewModel.submit] ok shoppingCard='
+        '${result?.outputs.map((o) => o.shoppingCard).join(', ')}',
+      );
       update();
       return true;
     } catch (e) {
@@ -163,6 +175,7 @@ class CustomerRegistrationViewModel extends GetxController {
       errorMessage = e is ApiException
           ? e.messageDesc
           : 'Could not register the customer.';
+      _log('[CustomerRegistrationViewModel.submit] failed: $e');
       update();
       return false;
     }
@@ -243,6 +256,10 @@ class CustomerRegistrationViewModel extends GetxController {
   // Matches `customer-form.ts`'s `addDatatoModel()`: its `!= null` checks
   // never fail (the fields default to `""`), so all three contacts are
   // always sent — empty values included — in this order.
+  static void _log(String message) {
+    if (kDebugMode) debugPrint(message);
+  }
+
   List<Map<String, dynamic>> _buildListContact({
     required String email,
     required String mobile,

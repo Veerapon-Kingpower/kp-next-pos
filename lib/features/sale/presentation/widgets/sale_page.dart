@@ -10,12 +10,16 @@ class SalePage extends StatelessWidget {
   final SaleCartViewModel viewModel;
   final bool isAirportMpos;
   final VoidCallback? onExit;
+  final VoidCallback? onFindCustomer;
+  final Future<void> Function()? onSignOut;
 
   const SalePage({
     super.key,
     required this.viewModel,
     this.isAirportMpos = false,
     this.onExit,
+    this.onFindCustomer,
+    this.onSignOut,
   });
 
   @override
@@ -23,5 +27,7 @@ class SalePage extends StatelessWidget {
     viewModel: viewModel,
     isAirportMpos: isAirportMpos,
     onExit: onExit,
+    onFindCustomer: onFindCustomer,
+    onSignOut: onSignOut,
   );
 }

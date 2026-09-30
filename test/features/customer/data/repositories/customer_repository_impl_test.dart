@@ -37,7 +37,8 @@ void main() {
         FakeAuthRepository(
           currentSessionResult: const UserSession(
             sessionKey: 'S1',
-            branchNo: '03',
+            // The signed-in user's branch, distinct from the device setting.
+            branchNo: '07',
             userCode: 'U001',
             userName: 'Test User',
             authorizedActions: [],
@@ -104,7 +105,7 @@ void main() {
   });
 
   test(
-    'register resolves subBranchCode/branchNo from device settings, machineNo from the login session, and sends the MOBILE platform code',
+    'register takes subBranchCode from device settings, branchNo and machineNo from the login session (legacy userInfo), and sends the MOBILE platform code',
     () async {
       final apiClient = FakeApiClient(
         response: {
@@ -132,7 +133,7 @@ void main() {
       final sent = apiClient.lastData as List<dynamic>;
       final body = sent.single as Map<String, dynamic>;
       expect(body['subBranchCode'], 'CPX-DT');
-      expect(body['branchNo'], '03');
+      expect(body['branchNo'], '07');
       expect(body['machineNo'], 'KPPOS05');
       expect(body['platformCode'], 'MOBILE');
     },

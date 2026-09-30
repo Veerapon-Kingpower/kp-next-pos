@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
+
 import '../../../../core/error/app_exception.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/return_object.dart';
@@ -68,27 +72,40 @@ class CustomerRemoteDataSource {
     required Map<String, dynamic> tour,
     required List<Map<String, dynamic>> listPersonal,
   }) async {
-    final response = await _apiClient.post(
-      '$webServiceEndpoint/Register/RegisterAPI',
-      // Bare array request body, ported as-is from `RegisterParamModel[]`.
-      data: [
-        {
-          'agentCode': agentCode,
-          'subAgentCode': subAgentCode,
-          'subBranchCode': subBranchCode,
-          'branchNo': branchNo,
-          'platformCode': platformCode,
-          'prefixShoppingCard': prefixShoppingCard,
-          'userCode': userCode,
-          'machineNo': machineNo,
-          'action': action,
-          'allowTakeAway': allowTakeAway,
-          'isAirport': isAirport,
-          'tour': tour,
-          'listPersonal': listPersonal,
-        },
-      ],
-    );
+    final url = '$webServiceEndpoint/Register/RegisterAPI';
+    // Bare array request body, ported as-is from `RegisterParamModel[]`.
+    final data = [
+      {
+        'agentCode': agentCode,
+        'subAgentCode': subAgentCode,
+        'subBranchCode': subBranchCode,
+        'branchNo': branchNo,
+        'platformCode': platformCode,
+        'prefixShoppingCard': prefixShoppingCard,
+        'userCode': userCode,
+        'machineNo': machineNo,
+        'action': action,
+        'allowTakeAway': allowTakeAway,
+        'isAirport': isAirport,
+        'tour': tour,
+        'listPersonal': listPersonal,
+      },
+    ];
+    if (kDebugMode) {
+      debugPrint(
+        '[CustomerRemoteDataSource.register] POST $url\n'
+        '  request: ${_json(data)}',
+      );
+    }
+    final response = await _apiClient.post(url, data: data);
+    if (kDebugMode) {
+      debugPrint(
+        '[CustomerRemoteDataSource.register] '
+        'isCompleted=${response['isCompleted']} '
+        'Message=${_json(response['Message'])}\n'
+        '  response: ${_json(response)}',
+      );
+    }
 
     final result = ReturnObject<List<RegisterResultModel>>.fromJson(
       response,
@@ -163,4 +180,9 @@ class CustomerRemoteDataSource {
     // `unwrap()`'s `data != null` success check still applies correctly.
     ReturnObject<bool>.fromJson(response, (_) => true).unwrap();
   }
+
+  // Debug logs only: JSON, with anything not encodable (e.g. a raw
+  // `dateOfBirth`) printed as its toString().
+  static String _json(Object? value) =>
+      jsonEncode(value, toEncodable: (v) => v.toString());
 }

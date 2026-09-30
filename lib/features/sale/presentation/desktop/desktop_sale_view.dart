@@ -40,11 +40,19 @@ class DesktopSaleView extends StatefulWidget {
   /// leave prompt has run and the shopping card is unlocked.
   final VoidCallback? onExit;
 
+  /// Back to the customer lookup — Sale has no customer yet.
+  final VoidCallback? onFindCustomer;
+
+  /// Logs out — offered when leaving can't unlock the shopping card.
+  final Future<void> Function()? onSignOut;
+
   const DesktopSaleView({
     super.key,
     required this.viewModel,
     this.isAirportMpos = false,
     this.onExit,
+    this.onFindCustomer,
+    this.onSignOut,
   });
 
   @override
@@ -142,6 +150,7 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
       context,
       widget.viewModel,
       isAirportMpos: widget.isAirportMpos,
+      onSignOut: widget.onSignOut ?? () async {},
     );
     if (!mounted) return;
     if (left) {
@@ -216,6 +225,7 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _scanRow(viewModel),
+                    if (!viewModel.hasCustomer) _noCustomer(),
                     if (viewModel.scanError != null)
                       _Notice(
                         id: SaleIds.scanError,
@@ -271,6 +281,41 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
     );
   }
 
+  // Legacy never opens Sale without a customer; point back to the lookup.
+  Widget _noCustomer() => Padding(
+    padding: const EdgeInsets.only(top: 10),
+    child: TestId(
+      SaleIds.noCustomerNotice,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.info.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.person_search, color: AppColors.info),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                'No customer on this sale — find the customer first, '
+                'then Start sale.',
+              ),
+            ),
+            DesktopButton(
+              id: SaleIds.findCustomerButton,
+              label: 'Find customer',
+              icon: Icons.person_search,
+              secondary: true,
+              height: 40,
+              onPressed: widget.onFindCustomer,
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
   Widget _scanRow(SaleCartViewModel viewModel) {
     return Row(
       children: [
@@ -298,13 +343,15 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
                       controller: _scan,
                       focusNode: _scanFocus,
                       autofocus: true,
-                      enabled: !viewModel.isBusy,
+                      enabled: !viewModel.isBusy && viewModel.hasCustomer,
                       textInputAction: TextInputAction.search,
                       onSubmitted: _submitScan,
                       style: const TextStyle(fontSize: 16),
-                      decoration: const InputDecoration.collapsed(
-                        hintText: 'Scan or type item code',
-                        hintStyle: TextStyle(
+                      decoration: InputDecoration.collapsed(
+                        hintText: viewModel.hasCustomer
+                            ? 'Scan or type item code'
+                            : SaleCartViewModel.noCustomer,
+                        hintStyle: const TextStyle(
                           fontSize: 16,
                           color: AppColors.hintText,
                         ),
@@ -330,7 +377,9 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
           hotkey: 'F9',
           secondary: true,
           height: DesktopMetrics.fieldHeight,
-          onPressed: viewModel.isBusy ? null : _searchTyped,
+          onPressed: viewModel.isBusy || !viewModel.hasCustomer
+              ? null
+              : _searchTyped,
         ),
       ],
     );

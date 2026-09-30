@@ -61,16 +61,21 @@ class CustomerRepositoryImpl implements CustomerRepository {
     required List<Map<String, dynamic>> listPersonal,
   }) async {
     final settings = await _deviceSettingsStorage.read();
+    final session = await _restoreSession();
     return _remote.register(
       webServiceEndpoint: settings.webServiceEndpoint,
       agentCode: agentCode,
       subAgentCode: subAgentCode,
       subBranchCode: settings.subBranchCode,
-      branchNo: settings.branch,
+      // Legacy `model.branchNo = this.shareData.userInfo.branch_no` — the
+      // signed-in user's branch; the device setting only as a fallback.
+      branchNo: (session?.branchNo.isNotEmpty ?? false)
+          ? session!.branchNo
+          : settings.branch,
       platformCode: _platformCode,
       prefixShoppingCard: prefixShoppingCard,
       userCode: userCode,
-      machineNo: await _machineNo(),
+      machineNo: session?.machineNo ?? '',
       action: action,
       allowTakeAway: allowTakeAway,
       isAirport: isAirport,

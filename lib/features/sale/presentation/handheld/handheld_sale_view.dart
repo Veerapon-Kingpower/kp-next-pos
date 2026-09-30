@@ -184,7 +184,7 @@ class _HandheldSaleViewState extends State<HandheldSaleView> {
             orderType: widget.orderType,
             lineCount: lines.length,
             scanController: _scanController,
-            scanEnabled: !viewModel.isBusy,
+            scanEnabled: !viewModel.isBusy && viewModel.hasCustomer,
             onScan: _scan,
             onExit: widget.onExit,
             total: total,
@@ -226,6 +226,9 @@ class _HandheldSaleViewState extends State<HandheldSaleView> {
                 onDiscount: _openDiscount,
                 isSelected: viewModel.isSelected,
                 onToggleSelected: viewModel.toggleSelected,
+                onFindCustomer: viewModel.hasCustomer
+                    ? null
+                    : widget.onCustomer,
                 onConfirmVoid: _confirmVoid,
               ),
             ),
@@ -541,6 +544,10 @@ class _LineList extends StatelessWidget {
   final bool Function(String row) isSelected;
   final ValueChanged<String> onToggleSelected;
 
+  /// Set when Sale has no customer (legacy never opens it that way): a
+  /// notice leads back to the lookup on Home.
+  final VoidCallback? onFindCustomer;
+
   const _LineList({
     required this.lines,
     required this.basket,
@@ -551,11 +558,37 @@ class _LineList extends StatelessWidget {
     required this.onConfirmVoid,
     required this.isSelected,
     required this.onToggleSelected,
+    required this.onFindCustomer,
   });
 
   @override
   Widget build(BuildContext context) {
     final children = <Widget>[
+      if (onFindCustomer != null)
+        TestId(
+          SaleIds.noCustomerNotice,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const _Banner(
+                  icon: Icons.person_search,
+                  color: AppColors.info,
+                  text:
+                      'No customer on this sale — find the customer '
+                      'first, then Start sale.',
+                ),
+                const SizedBox(height: 8),
+                HandheldSecondaryButton(
+                  id: SaleIds.findCustomerButton,
+                  label: 'Find customer',
+                  onPressed: onFindCustomer,
+                ),
+              ],
+            ),
+          ),
+        ),
       if (scanError != null)
         TestId(
           SaleIds.scanError,

@@ -1265,6 +1265,42 @@ void main() {
       expect(saleRepository.lastOrderContext?.shoppingCard, '8823-4419-0027');
     });
 
+    testWidgets('leaving Sale from the nav prompts, then unlocks the card '
+        '(legacy ionViewCanLeave)', (tester) async {
+      await lookUp(tester, buildPage(searchResult: const [sofia]), 'CB912447');
+      await tester.ensureVisible(byTestId(ProfileIds.goToSaleButton));
+      await tester.tap(byTestId(ProfileIds.goToSaleButton));
+      await tester.pumpAndSettle();
+      expect(saleRepository.orderStatuses.map((s) => s.status), [
+        OrderStatus.lock,
+      ]);
+
+      await tester.tap(byTestId(NavIds.customer));
+      await tester.pumpAndSettle();
+      expect(find.text('Do you want to go back?'), findsOneWidget);
+      await tester.tap(byTestId(SaleIds.leaveCancel));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getSemantics(byTestId(NavIds.sale)),
+        isSemantics(isSelected: true),
+        reason: 'Cancel stays on Sale, still locked',
+      );
+      expect(saleRepository.orderStatuses, hasLength(1));
+
+      await tester.tap(byTestId(NavIds.customer));
+      await tester.pumpAndSettle();
+      await tester.tap(byTestId(SaleIds.leaveOk));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getSemantics(byTestId(NavIds.customer)),
+        isSemantics(isSelected: true),
+      );
+      expect(saleRepository.orderStatuses.map((s) => s.status), [
+        OrderStatus.lock,
+        OrderStatus.unlock,
+      ]);
+    });
+
     testWidgets('an unregistered customer shows on Home; Start sale is '
         'disabled and Register opens the Customer form', (tester) async {
       await lookUp(
@@ -1686,6 +1722,19 @@ void main() {
       await tester.tap(byTestId(NavIds.sale));
       await tester.pumpAndSettle();
       expect(byTestId(SaleIds.scanField), findsOneWidget);
+    });
+
+    testWidgets('Sale without a customer points back to the Home lookup', (
+      tester,
+    ) async {
+      await pumpHandheld(tester, buildPage());
+      await tester.tap(byTestId(HomeIds.tileSale));
+      await tester.pumpAndSettle();
+      expect(byTestId(SaleIds.noCustomerNotice), findsOneWidget);
+
+      await tester.tap(byTestId(SaleIds.findCustomerButton));
+      await tester.pumpAndSettle();
+      expect(byTestId(HomeIds.scanField), findsOneWidget);
     });
 
     testWidgets('the Sale screen hides the bottom nav, as in the mockup', (

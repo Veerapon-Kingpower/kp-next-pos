@@ -10,6 +10,7 @@ import 'package:kp_pos/features/auth/domain/entities/user_session.dart';
 import 'package:kp_pos/features/sale/domain/entities/cart.dart';
 import 'package:kp_pos/features/sale/domain/entities/cart_item.dart';
 import 'package:kp_pos/features/sale/domain/entities/currency.dart';
+import 'package:kp_pos/features/sale/domain/entities/sale_order_context.dart';
 import 'package:kp_pos/features/sale/presentation/desktop/desktop_sale_view.dart';
 import 'package:kp_pos/features/sale/presentation/sale_cart_view_model.dart';
 
@@ -28,13 +29,20 @@ void main() {
     Size size = const Size(1440 - 84, 900 - 64),
     bool isAirportMpos = false,
     VoidCallback? onExit,
+    String shoppingCard = 'CPX0001',
+    VoidCallback? onFindCustomer,
+    Future<void> Function()? onSignOut,
   }) async {
     setDeviceSize(tester, size);
     sale = FakeSaleRepository(
       cartResult: cartAfterMutation,
       mutationError: mutationError,
     );
-    final viewModel = buildSaleViewModel(sale, cart: cart);
+    final viewModel = buildSaleViewModel(
+      sale,
+      cart: cart,
+      shoppingCard: shoppingCard,
+    );
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -42,6 +50,8 @@ void main() {
             viewModel: viewModel,
             isAirportMpos: isAirportMpos,
             onExit: onExit ?? () {},
+            onFindCustomer: onFindCustomer,
+            onSignOut: onSignOut,
           ),
         ),
       ),
@@ -179,12 +189,14 @@ void main() {
       await tester.tap(byTestId(DesktopSaleIds.selectAll));
       await tester.pump();
       expect(
-        tester.widget<Checkbox>(
-          find.descendant(
-            of: byTestId(DesktopSaleIds.selectAll),
-            matching: find.byType(Checkbox),
-          ),
-        ).value,
+        tester
+            .widget<Checkbox>(
+              find.descendant(
+                of: byTestId(DesktopSaleIds.selectAll),
+                matching: find.byType(Checkbox),
+              ),
+            )
+            .value,
         isFalse,
         reason: 'all were ticked, so Select All clears them',
       );
@@ -652,6 +664,49 @@ void main() {
       expect(find.text('Cannot save'), findsOneWidget);
     });
 
+    testWidgets('an unlock without network asks before logging out', (
+      tester,
+    ) async {
+      var exited = false;
+      var signedOut = false;
+      final viewModel = await pump(
+        tester,
+        cartAfterMutation: const Cart(
+          guid: 'order-1',
+          isCheckOut: false,
+          items: [chanel, johnnie],
+          orderNo: '42',
+        ),
+        onExit: () => exited = true,
+        onSignOut: () async => signedOut = true,
+      );
+      await viewModel.openOrder(
+        const SaleOrderContext(shoppingCard: 'CPX0001'),
+      );
+      await tester.pumpAndSettle();
+      sale.orderStatusError = const ApiException(
+        messageDesc: 'No network connection.',
+      );
+
+      await tapExit(tester);
+      await tester.tap(byTestId(SaleIds.leaveNo));
+      await tester.pumpAndSettle();
+      expect(byTestId(SaleIds.unlockFailedDialog), findsOneWidget);
+      await tester.tap(byTestId(SaleIds.unlockFailedCancel));
+      await tester.pumpAndSettle();
+      expect(exited, isFalse, reason: 'Cancel stays on Sale');
+      expect(signedOut, isFalse);
+      expect(viewModel.shoppingCard, 'CPX0001', reason: 'still locked');
+
+      await tapExit(tester);
+      await tester.tap(byTestId(SaleIds.leaveNo));
+      await tester.pumpAndSettle();
+      await tester.tap(byTestId(SaleIds.unlockFailedLogout));
+      await tester.pumpAndSettle();
+      expect(signedOut, isTrue);
+      expect(exited, isFalse);
+    });
+
     testWidgets('airport mPOS only asks to go back', (tester) async {
       var exited = false;
       await pump(tester, isAirportMpos: true, onExit: () => exited = true);
@@ -664,5 +719,29 @@ void main() {
       expect(exited, isTrue);
       expect(sale.reverseVirtualStockCalls, 0);
     });
+  });
+
+  testWidgets('without a customer: scan is off and Find customer leads back', (
+    tester,
+  ) async {
+    var found = false;
+    await pump(
+      tester,
+      cart: null,
+      shoppingCard: '',
+      onFindCustomer: () => found = true,
+    );
+    expect(byTestId(SaleIds.noCustomerNotice), findsOneWidget);
+    expect(tester.widget<TextField>(scanField()).enabled, isFalse);
+    expect(find.text(SaleCartViewModel.noCustomer), findsOneWidget);
+
+    await tester.tap(byTestId(SaleIds.findCustomerButton));
+    expect(found, isTrue);
+  });
+
+  testWidgets('with a customer there is no notice', (tester) async {
+    await pump(tester);
+    expect(byTestId(SaleIds.noCustomerNotice), findsNothing);
+    expect(tester.widget<TextField>(scanField()).enabled, isTrue);
   });
 }

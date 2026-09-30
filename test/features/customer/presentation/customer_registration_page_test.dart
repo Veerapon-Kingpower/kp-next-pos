@@ -512,7 +512,10 @@ void main() {
         customerTypeCode: 'VIP',
         gender: 'F',
         flightCode: 'TG101',
-        flightDate: '2026-08-18T10:00:00',
+        // As GetCustomer sends them: the date at midnight, the time apart.
+        flightDate: '2026-08-18T00:00:00',
+        flightTime: '10:00',
+        airlineCode: 'TG',
       ),
       tour: {},
       agentCode: 'AG1',
@@ -613,11 +616,89 @@ void main() {
         expect(textOf(tester, 'Flight'), 'TG101');
         expect(textOf(tester, 'Agent'), 'AG1');
         expect(textOf(tester, 'Guide'), 'GD1');
-        // The prefilled flight resolves candidate dates the same way
-        // picking a flight does, auto-filling the first one.
+        // The customer's saved flight date + time (legacy
+        // setFormCustomerData), not a looked-up candidate.
         expect(find.text('18-08-2026 10:00'), findsOneWidget);
       },
     );
+
+    RegisterResult saved() => const RegisterResult(
+      outputs: [
+        RegisterOutput(
+          runningNo: '1',
+          shoppingCard: 'CPX0001',
+          qrShoppingCard: 'QR-CPX0001',
+          coupons: [],
+        ),
+      ],
+      messages: [],
+      isComplete: true,
+    );
+
+    testWidgets('an edit re-sends the saved flight date, not the first '
+        'candidate, with the airline of the flight', (tester) async {
+      final repo = FakeCustomerRepository(
+        agentsResult: _agents,
+        registerResult: saved(),
+      );
+      await tester.pumpWidget(
+        buildHarness(
+          existingCustomer: existingCustomer,
+          repository: repo,
+          // The first candidate (20th) is not the customer's date (18th).
+          flightDates: const [
+            Flight(
+              flightCode: 'TG101',
+              flightDescription: '',
+              arrDepAirportName: '',
+              destAirportName: '',
+              flightType: 'D',
+              airlineCode: 'TG',
+              flightNo: '101',
+              flightDate: '2026-08-20T09:00:00',
+            ),
+          ],
+        ),
+      );
+      await openPage(tester);
+      await tester.pumpAndSettle();
+      expect(find.text('18-08-2026 10:00'), findsOneWidget);
+
+      await tester.tap(byTestId(RegisterIds.submitButton));
+      await tester.pumpAndSettle();
+
+      final person =
+          (repo.lastRegisterCall!['listPersonal'] as List).single
+              as Map<String, dynamic>;
+      expect(person['flightCode'], 'TG101');
+      expect(person['flightDate'], '2026-08-18');
+      expect(person['flightTime'], '10:00');
+      expect(person['airlineCode'], 'TG');
+    });
+
+    testWidgets('a take-away customer is re-sent with OP000 / OP, as legacy', (
+      tester,
+    ) async {
+      final repo = FakeCustomerRepository(
+        agentsResult: _agents,
+        registerResult: saved(),
+      );
+      await tester.pumpWidget(
+        buildHarness(existingCustomer: takeAwayCustomer, repository: repo),
+      );
+      await openPage(tester);
+      await tester.pumpAndSettle();
+
+      await tester.tap(byTestId(RegisterIds.submitButton));
+      await tester.pumpAndSettle();
+
+      expect(repo.lastRegisterCall!['allowTakeAway'], isTrue);
+      final person =
+          (repo.lastRegisterCall!['listPersonal'] as List).single
+              as Map<String, dynamic>;
+      expect(person['flightCode'], 'OP000');
+      expect(person['airlineCode'], 'OP');
+    });
 
     testWidgets('tapping Update submits with action REGISTER_EDIT', (
       tester,

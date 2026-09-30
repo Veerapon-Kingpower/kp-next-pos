@@ -65,11 +65,16 @@ abstract class SaleIds {
   static const backButton = 'sale.backButton';
   static const scanField = 'sale.scanField';
   static const searchButton = 'sale.searchButton';
+  static const noCustomerNotice = 'sale.noCustomerNotice';
+  static const findCustomerButton = 'sale.findCustomerButton';
   static const leaveDialog = 'sale.leaveDialog';
   static const leaveCancel = 'sale.leave.cancel';
   static const leaveNo = 'sale.leave.no';
   static const leaveYes = 'sale.leave.yes';
   static const leaveOk = 'sale.leave.ok';
+  static const unlockFailedDialog = 'sale.unlockFailed';
+  static const unlockFailedCancel = 'sale.unlockFailed.cancel';
+  static const unlockFailedLogout = 'sale.unlockFailed.logout';
   static const scanError = 'sale.scanError';
   static const totalLine = 'sale.totalLine';
   static const netPay = 'sale.netPay';

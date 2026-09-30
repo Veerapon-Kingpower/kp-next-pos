@@ -423,6 +423,36 @@ void main() {
       expect(viewModel.cart, isNull);
     });
 
+    test(
+      'an unlock that cannot reach the server keeps the card held',
+      () async {
+        final sale = FakeSaleRepository(cartResult: locked);
+        final viewModel = buildViewModel(saleRepository: sale);
+        await viewModel.openOrder(
+          const SaleOrderContext(shoppingCard: 'CPX0001'),
+        );
+        sale.orderStatusError = const ApiException(
+          messageDesc: 'No network connection.',
+        );
+
+        expect(await viewModel.releaseOrder(), isFalse);
+        expect(viewModel.shoppingCard, 'CPX0001');
+        expect(viewModel.cart, isNotNull);
+      },
+    );
+
+    test('an unlock the server rejects still leaves, as legacy', () async {
+      final sale = FakeSaleRepository(cartResult: locked);
+      final viewModel = buildViewModel(saleRepository: sale);
+      await viewModel.openOrder(
+        const SaleOrderContext(shoppingCard: 'CPX0001'),
+      );
+      sale.orderStatusError = const ApiException(messageDesc: 'Not locked');
+
+      expect(await viewModel.releaseOrder(), isTrue);
+      expect(viewModel.shoppingCard, isEmpty);
+    });
+
     test('a lock failure is shown', () async {
       final sale = FakeSaleRepository(cartResult: locked)
         ..orderStatusError = const ApiException(

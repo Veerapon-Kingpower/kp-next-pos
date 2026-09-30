@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -76,6 +77,9 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
   // .airlineCode` in `getFlightDate()`: sourced from the first resolved
   // flight-date candidate, not the flight-search result itself.
   String _airlineCode = '';
+  // A loaded take-away customer's `OP000`, re-sent while Allow take-away
+  // stays on.
+  String _takeAwayFlightCode = '';
   bool _allowTakeAway = false;
   // Echoed back verbatim on submit only when the found customer already
   // has a shopping card — see `initState`'s assignment and
@@ -128,6 +132,7 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
     _selectedFlightDate = null;
     _airlineCode = '';
     _allowTakeAway = false;
+    _takeAwayFlightCode = '';
     _listIdentity = const [];
     _provinceCode = '';
     _cityCode = '';
@@ -179,11 +184,21 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
     // Ports `setFormCustomerData()`: a saved take-away comes back as flight
     // `OP000` / airline `OP` and re-checks Allow take-away (never on
     // airport mPOS) instead of showing that placeholder flight.
+    // Legacy keeps the found customer's airline (`this.airlineCode =
+    // personInfo.airlineCode`); `getDateByFlight` may replace it below.
+    _airlineCode = person.airlineCode;
     if (person.flightCode == 'OP000' &&
         person.airlineCode == 'OP' &&
         !widget.isAirportMpos) {
       _allowTakeAway = true;
+      // Sent back as-is, as legacy's `airlineflightCode` is.
+      _takeAwayFlightCode = person.flightCode;
     } else if (person.flightCode.isNotEmpty) {
+      // Legacy shows the customer's saved flight date and time
+      // (`flightDate.replace("00:00:00", flightTime)`) — only when all
+      // three are present.
+      final saved = _savedFlightDateTime(person.flightDate, person.flightTime);
+      if (saved != null) _selectedFlightDate = _formatFlightDate(saved);
       _flight = Flight(
         flightCode: person.flightCode,
         flightDescription: '',
@@ -212,25 +227,32 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
     return '';
   }
 
-  // Resolves candidate dates for a flight prefilled from an existing
-  // customer, same as `_onFlightSelected` picking the first candidate — but
-  // without that method's own `setState()` for `_flight`/reset, since
-  // [_load] already set `_flight` directly (before the first build, so
-  // no `setState()` is needed — or safe to call — for that part yet).
+  // Legacy `getFlightDate(airlineflightCode)` on load — called without an
+  // `action`, so it loads the candidate dates and the airline
+  // (`data.Data[0].airlineCode`) but never replaces the saved flight date.
   Future<void> _prefillFlightDates(String flightCode) async {
     final dates = await widget.viewModel.getDatesForFlight(flightCode);
     // Dropped if Undo / a new pick replaced the flight meanwhile.
     if (!mounted || _flight?.flightCode != flightCode) return;
-    final firstCandidate = dates.isEmpty
-        ? null
-        : _parseFlightDate(dates.first.flightDate);
     setState(() {
       _flightDates = dates;
-      _selectedFlightDate = firstCandidate == null
-          ? null
-          : _formatFlightDate(firstCandidate);
-      _airlineCode = dates.isEmpty ? '' : dates.first.airlineCode;
+      if (dates.isNotEmpty) _airlineCode = dates.first.airlineCode;
     });
+  }
+
+  // `PersonInfo.flightDate` (a date, e.g. `2026-08-18T00:00:00`) with
+  // `flightTime` (`HH:mm`) as its time; null unless both are usable.
+  static DateTime? _savedFlightDateTime(String date, String time) {
+    final day = DateTime.tryParse(date);
+    final match = RegExp(r'^(\d{1,2}):(\d{2})').firstMatch(time);
+    if (day == null || match == null) return null;
+    return DateTime(
+      day.year,
+      day.month,
+      day.day,
+      int.parse(match.group(1)!),
+      int.parse(match.group(2)!),
+    );
   }
 
   @override
@@ -540,8 +562,32 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
   }
 
   Future<void> _submit() async {
+    if (kDebugMode) {
+      final existing = widget.existingCustomer;
+      debugPrint(
+        '[CustomerRegistrationPage._submit] '
+        'mode=${_isEdit ? 'REGISTER_EDIT' : 'REGISTER_ADD'} '
+        'existing.action=${existing?.action} '
+        'existing.isFound=${existing?.isFound} '
+        'shoppingCard=${existing?.person.shoppingCard} '
+        'isActivate=${existing?.person.isActivate}\n'
+        '  form: passport=${_passportNoController.text} '
+        'name=${_englishNameController.text} '
+        'nationality=${_nationality?.countryCode} gender=$_gender '
+        'customerType=${_customerTypeController.text} '
+        'agent=${_agent?.agentCode} guide=${_guide?.subAgentCode} '
+        'flight=${_flight?.flightCode} flightDate=$_selectedFlightDate '
+        'airline=$_airlineCode takeAway=$_allowTakeAway '
+        'takeAwayFlight=$_takeAwayFlightCode',
+      );
+    }
     final validationError = _validateRegister();
     if (validationError != null) {
+      if (kDebugMode) {
+        debugPrint(
+          '[CustomerRegistrationPage._submit] invalid: $validationError',
+        );
+      }
       await showDialog<void>(
         context: context,
         builder: (context) => AlertDialog(
@@ -561,7 +607,8 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
     // Never sent empty — legacy falls back to today's date/time when no
     // flight was picked or the flight is `OP000` (see [_wireFlightDate]'s
     // doc comment).
-    final flightCode = _flight?.flightCode ?? '';
+    final flightCode =
+        _flight?.flightCode ?? (_allowTakeAway ? _takeAwayFlightCode : '');
     final wireDateTime =
         (_selectedFlightDate == null || flightCode == 'OP000'
             ? null

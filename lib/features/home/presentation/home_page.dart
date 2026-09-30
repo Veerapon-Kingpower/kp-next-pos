@@ -180,6 +180,14 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
+  // Sign out without asking again — the cashier already chose Log out
+  // (after a failed unlock). The card could not be unlocked, so no
+  // release is attempted.
+  Future<void> _signOutNow() async {
+    await widget.logoutUseCase();
+    widget.sessionState.signedOut();
+  }
+
   Future<void> _logOut() async {
     final confirmed = await showAppConfirmationDialog(
       context,
@@ -319,12 +327,30 @@ class _HomePageState extends State<HomePage> {
     _searchCustomer();
   }
 
-  void _onDestinationSelected(int index, List<_HomeSection> sections) {
+  Future<void> _onDestinationSelected(
+    int index,
+    List<_HomeSection> sections,
+  ) async {
     if (index >= sections.length) {
       _openSettings();
       return;
     }
-    setState(() => _section = sections[index]);
+    final target = sections[index];
+    // Leaving Sale is leaving legacy's Sale page (`ionViewCanLeave`): the
+    // leave prompt runs and the shopping card is unlocked before going
+    // anywhere else; Cancel stays on Sale.
+    if (_section == _HomeSection.sale &&
+        target != _HomeSection.sale &&
+        _saleCartViewModel.hasCustomer) {
+      final left = await confirmLeaveSale(
+        context,
+        _saleCartViewModel,
+        isAirportMpos: widget.viewModel.settings.isAirportMpos,
+        onSignOut: _signOutNow,
+      );
+      if (!left || !mounted) return;
+    }
+    setState(() => _section = target);
   }
 
   // Ports the two cheap, data-only guards from `customer.ts`'s
@@ -544,6 +570,7 @@ class _HomePageState extends State<HomePage> {
       context,
       _saleCartViewModel,
       isAirportMpos: widget.viewModel.settings.isAirportMpos,
+      onSignOut: _signOutNow,
     );
     if (left && mounted) _showHandheldHome();
   }
@@ -670,6 +697,8 @@ class _HomePageState extends State<HomePage> {
           viewModel: _saleCartViewModel,
           isAirportMpos: viewModel.settings.isAirportMpos,
           onExit: () => setState(() => _section = _HomeSection.home),
+          onFindCustomer: () => setState(() => _section = _HomeSection.home),
+          onSignOut: _signOutNow,
         );
       case _HomeSection.enquiry:
         return const EnquiryPage();

@@ -12,12 +12,16 @@ enum _LeaveChoice { save, discard }
 /// With lines on the Buying list (not on airport mPOS) it asks "Do you want
 /// to save order?": Yes saves then leaves, No reverses the reserved stock
 /// then leaves. Otherwise "Do you want to go back?": OK leaves. Leaving
-/// unlocks the shopping card ([SaleCartViewModel.releaseOrder]). Returns
-/// whether the Sale was left — false on Cancel or a failed save.
+/// unlocks the shopping card ([SaleCartViewModel.releaseOrder]). If the
+/// unlock can't reach the sale engine, legacy alerts and logs out; here the
+/// cashier is asked first — Log out runs [onSignOut], Cancel stays on Sale
+/// with the card still locked. Returns whether the Sale was left — false
+/// on Cancel, a failed save or a failed unlock.
 Future<bool> confirmLeaveSale(
   BuildContext context,
   SaleCartViewModel viewModel, {
   required bool isAirportMpos,
+  required Future<void> Function() onSignOut,
 }) async {
   // Nothing held: there is no order to save or unlock.
   if (viewModel.shoppingCard.isEmpty) return true;
@@ -78,7 +82,12 @@ Future<bool> confirmLeaveSale(
   } else if (askSave) {
     stockError = await viewModel.reverseVirtualStock();
   }
-  await viewModel.releaseOrder();
+  if (!await viewModel.releaseOrder()) {
+    if (context.mounted && await _askSignOutAfterUnlockFailed(context)) {
+      await onSignOut();
+    }
+    return false;
+  }
 
   if (stockError != null && context.mounted) {
     await showDialog<void>(
@@ -96,4 +105,50 @@ Future<bool> confirmLeaveSale(
     );
   }
   return true;
+}
+
+// Legacy `onlyUnlockShoppingCard()`'s HTTP error: "Http Error / Something
+// went wrong", OK → log out. Asked here, so Cancel keeps the cashier on
+// Sale to try again.
+Future<bool> _askSignOutAfterUnlockFailed(BuildContext context) async {
+  final signOut = await showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => TestId(
+      SaleIds.unlockFailedDialog,
+      child: AlertDialog(
+        title: const Text('Http Error'),
+        content: const Text(
+          'Something went wrong — the shopping card could not be unlocked. '
+          'Log out now?',
+        ),
+        actions: [
+          Row(
+            children: [
+              Expanded(
+                child: TestId(
+                  SaleIds.unlockFailedCancel,
+                  child: AppSecondaryButton(
+                    label: 'Cancel',
+                    onPressed: () => Navigator.of(context).pop(false),
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: TestId(
+                  SaleIds.unlockFailedLogout,
+                  child: AppPrimaryButton(
+                    label: 'Log out',
+                    onPressed: () => Navigator.of(context).pop(true),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+  return signOut ?? false;
 }

@@ -370,8 +370,19 @@ void main() {
     );
   });
 
-  testWidgets('no signature box unless the order requires one', (tester) async {
-    await open(tester);
+  testWidgets('no signature box on Checkout — it is on Payment', (
+    tester,
+  ) async {
+    await open(
+      tester,
+      cart: const Cart(
+        guid: 'order-1',
+        isCheckOut: true,
+        items: [chanel, johnnie],
+        requireSignature: true,
+        remaining: 0,
+      ),
+    );
     expect(byTestId(DesktopPaymentIds.signatureBox), findsNothing);
   });
 
@@ -485,49 +496,6 @@ void main() {
     await tester.pumpAndSettle();
     expect(byTestId(CheckoutIds.page), findsOneWidget);
     expect(sale.orderStatuses, isEmpty);
-  });
-
-  testWidgets('signature before payment: "Please pay first." (legacy)', (
-    tester,
-  ) async {
-    await open(
-      tester,
-      cart: const Cart(
-        guid: 'order-1',
-        isCheckOut: false,
-        items: [chanel, johnnie],
-        requireSignature: true,
-      ),
-    );
-    await tester.tap(byTestId(DesktopPaymentIds.signatureBox));
-    await tester.pumpAndSettle();
-    expect(find.text('Please pay first.'), findsOneWidget);
-    expect(byTestId(SignatureIds.page), findsNothing);
-  });
-
-  testWidgets('once paid, the signature box opens the pad and keeps it', (
-    tester,
-  ) async {
-    final viewModel = await open(
-      tester,
-      cart: const Cart(
-        guid: 'order-1',
-        isCheckOut: false,
-        items: [chanel, johnnie],
-        requireSignature: true,
-        remaining: 0,
-      ),
-    );
-    await tester.tap(byTestId(DesktopPaymentIds.signatureBox));
-    await tester.pumpAndSettle();
-    expect(byTestId(SignatureIds.page), findsOneWidget);
-    final pad = tester.getCenter(byTestId(SignatureIds.customerPad));
-    await tester.dragFrom(pad - const Offset(60, 0), const Offset(120, 8));
-    await tester.pump();
-    await tester.tap(byTestId(SignatureIds.bottomSaveButton));
-    await tester.pumpAndSettle();
-    expect(viewModel.signature, isNotNull);
-    expect(viewModel.signatureMissing, isFalse);
   });
 
   testWidgets('no Suspend bill or Print quote', (tester) async {

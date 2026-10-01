@@ -26,7 +26,9 @@ import 'package:kp_pos/features/flight/domain/usecases/get_flight_by_code_usecas
 import 'package:kp_pos/features/home/presentation/home_page.dart';
 import 'package:kp_pos/features/home/presentation/home_view_model.dart';
 import 'package:kp_pos/features/nationality/domain/usecases/list_nationalities_usecase.dart';
+import 'package:kp_pos/core/error/app_exception.dart';
 import 'package:kp_pos/features/sale/domain/entities/cart.dart';
+import 'package:kp_pos/features/sale/domain/entities/cart_item.dart';
 import 'package:kp_pos/features/sale/domain/entities/order_status.dart';
 import 'package:kp_pos/features/sale/domain/usecases/add_item_to_cart_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/get_cart_usecase.dart';
@@ -98,15 +100,18 @@ void main() {
   // The Sale tab's repository in the last built page.
   late FakeSaleRepository saleRepository;
 
+  // The order Sale opens; a test may put lines on it before building.
+  const emptyOrder = Cart(
+    guid: 'order-1',
+    isCheckOut: false,
+    items: [],
+    orderNo: '42',
+  );
+  var saleOrder = emptyOrder;
+  setUp(() => saleOrder = emptyOrder);
+
   SaleCartViewModel buildSaleCartViewModel() {
-    final sale = saleRepository = FakeSaleRepository(
-      cartResult: const Cart(
-        guid: 'order-1',
-        isCheckOut: false,
-        items: [],
-        orderNo: '42',
-      ),
-    );
+    final sale = saleRepository = FakeSaleRepository(cartResult: saleOrder);
     return SaleCartViewModel(
       restoreSession: RestoreSessionUseCase(
         FakeAuthRepository(currentSessionResult: _session),
@@ -1466,6 +1471,117 @@ void main() {
         OrderStatus.lock,
         OrderStatus.unlock,
       ]);
+    });
+
+    group('Sign out while on Sale leaves Sale first', () {
+      const buying = Cart(
+        guid: 'order-1',
+        isCheckOut: false,
+        orderNo: '42',
+        items: [
+          CartItem(
+            row: '1',
+            articleCode: '3145891255607',
+            articleName: 'CHANEL N°5',
+            quantity: 1,
+            unitPrice: 5900,
+            lineTotal: 5900,
+          ),
+        ],
+      );
+
+      Future<FakeAuthRepository> openSale(WidgetTester tester) async {
+        saleOrder = buying;
+        final auth = FakeAuthRepository();
+        await lookUp(
+          tester,
+          buildPage(searchResult: const [sofia], logoutRepository: auth),
+          'CB912447',
+        );
+        await tester.ensureVisible(byTestId(ProfileIds.goToSaleButton));
+        await tester.tap(byTestId(ProfileIds.goToSaleButton));
+        await tester.pumpAndSettle();
+        await tester.tap(byTestId(NavIds.signOut));
+        await tester.pumpAndSettle();
+        return auth;
+      }
+
+      testWidgets('Yes saves the order, unlocks it, then logs out', (
+        tester,
+      ) async {
+        final auth = await openSale(tester);
+        expect(find.text('Do you want to save order?'), findsOneWidget);
+        expect(find.text('Are you sure you want to log out?'), findsNothing);
+        await tester.tap(byTestId(SaleIds.leaveYes));
+        await tester.pumpAndSettle();
+        expect(saleRepository.savedOrders, hasLength(1));
+        expect(saleRepository.orderStatuses.map((s) => s.status), [
+          OrderStatus.lock,
+          OrderStatus.unlock,
+        ]);
+        expect(auth.logoutCallCount, 1);
+      });
+
+      testWidgets('No reverses the stock, unlocks it, then logs out', (
+        tester,
+      ) async {
+        final auth = await openSale(tester);
+        await tester.tap(byTestId(SaleIds.leaveNo));
+        await tester.pumpAndSettle();
+        expect(saleRepository.savedOrders, isEmpty);
+        expect(saleRepository.reverseVirtualStockCalls, 1);
+        expect(saleRepository.orderStatuses.last.status, OrderStatus.unlock);
+        expect(auth.logoutCallCount, 1);
+      });
+
+      testWidgets('Cancel stays on Sale, still locked, logged in', (
+        tester,
+      ) async {
+        final auth = await openSale(tester);
+        await tester.tap(byTestId(SaleIds.leaveCancel));
+        await tester.pumpAndSettle();
+        expect(byTestId(SaleIds.scanField), findsOneWidget);
+        expect(saleRepository.orderStatuses, hasLength(1));
+        expect(auth.logoutCallCount, 0);
+      });
+
+      testWidgets('nothing on Buying: the usual "Are you sure you want to '
+          'log out?", then unlock and log out', (tester) async {
+        saleOrder = emptyOrder;
+        final auth = FakeAuthRepository();
+        await lookUp(
+          tester,
+          buildPage(searchResult: const [sofia], logoutRepository: auth),
+          'CB912447',
+        );
+        await tester.ensureVisible(byTestId(ProfileIds.goToSaleButton));
+        await tester.tap(byTestId(ProfileIds.goToSaleButton));
+        await tester.pumpAndSettle();
+        await tester.tap(byTestId(NavIds.signOut));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Are you sure you want to log out?'), findsOneWidget);
+        expect(byTestId(SaleIds.leaveDialog), findsNothing);
+        await tester.tap(find.widgetWithText(FilledButton, 'Log out'));
+        await tester.pumpAndSettle();
+        expect(saleRepository.orderStatuses.map((s) => s.status), [
+          OrderStatus.lock,
+          OrderStatus.unlock,
+        ]);
+        expect(auth.logoutCallCount, 1);
+      });
+
+      testWidgets('a failed save stays on Sale, logged in', (tester) async {
+        final auth = await openSale(tester);
+        saleRepository.saveOrderError = const ApiException(
+          messageCode: 'E01',
+          messageDesc: 'Cannot save.',
+        );
+        await tester.tap(byTestId(SaleIds.leaveYes));
+        await tester.pumpAndSettle();
+        expect(saleRepository.orderStatuses, hasLength(1));
+        expect(auth.logoutCallCount, 0);
+      });
     });
 
     testWidgets('an unregistered customer shows on Home; Start sale is '

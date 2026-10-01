@@ -15,7 +15,6 @@ import '../sale_cart_view_model.dart';
 import '../sale_currency.dart';
 import '../widgets/checkout_details.dart';
 import '../widgets/leave_checkout_guard.dart';
-import '../widgets/order_signature.dart';
 import '../widgets/session_expiry_guard.dart';
 import 'desktop_discount_overlay.dart';
 import 'desktop_payment_page.dart';
@@ -160,13 +159,6 @@ class _DesktopCheckoutPageState extends State<DesktopCheckoutPage> {
                                   context,
                                   viewModel: viewModel,
                                 ),
-                          // Legacy shows Signature only for such an order.
-                          requireSignature:
-                              viewModel.cart?.requireSignature ?? false,
-                          signatureCaptured: viewModel.signature != null,
-                          // Legacy: after payment ("Please pay first.").
-                          onSignature: () =>
-                              captureOrderSignature(context, viewModel),
                           onTakePayment: takePayment,
                         ),
                       ),
@@ -329,9 +321,6 @@ class _AmountColumn extends StatelessWidget {
   final VoidCallback? onCurrency;
   final bool hasLines;
   final VoidCallback? onBillDiscount;
-  final bool requireSignature;
-  final bool signatureCaptured;
-  final VoidCallback onSignature;
   final VoidCallback onTakePayment;
 
   const _AmountColumn({
@@ -341,9 +330,6 @@ class _AmountColumn extends StatelessWidget {
     required this.onCurrency,
     required this.hasLines,
     required this.onBillDiscount,
-    required this.requireSignature,
-    required this.signatureCaptured,
-    required this.onSignature,
     required this.onTakePayment,
   });
 
@@ -504,41 +490,6 @@ class _AmountColumn extends StatelessWidget {
               ],
             ),
           ),
-          if (requireSignature) ...[
-            const SizedBox(height: 16),
-            const Text('CUSTOMER SIGNATURE', style: DesktopText.fieldLabel),
-            const SizedBox(height: 8),
-            TestId(
-              DesktopPaymentIds.signatureBox,
-              child: Material(
-                color: const Color(0xFFFBFCFD),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  side: const BorderSide(color: Color(0xFFC3C9D2)),
-                ),
-                child: InkWell(
-                  onTap: onSignature,
-                  borderRadius: BorderRadius.circular(10),
-                  child: SizedBox(
-                    height: 96,
-                    child: Center(
-                      child: Text(
-                        signatureCaptured
-                            ? 'Signature captured · not uploaded yet · tap to redo'
-                            : 'Tap to capture the customer signature',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: signatureCaptured
-                              ? AppColors.success
-                              : AppColors.mutedText,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
           const SizedBox(height: 16),
           DesktopButton(
             id: CheckoutIds.takePaymentButton,

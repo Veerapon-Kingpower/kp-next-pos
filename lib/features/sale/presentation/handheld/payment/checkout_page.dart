@@ -13,7 +13,6 @@ import '../../widgets/leave_checkout_guard.dart';
 import '../discount_sheet.dart';
 import 'payment_page.dart';
 import 'payment_widgets.dart';
-import '../../widgets/order_signature.dart';
 import '../../widgets/session_expiry_guard.dart';
 
 /// Pushes Checkout for the current cart.
@@ -85,7 +84,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
     final currency = orderCurrency(viewModel.cart);
     final units = lines.fold<int>(0, (sum, l) => sum + l.quantity);
     final gifts = viewModel.cart?.giftsWithPurchase ?? const [];
-    final requireSignature = viewModel.cart?.requireSignature ?? false;
     List<Widget> rows(List<CheckoutFact> facts) => [
       for (final fact in facts)
         PaymentValueRow(label: fact.label, value: fact.value),
@@ -226,70 +224,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
                       const PaymentBlockLabel('Gift with Purchase'),
                       GiftWithPurchaseList(gifts: gifts),
                     ],
-                  ),
-                ),
-              ],
-              // Legacy shows Signature only for such an order.
-              if (requireSignature) ...[
-                const SizedBox(height: 14),
-                TestId(
-                  CheckoutIds.signatureRow,
-                  child: Material(
-                    color: AppColors.surface,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(
-                        HandheldMetrics.radius,
-                      ),
-                      side: const BorderSide(color: AppColors.line),
-                    ),
-                    child: InkWell(
-                      // Legacy: after payment ("Please pay first.").
-                      onTap: () => captureOrderSignature(context, viewModel),
-                      borderRadius: BorderRadius.circular(
-                        HandheldMetrics.radius,
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(14),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.draw_outlined,
-                              color: AppColors.goldDark,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Customer signature',
-                                    style: TextStyle(
-                                      fontSize: 13.5,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  Text(
-                                    viewModel.signature == null
-                                        ? 'Not captured'
-                                        : 'Captured · not uploaded yet',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: viewModel.signature == null
-                                          ? AppColors.mutedText
-                                          : AppColors.success,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const Icon(
-                              Icons.chevron_right,
-                              color: AppColors.mutedText,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
                   ),
                 ),
               ],

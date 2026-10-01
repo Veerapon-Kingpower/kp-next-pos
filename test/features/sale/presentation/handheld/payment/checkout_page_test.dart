@@ -249,8 +249,10 @@ void main() {
     );
   });
 
-  testWidgets('no signature row unless the order requires one', (tester) async {
-    await pump(tester);
+  testWidgets('no signature row on Checkout — it is on Payment', (
+    tester,
+  ) async {
+    await pump(tester, cart: _signedCart);
     expect(byTestId(CheckoutIds.signatureRow), findsNothing);
   });
 
@@ -304,55 +306,6 @@ void main() {
       ),
       findsOneWidget,
     );
-  });
-
-  testWidgets('signature: capture on the pad, then shown as captured', (
-    tester,
-  ) async {
-    await pump(tester, cart: _signedCart);
-    expect(
-      find.descendant(
-        of: byTestId(CheckoutIds.signatureRow),
-        matching: find.text('Not captured'),
-      ),
-      findsOneWidget,
-    );
-    await tester.ensureVisible(byTestId(CheckoutIds.signatureRow));
-    await tester.tap(byTestId(CheckoutIds.signatureRow));
-    await tester.pumpAndSettle();
-
-    final pad = tester.getCenter(byTestId(SignatureIds.customerPad));
-    await tester.dragFrom(pad - const Offset(60, 0), const Offset(120, 8));
-    await tester.pump();
-    await tester.tap(byTestId(SignatureIds.bottomSaveButton));
-    await tester.pumpAndSettle();
-
-    expect(
-      find.descendant(
-        of: byTestId(CheckoutIds.signatureRow),
-        matching: find.text('Captured · not uploaded yet'),
-      ),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('signature before payment: "Please pay first." (legacy)', (
-    tester,
-  ) async {
-    await pump(
-      tester,
-      cart: const Cart(
-        guid: 'order-1',
-        isCheckOut: false,
-        items: [chanel],
-        requireSignature: true,
-      ),
-    );
-    await tester.ensureVisible(byTestId(CheckoutIds.signatureRow));
-    await tester.tap(byTestId(CheckoutIds.signatureRow));
-    await tester.pumpAndSettle();
-    expect(find.text('Please pay first.'), findsOneWidget);
-    expect(byTestId(SignatureIds.page), findsNothing);
   });
 
   testWidgets('SESSION_EXPIRE: "Session expired", then log out', (

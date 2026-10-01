@@ -194,6 +194,25 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _logOut() async {
     if (_loggingOut) return;
+    // Logging out of Sale with lines on Buying leaves Sale first, as Back to
+    // Home does: "Do you want to save order?" (Yes saves, No reverses the
+    // stock), the card is unlocked, then the cashier is logged out. Cancel
+    // stays on Sale. With nothing on Buying it is the usual log out.
+    final isAirportMpos = widget.viewModel.settings.isAirportMpos;
+    if (_section == _HomeSection.sale &&
+        _saleCartViewModel.hasCustomer &&
+        _saleCartViewModel.hasBuyingItems &&
+        !isAirportMpos) {
+      final left = await confirmLeaveSale(
+        context,
+        _saleCartViewModel,
+        isAirportMpos: isAirportMpos,
+        onSignOut: _signOutNow,
+      );
+      if (!left || !mounted) return;
+      await _finishLogout(releaseCard: false);
+      return;
+    }
     final confirmed = await showAppConfirmationDialog(
       context,
       title: 'Log out',

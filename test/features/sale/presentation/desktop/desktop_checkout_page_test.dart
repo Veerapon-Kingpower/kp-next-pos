@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kp_pos/core/error/app_exception.dart';
 import 'package:kp_pos/core/presentation/test_ids.dart';
 import 'package:kp_pos/features/customer/domain/entities/customer.dart';
 import 'package:kp_pos/features/customer/domain/entities/privilege.dart';
@@ -311,11 +312,49 @@ void main() {
     expect(find.text('Step 3 of 3'), findsOneWidget);
   });
 
-  testWidgets('Esc returns to the sale', (tester) async {
+  testWidgets('Esc asks first; Cancel stays on Checkout', (tester) async {
     await open(tester);
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
+    expect(byTestId(CheckoutIds.leaveDialog), findsOneWidget);
+    expect(find.text('Do you want to go back?'), findsOneWidget);
+    await tester.tap(byTestId(CheckoutIds.leaveCancel));
+    await tester.pumpAndSettle();
+    expect(byTestId(CheckoutIds.page), findsOneWidget);
+    expect(sale.orderActions, isEmpty);
+    expect(sale.orderStatuses, isEmpty);
+  });
+
+  testWidgets('OK aborts the payment session, puts the order back to Sale '
+      '(UpdateOrderStatus a) and returns', (tester) async {
+    await open(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    await tester.tap(byTestId(CheckoutIds.leaveOk));
+    await tester.pumpAndSettle();
+    // Legacy sessionAbortPayment(): ActionOrderPayment Abort (2).
+    expect(sale.orderActions.single.action, '2');
+    expect(sale.orderActions.single.orderGuid, 'order-1');
+    expect(sale.orderStatuses.single.status, 'a');
     expect(find.text('open'), findsOneWidget);
+  });
+
+  testWidgets('a failed abort is shown and Checkout stays', (tester) async {
+    await open(tester);
+    sale.mutationError = const ApiException(
+      messageCode: 'E09',
+      messageDesc: 'Payment in progress.',
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    await tester.tap(byTestId(CheckoutIds.leaveOk));
+    await tester.pumpAndSettle();
+    expect(byTestId(CheckoutIds.leaveError), findsOneWidget);
+    expect(find.text('E09: Payment in progress.'), findsOneWidget);
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+    expect(byTestId(CheckoutIds.page), findsOneWidget);
+    expect(sale.orderStatuses, isEmpty);
   });
 
   testWidgets('signature box opens the pad; Suspend / Print quote inert', (

@@ -855,6 +855,68 @@ class SaleCartViewModel extends GetxController {
     return true;
   }
 
+  /// Legacy `ActionPaymentEnum.Abort`, sent as `ActionOrderPayment`'s
+  /// `Action`.
+  static const abortPaymentAction = '2';
+
+  /// Leaving Checkout for Sale, after "Do you want to go back?". Legacy
+  /// `sessionAbortPayment()`: `ActionOrderPayment` Abort for the order.
+  /// Then — not in legacy, which leaves the order at `e` — the order goes
+  /// back to the Sale lock (`UpdateOrderStatus` `a`), and is reloaded as
+  /// legacy Sale's `ionViewWillEnter()` does. Returns the error to show
+  /// (Checkout stays), or null once back.
+  Future<String?> leaveCheckout() async {
+    final sessionKey = await _sessionKey();
+    if (sessionKey == null) return 'No active session.';
+    isBusy = true;
+    update();
+    String? error;
+    try {
+      await _actOnOrder(
+        sessionKey: sessionKey,
+        action: abortPaymentAction,
+        value: '',
+        orderGuid: cart?.guid,
+      );
+    } on ApiException catch (e) {
+      final failure = mapExceptionToFailure(e);
+      if (failure is NetworkFailure || failure is TimeoutFailure) {
+        error = e.messageDesc;
+      } else if (e.messageCode != null && e.messageCode!.isNotEmpty) {
+        // Legacy: "Error <code>" with the description, and stays.
+        error = '${e.messageCode}: ${e.messageDesc}';
+      }
+      // Anything else (an answer without the order) still counts as
+      // aborted — legacy only looks at isCompleted.
+    }
+    if (error == null) {
+      try {
+        await _updateOrderStatus(
+          sessionKey: sessionKey,
+          shoppingCard: shoppingCard,
+          orderNo: cart?.orderNo ?? '',
+          status: OrderStatus.lock,
+        );
+      } on ApiException catch (e) {
+        final failure = mapExceptionToFailure(e);
+        if (failure is NetworkFailure || failure is TimeoutFailure) {
+          error = e.messageDesc;
+        }
+      }
+    }
+    final context = _orderContext;
+    if (error == null && context != null) {
+      try {
+        cart = await _getCart(sessionKey: sessionKey, context: context);
+      } on ApiException catch (e) {
+        scanError = e.messageDesc;
+      }
+    }
+    isBusy = false;
+    update();
+    return error;
+  }
+
   /// Legacy `AuthorizeCode.TakeOrUntake`, which `setPickupMode()` checks.
   static const takeOrUntakeAuthCode = 'actTake';
 

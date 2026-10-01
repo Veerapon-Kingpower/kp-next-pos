@@ -15,6 +15,7 @@ import '../../domain/entities/cart.dart';
 import '../sale_cart_view_model.dart';
 import '../sale_currency.dart';
 import '../widgets/checkout_details.dart';
+import '../widgets/leave_checkout_guard.dart';
 import 'desktop_discount_overlay.dart';
 import 'desktop_payment_page.dart';
 
@@ -101,74 +102,79 @@ class _DesktopCheckoutPageState extends State<DesktopCheckoutPage> {
       );
     }
 
-    return TestId(
-      CheckoutIds.page,
-      child: CallbackShortcuts(
-        bindings: {
-          const SingleActivator(LogicalKeyboardKey.enter): takePayment,
-        },
-        child: DesktopWizardFrame(
-          title: 'Checkout',
-          subtitle:
-              '${lines.length} line${lines.length == 1 ? '' : 's'}'
-              ' · $units unit${units == 1 ? '' : 's'}',
-          step: 2,
-          totalSteps: 3,
-          escapeLabel: 'Esc to return to sale',
-          body: Padding(
-            padding: const EdgeInsets.all(DesktopMetrics.pagePadding),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final sideWidth = constraints.maxWidth >= 1300 ? 520.0 : 400.0;
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      child: _ReviewColumn(
-                        lines: lines,
-                        units: units,
-                        customer: checkoutCustomerFacts(viewModel),
-                        trip: checkoutTripFacts(viewModel, DateTime.now()),
-                        sale: checkoutSaleFacts(
-                          viewModel,
-                          isAirportMpos: widget.isAirportMpos,
+    return LeaveCheckoutGuard(
+      viewModel: viewModel,
+      child: TestId(
+        CheckoutIds.page,
+        child: CallbackShortcuts(
+          bindings: {
+            const SingleActivator(LogicalKeyboardKey.enter): takePayment,
+          },
+          child: DesktopWizardFrame(
+            title: 'Checkout',
+            subtitle:
+                '${lines.length} line${lines.length == 1 ? '' : 's'}'
+                ' · $units unit${units == 1 ? '' : 's'}',
+            step: 2,
+            totalSteps: 3,
+            escapeLabel: 'Esc to return to sale',
+            body: Padding(
+              padding: const EdgeInsets.all(DesktopMetrics.pagePadding),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final sideWidth = constraints.maxWidth >= 1300
+                      ? 520.0
+                      : 400.0;
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: _ReviewColumn(
+                          lines: lines,
+                          units: units,
+                          customer: checkoutCustomerFacts(viewModel),
+                          trip: checkoutTripFacts(viewModel, DateTime.now()),
+                          sale: checkoutSaleFacts(
+                            viewModel,
+                            isAirportMpos: widget.isAirportMpos,
+                          ),
+                          gifts:
+                              viewModel.cart?.giftsWithPurchase ??
+                              const <GiftWithPurchase>[],
                         ),
-                        gifts:
-                            viewModel.cart?.giftsWithPurchase ??
-                            const <GiftWithPurchase>[],
                       ),
-                    ),
-                    const SizedBox(width: 20),
-                    SizedBox(
-                      width: sideWidth,
-                      child: _AmountColumn(
-                        total: total,
-                        billing: viewModel.cart?.billing,
-                        currencyError: viewModel.currencyError,
-                        // Legacy CheckoutPage.changeCurrency().
-                        onCurrency:
-                            viewModel.shoppingCard.isEmpty || viewModel.isBusy
-                            ? null
-                            : () => changeOrderCurrency(context, viewModel),
-                        hasLines: lines.isNotEmpty,
-                        // Legacy Checkout → More → Discount.
-                        onBillDiscount: lines.isEmpty || viewModel.isBusy
-                            ? null
-                            : () => showDesktopBillDiscountOverlay(
-                                context,
-                                viewModel: viewModel,
-                              ),
-                        // Legacy shows Signature only for such an order.
-                        requireSignature:
-                            viewModel.cart?.requireSignature ?? false,
-                        signatureCaptured: _signature != null,
-                        onSignature: () => _captureSignature(netPay),
-                        onTakePayment: takePayment,
+                      const SizedBox(width: 20),
+                      SizedBox(
+                        width: sideWidth,
+                        child: _AmountColumn(
+                          total: total,
+                          billing: viewModel.cart?.billing,
+                          currencyError: viewModel.currencyError,
+                          // Legacy CheckoutPage.changeCurrency().
+                          onCurrency:
+                              viewModel.shoppingCard.isEmpty || viewModel.isBusy
+                              ? null
+                              : () => changeOrderCurrency(context, viewModel),
+                          hasLines: lines.isNotEmpty,
+                          // Legacy Checkout → More → Discount.
+                          onBillDiscount: lines.isEmpty || viewModel.isBusy
+                              ? null
+                              : () => showDesktopBillDiscountOverlay(
+                                  context,
+                                  viewModel: viewModel,
+                                ),
+                          // Legacy shows Signature only for such an order.
+                          requireSignature:
+                              viewModel.cart?.requireSignature ?? false,
+                          signatureCaptured: _signature != null,
+                          onSignature: () => _captureSignature(netPay),
+                          onTakePayment: takePayment,
+                        ),
                       ),
-                    ),
-                  ],
-                );
-              },
+                    ],
+                  );
+                },
+              ),
             ),
           ),
         ),

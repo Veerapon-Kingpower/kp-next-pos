@@ -214,6 +214,12 @@ abstract class CheckoutIds {
   static const gwpCard = 'checkout.gwpCard';
   static const gwpList = 'checkout.gwpList';
   static String lineDiscount(String row) => 'checkout.line.$row.discount';
+
+  /// "Do you want to go back?" on leaving Checkout, and its failure.
+  static const leaveDialog = 'checkout.leaveDialog';
+  static const leaveOk = 'checkout.leaveDialog.ok';
+  static const leaveCancel = 'checkout.leaveDialog.cancel';
+  static const leaveError = 'checkout.leaveError';
 }
 
 abstract class PaymentIds {

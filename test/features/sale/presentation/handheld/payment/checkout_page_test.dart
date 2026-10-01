@@ -185,6 +185,44 @@ void main() {
     expect(byTestId(CheckoutIds.signatureRow), findsNothing);
   });
 
+  testWidgets('back asks first; OK aborts, puts the order back to Sale and '
+      'returns', (tester) async {
+    setDeviceSize(tester, compactSize);
+    sale = FakeSaleRepository(cartResult: sampleCart);
+    final viewModel = buildSaleViewModel(sale, cart: sampleCart);
+    await tester.pumpWidget(
+      TestApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => openCheckoutPage(context, viewModel: viewModel),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(byTestId(CheckoutIds.leaveDialog), findsOneWidget);
+    await tester.tap(byTestId(CheckoutIds.leaveCancel));
+    await tester.pumpAndSettle();
+    expect(byTestId(CheckoutIds.page), findsOneWidget);
+    expect(sale.orderActions, isEmpty);
+
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    await tester.tap(byTestId(CheckoutIds.leaveOk));
+    await tester.pumpAndSettle();
+    expect(sale.orderActions.single.action, '2');
+    expect(sale.orderStatuses.single.status, 'a');
+    expect(byTestId(CheckoutIds.page), findsNothing);
+    expect(find.text('open'), findsOneWidget);
+  });
+
   testWidgets('Take payment opens Payment with the net pay', (tester) async {
     await pump(tester);
     await tester.tap(byTestId(CheckoutIds.takePaymentButton));

@@ -9,6 +9,7 @@ import '../../../domain/entities/cart_item.dart';
 import '../../sale_cart_view_model.dart';
 import '../../sale_currency.dart';
 import '../../widgets/checkout_details.dart';
+import '../../widgets/leave_checkout_guard.dart';
 import '../discount_sheet.dart';
 import 'payment_page.dart';
 import 'payment_widgets.dart';
@@ -66,7 +67,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
     return GetBuilder<SaleCartViewModel>(
       init: widget.viewModel,
       global: false,
-      builder: (viewModel) => _build(context, viewModel),
+      builder: (viewModel) => LeaveCheckoutGuard(
+        viewModel: viewModel,
+        child: _build(context, viewModel),
+      ),
     );
   }
 

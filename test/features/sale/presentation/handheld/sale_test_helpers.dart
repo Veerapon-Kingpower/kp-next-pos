@@ -13,6 +13,7 @@ import 'package:kp_pos/features/sale/domain/usecases/change_order_currency_useca
 import 'package:kp_pos/features/sale/domain/usecases/exchange_change_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/list_currencies_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/remove_cart_item_usecase.dart';
+import 'package:kp_pos/features/sale/domain/usecases/edit_cart_item_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/update_cart_item_quantity_usecase.dart';
 import 'package:kp_pos/features/sale/presentation/sale_cart_view_model.dart';
 
@@ -77,6 +78,8 @@ SaleCartViewModel buildSaleViewModel(
     actOnLines: ActOnLinesUseCase(sale),
     addItemToCart: AddItemToCartUseCase(sale),
     updateCartItemQuantity: UpdateCartItemQuantityUseCase(sale),
+    editCartItem: EditCartItemUseCase(sale),
+    lookupSerial: LookupSerialUseCase(sale),
     removeCartItem: RemoveCartItemUseCase(sale),
     listCurrencies: ListCurrenciesUseCase(sale),
     changeOrderCurrency: ChangeOrderCurrencyUseCase(sale),

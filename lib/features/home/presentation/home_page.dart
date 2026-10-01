@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -7,6 +9,8 @@ import '../../../core/presentation/handheld/handheld.dart';
 import '../../../core/presentation/test_ids.dart';
 import '../../../core/presentation/widgets/test_id.dart';
 import '../../../core/presentation/widgets/app_card.dart';
+import '../../../core/presentation/widgets/app_text_field.dart'
+    show ClearFieldButton;
 import '../../../core/presentation/widgets/app_dialogs.dart';
 import '../../../core/presentation/widgets/app_shell.dart';
 import '../../../core/presentation/widgets/empty_state_view.dart';
@@ -21,6 +25,7 @@ import '../../customer/domain/entities/privilege.dart';
 import '../../customer/presentation/customer_registration_page.dart';
 import '../../customer/presentation/customer_registration_view_model.dart';
 import '../../customer/presentation/handheld/customer_profile_page.dart';
+import '../../customer/presentation/widgets/member_sign_up.dart';
 import '../../customer/presentation/widgets/privilege_radio_list.dart';
 import '../../enquiry/presentation/enquiry_page.dart';
 import '../../enquiry/presentation/handheld_enquiry_view.dart';
@@ -140,6 +145,7 @@ class _HomePageState extends State<HomePage> {
   ];
 
   final _customerSearchController = TextEditingController();
+  final _customerSearchFocus = FocusNode();
   final _dashboardScanController = TextEditingController();
   // Null until the first build, which picks each breakpoint's own default
   // landing section (Customers on mobile, Home on desktop) — see
@@ -176,6 +182,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     _customerSearchController.dispose();
+    _customerSearchFocus.dispose();
     _dashboardScanController.dispose();
     super.dispose();
   }
@@ -183,12 +190,10 @@ class _HomePageState extends State<HomePage> {
   // Sign out without asking again — the cashier already chose Log out
   // (after a failed unlock). The card could not be unlocked, so no
   // release is attempted.
-  Future<void> _signOutNow() async {
-    await widget.logoutUseCase();
-    widget.sessionState.signedOut();
-  }
+  Future<void> _signOutNow() => _finishLogout(releaseCard: false);
 
   Future<void> _logOut() async {
+    if (_loggingOut) return;
     final confirmed = await showAppConfirmationDialog(
       context,
       title: 'Log out',
@@ -196,12 +201,41 @@ class _HomePageState extends State<HomePage> {
       confirmLabel: 'Log out',
       destructive: true,
     );
-    if (!confirmed) return;
+    if (!confirmed || !mounted) return;
+    await _finishLogout(releaseCard: true);
+  }
 
-    // Legacy `unlockShoppingCard()` before logging out; needs the session
-    // key, so it runs first.
-    await _saleCartViewModel.releaseOrder();
-    await widget.logoutUseCase();
+  // Legacy shows a loading while it signs out. After a long idle the
+  // calls can hang on a dead connection, so each is capped — the cashier
+  // is logged out locally either way, as legacy does on an error.
+  bool _loggingOut = false;
+  static const _logoutUnlockTimeout = Duration(seconds: 10);
+
+  Future<void> _finishLogout({required bool releaseCard}) async {
+    if (_loggingOut) return;
+    _loggingOut = true;
+    final navigator = Navigator.of(context, rootNavigator: true);
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const PopScope(canPop: false, child: _LoggingOut()),
+      ),
+    );
+    try {
+      if (releaseCard) {
+        // Legacy `unlockShoppingCard()` before logging out; needs the
+        // session key, so it runs first.
+        await _saleCartViewModel.releaseOrder().timeout(
+          _logoutUnlockTimeout,
+          onTimeout: () => false,
+        );
+      }
+      await widget.logoutUseCase();
+    } finally {
+      if (mounted) navigator.pop();
+      _loggingOut = false;
+    }
     widget.sessionState.signedOut();
   }
 
@@ -268,6 +302,7 @@ class _HomePageState extends State<HomePage> {
     if (_notFound(results)) {
       _openRegistration(
         existingCustomer: results.isEmpty ? null : results.first,
+        notFoundQuery: _customerSearchController.text.trim(),
       );
     } else if (results.length == 1) {
       _openHandheldProfile(results.first, viewModel);
@@ -285,7 +320,10 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Future<void> _openRegistration({Customer? existingCustomer}) async {
+  Future<void> _openRegistration({
+    Customer? existingCustomer,
+    String? notFoundQuery,
+  }) async {
     final session = widget.viewModel.session;
     if (session == null) return;
     final navigator = Navigator.of(context, rootNavigator: true);
@@ -297,6 +335,8 @@ class _HomePageState extends State<HomePage> {
           userCode: session.userCode,
           isAirportMpos: widget.viewModel.settings.isAirportMpos,
           existingCustomer: existingCustomer,
+          notFoundQuery: notFoundQuery,
+          onSearchAgain: notFoundQuery == null ? null : _focusSearchAgain,
         ),
       ),
     );
@@ -436,6 +476,7 @@ class _HomePageState extends State<HomePage> {
           onPrivilegeChanged: (privilege) =>
               _selectPrivilegeFor(customer, privilege),
           onEdit: () => _openRegistration(existingCustomer: customer),
+          onSearchAgain: _lookUpOnHandheld,
         ),
       ),
     );
@@ -675,6 +716,7 @@ class _HomePageState extends State<HomePage> {
     }
     return HandheldHomeView(
       searchController: _customerSearchController,
+      searchFocus: _customerSearchFocus,
       onSearch: (_) => _lookUpOnHandheld(),
       searchResults: _customerSearchResults(context, viewModel),
       onRegister: () => _openRegistration(),
@@ -816,6 +858,7 @@ class _HomePageState extends State<HomePage> {
             onEnquiry: () => setState(() => _section = _HomeSection.enquiry),
             onEditProfile: editProfile,
             onClear: _clearHomeLookup,
+            onSearchAgain: () => _lookUpFromHome(_homeQuery),
           ),
         ],
       );
@@ -902,18 +945,33 @@ class _HomePageState extends State<HomePage> {
                   DesktopCustomerIds.searchField,
                   child: TextField(
                     controller: _customerSearchController,
+                    focusNode: _customerSearchFocus,
                     textInputAction: TextInputAction.search,
                     onSubmitted: (_) => _searchCustomer(),
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
                     ),
+                    // Rebuild for the ✕, shown only with text to clear.
+                    onChanged: (_) => setState(() {}),
                     decoration: InputDecoration(
                       hintText: _customerSearchHint,
                       prefixIcon: const Icon(
                         Icons.search,
                         color: AppColors.goldDark,
                       ),
+                      suffixIcon: _customerSearchController.text.isEmpty
+                          ? null
+                          : ClearFieldButton(
+                              id: FieldIds.clear(
+                                DesktopCustomerIds.searchField,
+                              ),
+                              controller: _customerSearchController,
+                              onCleared: (_) {
+                                setState(() {});
+                                _customerSearchFocus.requestFocus();
+                              },
+                            ),
                       filled: true,
                       fillColor: AppColors.surface,
                       contentPadding: const EdgeInsets.symmetric(vertical: 18),
@@ -948,7 +1006,7 @@ class _HomePageState extends State<HomePage> {
                 width: 170,
                 child: DesktopButton(
                   id: DesktopCustomerIds.newCustomerButton,
-                  label: 'New customer',
+                  label: 'New Register',
                   icon: Icons.person_add_alt_1_outlined,
                   secondary: true,
                   height: 58,
@@ -970,7 +1028,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   // A fresh embedded form (and view model) per shown customer — or per
-  // "New customer" — so its fields always start from that customer.
+  // "New Register" — so its fields always start from that customer.
   Widget _customerForm(HomeViewModel viewModel, Customer? customer) {
     final key = '${identityHashCode(customer)}#$_formGeneration';
     if (key != _formKey || _formViewModel == null) {
@@ -1011,6 +1069,47 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  // Several matches: chips to pick which one the profile / form show.
+  Widget? _resultChips(HomeViewModel viewModel, int index) {
+    final results = viewModel.customerSearchResults;
+    if (results.length <= 1) return null;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: DesktopPanel(
+        title: '${results.length} matches',
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (var i = 0; i < results.length; i++)
+              TestId(
+                DesktopCustomerIds.result(i),
+                child: ChoiceChip(
+                  label: Text(
+                    results[i].person.englishName.isNotEmpty
+                        ? results[i].person.englishName
+                        : results[i].person.shoppingCard,
+                  ),
+                  selected: i == index,
+                  onSelected: (_) => _showResult(i),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Not found → Search again: back to the search field with the query
+  // selected, ready to be retyped.
+  void _focusSearchAgain() {
+    _customerSearchController.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: _customerSearchController.text.length,
+    );
+    _customerSearchFocus.requestFocus();
+  }
+
   Widget _customerProfile(
     HomeViewModel viewModel,
     Customer? customer,
@@ -1029,33 +1128,47 @@ class _HomePageState extends State<HomePage> {
         onRetry: _searchCustomer,
       );
     }
+    // A miss comes back as an `isFound: false` record (or nothing): the
+    // form beside this is already the register form, as legacy routes it.
+    if ((customer == null || !customer.isFound) &&
+        viewModel.hasSearchedCustomer) {
+      return CustomerNotFoundPanel(
+        query: _customerSearchController.text,
+        signUpUrl: memberSignUpUrl,
+        onSearchAgain: _focusSearchAgain,
+      );
+    }
     if (customer == null) {
       return DesktopPanel(
         id: DesktopCustomerIds.profileEmpty,
         title: 'Profile',
-        child: viewModel.hasSearchedCustomer
-            ? const Column(
-                children: [
-                  EmptyStateView(
-                    message: 'No customer found.',
-                    icon: Icons.person_search_outlined,
-                  ),
-                  Text(
-                    'Register them with the form.',
-                    textAlign: TextAlign.center,
-                    style: muted,
-                  ),
-                ],
-              )
-            : const Text(
-                'Search a customer to see their profile here. To register '
-                'a new one, fill in the form.',
-                style: muted,
-              ),
+        child: const Text(
+          'Search a customer to see their profile here. To register '
+          'a new one, fill in the form.',
+          style: muted,
+        ),
       );
     }
 
-    final results = viewModel.customerSearchResults;
+    // Only members carry Carat, e-Purse and privileges (legacy Sale's
+    // `isMember`): anyone else gets their trip and the way to sign up.
+    if (!customer.person.isMember) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ?_resultChips(viewModel, index),
+          if (customer.person.flightCode.isNotEmpty) ...[
+            TripCard(person: customer.person, now: DateTime.now()),
+            const SizedBox(height: 16),
+          ],
+          NonMemberNotice(
+            signUpUrl: memberSignUpUrl,
+            onSearchAgain: _searchCustomer,
+          ),
+        ],
+      );
+    }
+
     final expiring = customer.person.caratNearlyExpired;
     Widget stat(String id, String label, String value, {String? note}) =>
         Expanded(
@@ -1102,31 +1215,7 @@ class _HomePageState extends State<HomePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (results.length > 1) ...[
-          DesktopPanel(
-            title: '${results.length} matches',
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (var i = 0; i < results.length; i++)
-                  TestId(
-                    DesktopCustomerIds.result(i),
-                    child: ChoiceChip(
-                      label: Text(
-                        results[i].person.englishName.isNotEmpty
-                            ? results[i].person.englishName
-                            : results[i].person.shoppingCard,
-                      ),
-                      selected: i == index,
-                      onSelected: (_) => _showResult(i),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-        ],
+        ?_resultChips(viewModel, index),
         // Equal-height tiles even when only Carat has an expiring line.
         IntrinsicHeight(
           child: Row(
@@ -1193,6 +1282,37 @@ class _HomePageState extends State<HomePage> {
             onTap: () => _openHandheldProfile(results[i], viewModel),
           ),
       ],
+    );
+  }
+}
+
+/// The "Logging out…" loading over the app while logout runs.
+class _LoggingOut extends StatelessWidget {
+  const _LoggingOut();
+
+  @override
+  Widget build(BuildContext context) {
+    return const TestId(
+      MenuIds.loggingOut,
+      child: Center(
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 28, vertical: 22),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2.5),
+                ),
+                SizedBox(width: 16),
+                Text('Logging out…', style: TextStyle(fontSize: 15)),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

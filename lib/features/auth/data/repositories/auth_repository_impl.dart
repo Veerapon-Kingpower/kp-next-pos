@@ -6,10 +6,14 @@ import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_local_data_source.dart';
 import '../datasources/auth_remote_data_source.dart';
 
-/// The legacy client falls back to a hardcoded UUID when the device has no
-/// `settings.uuid` yet (`auth-service.ts`) — preserved here rather than
-/// sending an empty `machine_ip`.
-const _fallbackMachineIp = '01afaa68-f583-9816-2868-591032116435';
+/// Login always sends this registered machine UUID as `machine_ip`,
+/// regardless of the device's `settings.uuid`.
+const _fixedMachineIp = '01afaa68-f583-9816-2868-591032116435';
+
+/// How long logout waits for `SaleEngine/SignOut` before clearing the local
+/// session anyway. After a long idle the request can otherwise sit on a dead
+/// connection for the client's full 60 s timeouts while the cashier waits.
+const logoutSignOutTimeout = Duration(seconds: 10);
 
 class AuthRepositoryImpl implements AuthRepository {
   final AuthRemoteDataSource _remote;
@@ -40,7 +44,7 @@ class AuthRepositoryImpl implements AuthRepository {
       userPassword: userPassword,
       branchNo: settings.branch,
       moduleCode: settings.moduleKey,
-      machineIp: settings.uuid.isEmpty ? _fallbackMachineIp : settings.uuid,
+      machineIp: _fixedMachineIp,
     );
 
     // Without `MachineEnv.MachineNo` the session is incomplete (startup
@@ -67,12 +71,14 @@ class AuthRepositoryImpl implements AuthRepository {
       // of whether the server call succeeds.
       try {
         final settings = await _deviceSettingsStorage.read();
-        await _remote.logout(
-          saleEngineEndpoint: settings.saleEngineEndpoint,
-          sessionKey: session.sessionKey,
-        );
+        await _remote
+            .logout(
+              saleEngineEndpoint: settings.saleEngineEndpoint,
+              sessionKey: session.sessionKey,
+            )
+            .timeout(logoutSignOutTimeout);
       } catch (_) {
-        // Ignored: local logout must still proceed.
+        // Ignored (a timeout too): local logout must still proceed.
       }
     }
     await _local.clear();

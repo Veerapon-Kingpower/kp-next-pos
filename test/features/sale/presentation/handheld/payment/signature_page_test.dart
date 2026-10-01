@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/presentation/test_ids.dart';
+import 'package:kp_pos/core/theme/app_theme.dart';
 import 'package:kp_pos/features/sale/presentation/handheld/payment/signature_page.dart';
 
 import '../../../../../helpers/test_id_finders.dart';
@@ -15,6 +16,9 @@ void main() {
     setDeviceSize(tester, size);
     await tester.pumpWidget(
       MaterialApp(
+        // The real theme: its full-width FilledButton minimum once broke
+        // the header's Save button.
+        theme: AppTheme.light(),
         home: Builder(
           builder: (context) => Scaffold(
             body: TextButton(

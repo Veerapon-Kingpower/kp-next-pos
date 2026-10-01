@@ -40,6 +40,33 @@ class SaleRemoteDataSource {
     return result.unwrap();
   }
 
+  /// Legacy `EditSalePage.onSubmit()`: a scanned serial longer than 20
+  /// characters is a barcode — `GetMasterByBarcodeDLL` returns the
+  /// article's real `SerialNo`.
+  Future<String> getSerialByBarcode({
+    required String saleEngineEndpoint,
+    required String siteCode,
+    required String barcode,
+  }) async {
+    final response = await _apiClient.post(
+      '$saleEngineEndpoint/SaleEngine/GetMasterByBarcodeDLL',
+      data: {
+        'siteCode': siteCode,
+        'barcode': barcode,
+        'priceDate': DateTime.now().toIso8601String(),
+      },
+    );
+    final result = ReturnObject<String>.fromJson(
+      response,
+      (data) =>
+          ((data as Map<String, dynamic>)['Article']
+                  as Map<String, dynamic>?)?['SerialNo']
+              as String? ??
+          '',
+    );
+    return result.unwrap();
+  }
+
   /// Ports legacy `sale.ts`'s `onSubmit()` `OrderAddContract`: `ItemCode`
   /// is the scanned / typed text as-is and `Rows` the Guids of the lines
   /// selected in the cart (empty when none). `ItemGWP` is left unset there,
@@ -87,6 +114,52 @@ class SaleRemoteDataSource {
       },
     );
     return _firstOrder(response);
+  }
+
+  /// Ports legacy `EditSalePage.saveItem()`: one `ActionItemToOrder` with
+  /// the line's quantity, freeze, lock, take / collect and serial. A
+  /// not-completed answer with a `WARNING` message still carries the order
+  /// — legacy shows the warning and keeps it; any other failure throws.
+  Future<({CartModel order, String? warning})> editItem({
+    required String saleEngineEndpoint,
+    required String sessionKey,
+    required String row,
+    required int quantity,
+    required bool isFreeze,
+    required bool isLockDiscount,
+    required String collectStatus,
+    required String serialNo,
+  }) async {
+    final response = await _apiClient.post(
+      '$saleEngineEndpoint/SaleEngine/ActionItemToOrder',
+      data: {
+        'SessionKey': sessionKey,
+        'Row': row,
+        'ActionItemValues': [
+          {'Action': 'change_qty', 'Value': quantity.toString()},
+          {'Action': 'is_freeze', 'Value': isFreeze ? '1' : '0'},
+          {'Action': 'is_lock', 'Value': isLockDiscount ? '1' : '0'},
+          {'Action': 'take_collect', 'Value': collectStatus},
+          {'Action': 'SerialNo', 'Value': serialNo},
+        ],
+      },
+    );
+    if (response['isCompleted'] != true) {
+      final messages = (response['Message'] as List<dynamic>? ?? const []).map(
+        (m) => ReturnMessage.fromJson(m as Map<String, dynamic>),
+      );
+      final warning = messages
+          .where((m) => m.messageType == 'WARNING')
+          .firstOrNull;
+      final data = response['Data'];
+      if (warning != null && data is List && data.isNotEmpty) {
+        return (
+          order: CartModel.fromJson(data.first as Map<String, dynamic>),
+          warning: warning.messageDesc,
+        );
+      }
+    }
+    return (order: _firstOrder(response), warning: null);
   }
 
   Future<CartModel> removeItem({

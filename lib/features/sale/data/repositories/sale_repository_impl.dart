@@ -6,6 +6,7 @@ import '../../domain/entities/article.dart';
 import '../../domain/entities/cart.dart';
 import '../../domain/entities/currency.dart';
 import '../../domain/entities/exchange_quote.dart';
+import '../../domain/entities/line_edit.dart';
 import '../../domain/entities/promotion.dart';
 import '../../domain/entities/sale_order_context.dart';
 import '../../domain/repositories/sale_repository.dart';
@@ -96,6 +97,39 @@ class SaleRepositoryImpl implements SaleRepository {
       sessionKey: sessionKey,
       row: row,
       quantity: quantity,
+    );
+  }
+
+  @override
+  Future<LineEditResult> editCartItem({
+    required String sessionKey,
+    required String row,
+    required LineEdit edit,
+  }) async {
+    final settings = await _deviceSettingsStorage.read();
+    final result = await _remote.editItem(
+      saleEngineEndpoint: settings.saleEngineEndpoint,
+      sessionKey: sessionKey,
+      row: row,
+      quantity: edit.quantity,
+      isFreeze: edit.isFreeze,
+      isLockDiscount: edit.isLockDiscount,
+      collectStatus: edit.collectStatus,
+      serialNo: edit.serialNo,
+    );
+    return LineEditResult(cart: result.order, warning: result.warning);
+  }
+
+  @override
+  Future<String> lookupSerial({
+    required String site,
+    required String barcode,
+  }) async {
+    final settings = await _deviceSettingsStorage.read();
+    return _remote.getSerialByBarcode(
+      saleEngineEndpoint: settings.saleEngineEndpoint,
+      siteCode: site.isEmpty ? settings.subBranchCode : site,
+      barcode: barcode,
     );
   }
 

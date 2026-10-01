@@ -7,6 +7,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../flight/domain/entities/flight.dart';
 import '../../domain/entities/customer.dart';
 import '../../domain/entities/privilege.dart';
+import '../widgets/member_sign_up.dart';
 import '../widgets/privilege_radio_list.dart';
 import '../widgets/registration_checks_list.dart';
 import 'traveller_details_page.dart';
@@ -27,6 +28,12 @@ class CustomerProfilePage extends StatefulWidget {
   final ValueChanged<Privilege?> onPrivilegeChanged;
   final VoidCallback onEdit;
 
+  /// A non-member signed up: close the profile and look them up again.
+  final VoidCallback? onSearchAgain;
+
+  /// Overrides this build's member sign-up page (tests).
+  final String? signUpUrl;
+
   const CustomerProfilePage({
     super.key,
     required this.customer,
@@ -34,6 +41,8 @@ class CustomerProfilePage extends StatefulWidget {
     required this.onPrivilegeChanged,
     required this.onEdit,
     this.initialPrivilege,
+    this.onSearchAgain,
+    this.signUpUrl,
   });
 
   @override
@@ -53,6 +62,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
   @override
   Widget build(BuildContext context) {
     final person = _person;
+    final isMember = person.isMember;
     final badge = person.typeCardMember.trim().toUpperCase();
     final expiring = person.caratNearlyExpired;
     final cardLine = [
@@ -74,34 +84,41 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Equal-height tiles even when only Carat has an expiring line.
-              IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      child: _StatTile(
-                        id: ProfileIds.caratStat,
-                        label: 'Carat',
-                        value: formatCarat(person.caratBalance),
-                        note: expiring == null
-                            ? null
-                            : formatCaratExpiring(expiring.amount, expiring.at),
-                        noteId: ProfileIds.caratExpiring,
+              // Only members carry Carat, e-Purse and privileges (legacy
+              // Sale's `isMember`).
+              if (isMember) ...[
+                // Equal-height tiles even when only Carat has an expiring line.
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: _StatTile(
+                          id: ProfileIds.caratStat,
+                          label: 'Carat',
+                          value: formatCarat(person.caratBalance),
+                          note: expiring == null
+                              ? null
+                              : formatCaratExpiring(
+                                  expiring.amount,
+                                  expiring.at,
+                                ),
+                          noteId: ProfileIds.caratExpiring,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _StatTile(
-                        id: ProfileIds.ePurseStat,
-                        label: 'e-Purse',
-                        value: formatEPurse(person.ePurseBalance),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _StatTile(
+                          id: ProfileIds.ePurseStat,
+                          label: 'e-Purse',
+                          value: formatEPurse(person.ePurseBalance),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 14),
+                const SizedBox(height: 14),
+              ],
               _FlightCard(
                 person: person,
                 onTraveller: () => Navigator.of(context).push(
@@ -114,11 +131,23 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                 ),
               ),
               const SizedBox(height: 14),
-              PrivilegeRadioList(
-                privileges: person.privileges,
-                selected: _privilege,
-                onChanged: _selectPrivilege,
-              ),
+              if (isMember)
+                PrivilegeRadioList(
+                  privileges: person.privileges,
+                  selected: _privilege,
+                  onChanged: _selectPrivilege,
+                )
+              else
+                NonMemberNotice(
+                  signUpUrl: widget.signUpUrl ?? memberSignUpUrl,
+                  onSearchAgain: widget.onSearchAgain == null
+                      ? null
+                      : () {
+                          // Back to Home, which looks the customer up again.
+                          Navigator.of(context).pop();
+                          widget.onSearchAgain!();
+                        },
+                ),
               const SizedBox(height: 14),
               HandheldSection(
                 title: 'Details',

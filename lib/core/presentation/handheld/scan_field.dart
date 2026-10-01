@@ -24,6 +24,12 @@ class ScanField extends StatelessWidget {
   // When set, a trailing search button (with this id) submits the typed
   // text, for a code keyed in by hand rather than scanned.
   final String? searchButtonId;
+  // When set, a ✕ (with this id) empties the field while it has text and
+  // keeps focus there for the next scan.
+  final String? clearButtonId;
+  // Keep focus after Enter, so the next trigger scan lands here too (a
+  // TextField otherwise drops focus on submit).
+  final bool keepFocusOnSubmit;
 
   const ScanField({
     super.key,
@@ -36,6 +42,8 @@ class ScanField extends StatelessWidget {
     this.enabled = true,
     this.onDark = false,
     this.searchButtonId,
+    this.clearButtonId,
+    this.keepFocusOnSubmit = false,
   });
 
   @override
@@ -88,6 +96,7 @@ class ScanField extends StatelessWidget {
                     enabled: enabled,
                     textInputAction: TextInputAction.search,
                     onSubmitted: onSubmitted,
+                    onEditingComplete: keepFocusOnSubmit ? () {} : null,
                     cursorColor: onDark ? Colors.white : null,
                     style: HandheldText.body.copyWith(color: foreground),
                     decoration: InputDecoration.collapsed(
@@ -101,6 +110,29 @@ class ScanField extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (clearButtonId != null)
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: controller,
+                    builder: (context, value, _) => value.text.isEmpty
+                        ? const SizedBox.shrink()
+                        : TestId(
+                            clearButtonId!,
+                            child: IconButton(
+                              tooltip: 'Clear',
+                              visualDensity: VisualDensity.compact,
+                              icon: const Icon(Icons.cancel, size: 18),
+                              color: onDark
+                                  ? Colors.white.withValues(alpha: 0.8)
+                                  : const Color(0xFF9AA2AE),
+                              onPressed: enabled
+                                  ? () {
+                                      controller.clear();
+                                      focusNode?.requestFocus();
+                                    }
+                                  : null,
+                            ),
+                          ),
+                  ),
                 if (searchButtonId != null)
                   TestId(
                     searchButtonId!,

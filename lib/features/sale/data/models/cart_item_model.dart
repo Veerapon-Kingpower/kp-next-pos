@@ -24,6 +24,11 @@ class CartItemModel extends CartItem {
     super.isCancel,
     super.lineNo,
     super.collectStatus,
+    super.serialNo,
+    super.requireSerial,
+    super.cites,
+    super.citesPermitNo,
+    super.vasItems,
   });
 
   factory CartItemModel.fromJson(Map<String, dynamic> json) {
@@ -65,6 +70,22 @@ class CartItemModel extends CartItem {
       isCancel: json['IsCancel'] as bool? ?? false,
       lineNo: (json['LineNo'] as num?)?.toInt() ?? 0,
       collectStatus: _attribute(itemDetail['ItemAttributes'], 'collect_status'),
+      serialNo: json['serialNo'] as String? ?? '',
+      requireSerial: _map(json['outputDLL'])['RequireSerial'] as bool? ?? false,
+      cites: json['cites'] as String? ?? '',
+      citesPermitNo: json['citesPermitNo'] as String? ?? '',
+      vasItems: [
+        for (final vas
+            in (json['VASs'] as List<dynamic>? ?? const [])
+                .whereType<Map<String, dynamic>>())
+          VasItem(
+            articleCode: vas['ArticleCode'] as String? ?? '',
+            articleName: vas['ArticleName'] as String? ?? '',
+            totalRequireQty: vas['TotalRequireQty'] as num? ?? 0,
+            existQty: vas['ExistQty'] as num? ?? 0,
+            remainQty: vas['RemainQty'] as num? ?? 0,
+          ),
+      ],
     );
   }
 

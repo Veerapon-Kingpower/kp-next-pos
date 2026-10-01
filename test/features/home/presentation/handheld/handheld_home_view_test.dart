@@ -131,6 +131,59 @@ void main() {
       expect(searched, 'CPX0001');
     });
 
+    testWidgets('the scan field has focus on open and keeps it after a scan', (
+      tester,
+    ) async {
+      setDeviceSize(tester, compactSize);
+      await tester.pumpWidget(build());
+      await tester.pump();
+      bool focused() => tester
+          .state<EditableTextState>(
+            find.descendant(
+              of: byTestId(HomeIds.scanField),
+              matching: find.byType(EditableText),
+            ),
+          )
+          .widget
+          .focusNode
+          .hasFocus;
+      expect(focused(), isTrue);
+
+      await tester.enterText(
+        find.descendant(
+          of: byTestId(HomeIds.scanField),
+          matching: find.byType(TextField),
+        ),
+        'CPX0001',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pump();
+      expect(focused(), isTrue);
+    });
+
+    testWidgets('the ✕ shows with text and empties the scan field', (
+      tester,
+    ) async {
+      setDeviceSize(tester, compactSize);
+      await tester.pumpWidget(build());
+      final clear = byTestId(FieldIds.clear(HomeIds.scanField));
+      expect(clear, findsNothing);
+
+      await tester.enterText(
+        find.descendant(
+          of: byTestId(HomeIds.scanField),
+          matching: find.byType(TextField),
+        ),
+        'CPX0001',
+      );
+      await tester.pump();
+      await tester.tap(clear);
+      await tester.pump();
+
+      expect(controller.text, isEmpty);
+      expect(clear, findsNothing);
+    });
+
     testWidgets('renders the search results slot under the scan field', (
       tester,
     ) async {

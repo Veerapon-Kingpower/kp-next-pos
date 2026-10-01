@@ -8,43 +8,44 @@ import '../../../../core/presentation/widgets/test_id.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../domain/entities/cart_item.dart';
 import '../sale_cart_view_model.dart';
+import '../widgets/line_editor.dart';
 
-/// Pushes the Edit line page for cart [row].
+/// Pushes the Edit line page for cart [row]. [isAirportMpos] hides Pickup,
+/// as legacy does.
 Future<void> openEditLinePage(
   BuildContext context, {
   required SaleCartViewModel viewModel,
   required String row,
   required int lineNumber,
+  bool isAirportMpos = false,
 }) {
   return Navigator.of(context).push(
     MaterialPageRoute<void>(
-      builder: (_) =>
-          EditLinePage(viewModel: viewModel, row: row, lineNumber: lineNumber),
+      builder: (_) => EditLinePage(
+        viewModel: viewModel,
+        row: row,
+        lineNumber: lineNumber,
+        isAirportMpos: isAirportMpos,
+      ),
     ),
   );
 }
 
-/// Edit line · Order item (mockup screen 14). Quantity is real
-/// ([SaleCartViewModel.updateQuantity]), as is voiding the line.
-///
-/// Serial capture, Freeze, Lock discount and Collect / Take pickup are
-/// shown but inert — the cart has no fields or APIs for them yet
-/// (openspec tasks 5.2 / 6.1). The mockup's CITES and VAS blocks are left
-/// out entirely: they describe per-article data the app doesn't receive,
-/// so there is nothing honest to show.
-// TODO(pos-handheld): wire serial / freeze / lock / pickup once the cart
-// line model carries them; add CITES / VAS when the article API returns
-// them.
+/// Edit line · Order item (mockup screen 14) — legacy `EditSalePage`
+/// ("Edit Detail"): qty, serial, Freeze, Lock and Collect / Take saved
+/// together ([saveLineEdit]), CITES / VAS details, plus voiding the line.
 class EditLinePage extends StatefulWidget {
   final SaleCartViewModel viewModel;
   final String row;
   final int lineNumber;
+  final bool isAirportMpos;
 
   const EditLinePage({
     super.key,
     required this.viewModel,
     required this.row,
     required this.lineNumber,
+    this.isAirportMpos = false,
   });
 
   @override
@@ -52,7 +53,7 @@ class EditLinePage extends StatefulWidget {
 }
 
 class _EditLinePageState extends State<EditLinePage> {
-  int? _quantity;
+  LineEditDraft? _draft;
 
   CartItem? get _line {
     final items = widget.viewModel.cart?.items ?? const <CartItem>[];
@@ -62,17 +63,14 @@ class _EditLinePageState extends State<EditLinePage> {
     return null;
   }
 
-  Future<bool> _save(CartItem line) async {
-    final quantity = _quantity ?? line.quantity;
-    if (quantity == line.quantity) return true;
-    await widget.viewModel.updateQuantity(row: line.row, quantity: quantity);
-    if (!mounted) return false;
-    setState(() => _quantity = null);
-    return widget.viewModel.scanError == null;
+  @override
+  void dispose() {
+    _draft?.dispose();
+    super.dispose();
   }
 
-  Future<void> _saveAndClose(CartItem line) async {
-    final ok = await _save(line);
+  Future<void> _saveAndClose(CartItem line, LineEditDraft draft) async {
+    final ok = await saveLineEdit(context, widget.viewModel, line, draft);
     if (ok && mounted) Navigator.of(context).pop();
   }
 
@@ -100,7 +98,8 @@ class _EditLinePageState extends State<EditLinePage> {
           // Removed elsewhere (or voided here) — nothing left to edit.
           return const Scaffold(body: SizedBox.shrink());
         }
-        return _buildPage(context, viewModel, line);
+        final draft = _draft ??= LineEditDraft(line);
+        return _buildPage(context, viewModel, line, draft);
       },
     );
   }
@@ -109,139 +108,34 @@ class _EditLinePageState extends State<EditLinePage> {
     BuildContext context,
     SaleCartViewModel viewModel,
     CartItem line,
+    LineEditDraft draft,
   ) {
-    final quantity = _quantity ?? line.quantity;
-    final amount = line.unitPrice * quantity;
     final busy = viewModel.isBusy;
 
     return TestId(
       EditLineIds.page,
       child: HandheldScaffold(
-        header: _EditLineHeader(
-          lineNumber: widget.lineNumber,
-          onUndo: () => setState(() => _quantity = null),
-          onSave: busy ? null : () => _save(line),
-          onSaveClose: busy ? null : () => _saveAndClose(line),
+        header: ListenableBuilder(
+          listenable: draft,
+          builder: (context, _) => _EditLineHeader(
+            lineNumber: widget.lineNumber,
+            onUndo: draft.isChanged ? draft.undo : null,
+            onSave: busy
+                ? null
+                : () => saveLineEdit(context, viewModel, line, draft),
+            onSaveClose: busy ? null : () => _saveAndClose(line, draft),
+          ),
         ),
         backgroundColor: AppColors.surface,
         body: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _Block(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const _Caption('Item code'),
-                    Text(line.articleCode, style: _strong),
-                    const SizedBox(height: 8),
-                    const _Caption('Description'),
-                    Text(
-                      line.articleName.isEmpty ? '—' : line.articleName,
-                      style: _strong,
-                    ),
-                  ],
-                ),
-              ),
-              _Block(
-                color: const Color(0xFFFDF8EE),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const _Caption('Serial number'),
-                    const SizedBox(height: 6),
-                    TestId(
-                      EditLineIds.serialField,
-                      child: const TextField(
-                        enabled: false,
-                        decoration: InputDecoration(
-                          isDense: true,
-                          prefixIcon: Icon(Icons.qr_code_scanner, size: 16),
-                          hintText: 'Serial capture not available yet',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              _Block(
-                child: Row(
-                  children: [
-                    const Expanded(child: _Caption('Qty')),
-                    _Stepper(
-                      quantity: quantity,
-                      onDecrease: quantity > 1
-                          ? () => setState(() => _quantity = quantity - 1)
-                          : null,
-                      onIncrease: () =>
-                          setState(() => _quantity = quantity + 1),
-                    ),
-                  ],
-                ),
-              ),
-              _Block(
-                child: Column(
-                  children: [
-                    _AmountRow(
-                      label: 'Price',
-                      value: formatAmount(line.unitPrice),
-                    ),
-                    TestId(
-                      EditLineIds.amount,
-                      child: _AmountRow(
-                        label: 'Amount',
-                        value: formatAmount(amount),
-                      ),
-                    ),
-                    const _AmountRow(label: 'Discount', value: '—'),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: HandheldNetBar(
-                  id: EditLineIds.netAmount,
-                  label: 'Net amount',
-                  value: formatBaht(amount),
-                ),
-              ),
-              const _InertSwitchRow(
-                id: EditLineIds.freezeSwitch,
-                icon: Icons.ac_unit,
-                label: 'Freeze',
-              ),
-              const _InertSwitchRow(
-                id: EditLineIds.lockDiscountSwitch,
-                icon: Icons.lock_outline,
-                label: 'Lock discount',
-              ),
-              const _GroupHeader('Pickup'),
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: HandheldChoiceChip(
-                        id: EditLineIds.pickupCollect,
-                        label: 'Collect',
-                        icon: Icons.flight_takeoff,
-                        selected: false,
-                        height: 54,
-                      ),
-                    ),
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: HandheldChoiceChip(
-                        id: EditLineIds.pickupTake,
-                        label: 'Take',
-                        icon: Icons.shopping_bag_outlined,
-                        selected: false,
-                        height: 54,
-                      ),
-                    ),
-                  ],
-                ),
+              LineEditFields(
+                viewModel: viewModel,
+                line: line,
+                draft: draft,
+                showPickup: !widget.isAirportMpos,
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -269,11 +163,9 @@ class _EditLinePageState extends State<EditLinePage> {
   }
 }
 
-const _strong = TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700);
-
 class _EditLineHeader extends StatelessWidget {
   final int lineNumber;
-  final VoidCallback onUndo;
+  final VoidCallback? onUndo;
   final VoidCallback? onSave;
   final VoidCallback? onSaveClose;
 
@@ -304,6 +196,7 @@ class _EditLineHeader extends StatelessWidget {
             label: Text(label),
             style: OutlinedButton.styleFrom(
               foregroundColor: Colors.white,
+              disabledForegroundColor: Colors.white.withValues(alpha: 0.4),
               side: BorderSide(color: Colors.white.withValues(alpha: 0.22)),
               padding: const EdgeInsets.symmetric(horizontal: 8),
             ),
@@ -391,159 +284,6 @@ class _EditLineHeader extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _Block extends StatelessWidget {
-  final Widget child;
-  final Color? color;
-
-  const _Block({required this.child, this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: color,
-        border: const Border(bottom: BorderSide(color: Color(0xFFEDEFF3))),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: child,
-      ),
-    );
-  }
-}
-
-class _Caption extends StatelessWidget {
-  final String text;
-
-  const _Caption(this.text);
-
-  @override
-  Widget build(BuildContext context) =>
-      Text(text, style: HandheldText.bodySmall.copyWith(fontSize: 12));
-}
-
-class _GroupHeader extends StatelessWidget {
-  final String text;
-
-  const _GroupHeader(this.text);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: const Color(0xFFFAFBFC),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-      child: Text(
-        text.toUpperCase(),
-        style: HandheldText.overline.copyWith(color: AppColors.goldDark),
-      ),
-    );
-  }
-}
-
-class _AmountRow extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _AmountRow({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        children: [
-          Expanded(child: _Caption(label)),
-          Text(value, style: _strong.copyWith(fontSize: 13)),
-        ],
-      ),
-    );
-  }
-}
-
-class _Stepper extends StatelessWidget {
-  final int quantity;
-  final VoidCallback? onDecrease;
-  final VoidCallback onIncrease;
-
-  const _Stepper({
-    required this.quantity,
-    required this.onDecrease,
-    required this.onIncrease,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border.all(color: const Color(0xFFD8DDE5)),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TestId(
-            EditLineIds.qtyDecrease,
-            child: IconButton(
-              icon: const Icon(Icons.remove),
-              color: AppColors.goldDark,
-              tooltip: 'Decrease quantity',
-              onPressed: onDecrease,
-            ),
-          ),
-          SizedBox(
-            width: 48,
-            child: TestId(
-              EditLineIds.qtyValue,
-              child: Text(
-                '$quantity',
-                textAlign: TextAlign.center,
-                style: HandheldText.statValue.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ),
-          TestId(
-            EditLineIds.qtyIncrease,
-            child: IconButton(
-              icon: const Icon(Icons.add),
-              color: AppColors.goldDark,
-              tooltip: 'Increase quantity',
-              onPressed: onIncrease,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InertSwitchRow extends StatelessWidget {
-  final String id;
-  final IconData icon;
-  final String label;
-
-  const _InertSwitchRow({
-    required this.id,
-    required this.icon,
-    required this.label,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return _Block(
-      child: Row(
-        children: [
-          Icon(icon, size: 15, color: AppColors.mutedText),
-          const SizedBox(width: 10),
-          Expanded(child: Text(label, style: _strong)),
-          TestId(id, child: const Switch(value: false, onChanged: null)),
-        ],
       ),
     );
   }

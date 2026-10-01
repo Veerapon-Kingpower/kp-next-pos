@@ -48,6 +48,7 @@ Future<TravellerDetails?> showDesktopTravellerOverlay(
   required Future<List<Flight>> Function(String query) searchFlights,
   required Future<List<Nationality>> Function(String query) searchNationalities,
   DateTime? today,
+  bool showFlight = true,
 }) {
   return showDialog<TravellerDetails>(
     context: context,
@@ -56,12 +57,16 @@ Future<TravellerDetails?> showDesktopTravellerOverlay(
       insetPadding: const EdgeInsets.all(40),
       backgroundColor: Colors.transparent,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1280, maxHeight: 860),
+        constraints: BoxConstraints(
+          maxWidth: showFlight ? 1280 : 560,
+          maxHeight: 860,
+        ),
         child: _TravellerOverlay(
           initial: initial,
           searchFlights: searchFlights,
           searchNationalities: searchNationalities,
           today: today ?? DateTime.now(),
+          showFlight: showFlight,
         ),
       ),
     ),
@@ -76,11 +81,16 @@ class _TravellerOverlay extends StatefulWidget {
   final Future<List<Nationality>> Function(String query) searchNationalities;
   final DateTime today;
 
+  /// False for a non-international (take-away) customer: legacy hides the
+  /// flight fields then, so only the passport pane is shown.
+  final bool showFlight;
+
   const _TravellerOverlay({
     required this.initial,
     required this.searchFlights,
     required this.searchNationalities,
     required this.today,
+    required this.showFlight,
   });
 
   @override
@@ -219,9 +229,12 @@ class _TravellerOverlayState extends State<_TravellerOverlay> {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        SizedBox(width: 460, child: _passportPane()),
-                        const SizedBox(width: 20),
-                        Expanded(child: _flightPane()),
+                        if (widget.showFlight) ...[
+                          SizedBox(width: 460, child: _passportPane()),
+                          const SizedBox(width: 20),
+                          Expanded(child: _flightPane()),
+                        ] else
+                          Expanded(child: _passportPane()),
                       ],
                     ),
                   ),
@@ -248,7 +261,7 @@ class _TravellerOverlayState extends State<_TravellerOverlay> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Flight & passport',
+                  widget.showFlight ? 'Flight & passport' : 'Passport',
                   style: DesktopText.screenTitle.copyWith(color: Colors.white),
                 ),
                 const SizedBox(height: 3),

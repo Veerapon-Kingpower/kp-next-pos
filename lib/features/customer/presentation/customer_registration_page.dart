@@ -23,6 +23,7 @@ import 'customer_registration_view_model.dart';
 import 'desktop/desktop_flight_date_picker.dart';
 import 'desktop/desktop_traveller_overlay.dart';
 import 'handheld/flight_date_picker.dart';
+import 'widgets/member_sign_up.dart';
 
 /// Manual-entry "Register new customer" form, fields ordered to match
 /// `customer-form.html`'s non-airport layout. Doubles as the edit-existing-
@@ -44,6 +45,17 @@ class CustomerRegistrationPage extends StatefulWidget {
   final bool embedded;
   final ValueChanged<String>? onSaved;
 
+  /// Handheld: Register opened because nothing was found for this query —
+  /// shows the "No customer" banner (sign up / search again) on top.
+  final String? notFoundQuery;
+
+  /// The banner's Search again (and the sign-up dialog's): back to the
+  /// lookup.
+  final VoidCallback? onSearchAgain;
+
+  /// Overrides this build's member sign-up page (tests).
+  final String? signUpUrl;
+
   const CustomerRegistrationPage({
     super.key,
     required this.viewModel,
@@ -52,6 +64,9 @@ class CustomerRegistrationPage extends StatefulWidget {
     this.existingCustomer,
     this.embedded = false,
     this.onSaved,
+    this.notFoundQuery,
+    this.onSearchAgain,
+    this.signUpUrl,
   });
 
   @override
@@ -503,9 +518,9 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
     return '${flight.arrDepAirportName} → ${flight.destAirportName}';
   }
 
-  // Desktop "Non-international flight (take away)": the same Allow
-  // take-away flag, but turning it on also clears the flight fields, as the
-  // mockup labels it.
+  // Non-international flight / Allow take-away (both layouts): turning it
+  // on hides the flight fields, so it also clears them — nothing hidden is
+  // sent.
   void _setNonInternational(bool value) {
     setState(() {
       _allowTakeAway = value;
@@ -532,6 +547,7 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
       ),
       searchFlights: viewModel.searchFlights,
       searchNationalities: viewModel.searchNationalities,
+      showFlight: !_allowTakeAway,
     );
     if (details == null || !mounted) return;
     setState(() {
@@ -540,7 +556,9 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
       _nationality = details.nationality;
     });
     final flight = details.flight;
-    if (flight != null && flight.flightCode != _flight?.flightCode) {
+    if (!_allowTakeAway &&
+        flight != null &&
+        flight.flightCode != _flight?.flightCode) {
       await _onFlightSelected(flight);
     }
   }
@@ -562,32 +580,9 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
   }
 
   Future<void> _submit() async {
-    if (kDebugMode) {
-      final existing = widget.existingCustomer;
-      debugPrint(
-        '[CustomerRegistrationPage._submit] '
-        'mode=${_isEdit ? 'REGISTER_EDIT' : 'REGISTER_ADD'} '
-        'existing.action=${existing?.action} '
-        'existing.isFound=${existing?.isFound} '
-        'shoppingCard=${existing?.person.shoppingCard} '
-        'isActivate=${existing?.person.isActivate}\n'
-        '  form: passport=${_passportNoController.text} '
-        'name=${_englishNameController.text} '
-        'nationality=${_nationality?.countryCode} gender=$_gender '
-        'customerType=${_customerTypeController.text} '
-        'agent=${_agent?.agentCode} guide=${_guide?.subAgentCode} '
-        'flight=${_flight?.flightCode} flightDate=$_selectedFlightDate '
-        'airline=$_airlineCode takeAway=$_allowTakeAway '
-        'takeAwayFlight=$_takeAwayFlightCode',
-      );
-    }
     final validationError = _validateRegister();
     if (validationError != null) {
-      if (kDebugMode) {
-        debugPrint(
-          '[CustomerRegistrationPage._submit] invalid: $validationError',
-        );
-      }
+      if (kDebugMode) debugPrint('[Customer] invalid: $validationError');
       await showDialog<void>(
         context: context,
         builder: (context) => AlertDialog(
@@ -736,25 +731,28 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           ?_statusBanner(bottom: 16),
-          pair(
-            DesktopLookupField<Flight>(
-              id: DesktopCustomerIds.flightCode,
-              label: 'Flight code',
-              required: international,
-              hint: 'e.g. TG916',
-              value: _flight,
-              search: viewModel.searchFlights,
-              code: (f) => f.flightCode,
-              name: _flightRoute,
-              trailing: (f) {
-                final departs = _parseFlightDate(f.flightDate);
-                return departs == null ? '' : _wireFlightTime(departs);
-              },
-              onSelected: _onFlightSelected,
-              onCleared: _clearFlight,
+          // Legacy renders Flight Code / Flight Date only while
+          // `!allowTakeAway` (`customer-form.html`).
+          if (international)
+            pair(
+              DesktopLookupField<Flight>(
+                id: DesktopCustomerIds.flightCode,
+                label: 'Flight code',
+                required: true,
+                hint: 'e.g. TG916',
+                value: _flight,
+                search: viewModel.searchFlights,
+                code: (f) => f.flightCode,
+                name: _flightRoute,
+                trailing: (f) {
+                  final departs = _parseFlightDate(f.flightDate);
+                  return departs == null ? '' : _wireFlightTime(departs);
+                },
+                onSelected: _onFlightSelected,
+                onCleared: _clearFlight,
+              ),
+              _desktopFlightDateField(required: true),
             ),
-            _desktopFlightDateField(required: international),
-          ),
           pair(
             _desktopTextField(
               DesktopCustomerIds.passportNo,
@@ -859,20 +857,22 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
               onCleared: () => setState(() => _guide = null),
             ),
           ),
-          TestId(
-            DesktopCustomerIds.nonInternational,
-            child: CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              controlAffinity: ListTileControlAffinity.leading,
-              activeColor: AppColors.goldDark,
-              value: _allowTakeAway,
-              onChanged: (value) => _setNonInternational(value ?? false),
-              title: const Text(
-                'Non-international flight (take away)',
-                style: TextStyle(fontSize: 14),
+          // Legacy offers Non International Flight only off airport mPOS.
+          if (!widget.isAirportMpos)
+            TestId(
+              DesktopCustomerIds.nonInternational,
+              child: CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                activeColor: AppColors.goldDark,
+                value: _allowTakeAway,
+                onChanged: (value) => _setNonInternational(value ?? false),
+                title: const Text(
+                  'Non-international flight (take away)',
+                  style: TextStyle(fontSize: 14),
+                ),
               ),
             ),
-          ),
           ?_errorText(viewModel),
           const SizedBox(height: 12),
           Row(
@@ -895,8 +895,10 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
               Expanded(
                 child: DesktopButton(
                   id: DesktopCustomerIds.travellerButton,
-                  label: 'Flight & passport',
-                  icon: Icons.flight_takeoff,
+                  label: international ? 'Flight & passport' : 'Passport',
+                  icon: international
+                      ? Icons.flight_takeoff
+                      : Icons.badge_outlined,
                   secondary: true,
                   height: 56,
                   onPressed: () => _openTraveller(viewModel),
@@ -1121,7 +1123,19 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              ?_statusBanner(bottom: AppSpacing.md),
+              if (widget.notFoundQuery != null) ...[
+                CustomerNotFoundBanner(
+                  query: widget.notFoundQuery!,
+                  signUpUrl: widget.signUpUrl ?? memberSignUpUrl,
+                  onSearchAgain: () {
+                    // Back to the lookup, query kept for retyping.
+                    Navigator.of(context).maybePop();
+                    widget.onSearchAgain?.call();
+                  },
+                ),
+                const SizedBox(height: AppSpacing.md),
+              ] else
+                ?_statusBanner(bottom: AppSpacing.md),
               // TODO(pos-handheld): MRZ / boarding-pass scan (deferred —
               // see project memory); inert until a reader is wired.
               TestId(
@@ -1165,8 +1179,12 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
               const Text(_manualEntryNote, style: HandheldText.bodySmall),
               const SizedBox(height: AppSpacing.md),
               section(RegisterIds.travellerSection, 'Traveller', [
-                _flightField(viewModel),
-                _flightDateField(),
+                // Legacy renders Flight Code / Flight Date only while
+                // `!allowTakeAway` (`customer-form.html`).
+                if (!_allowTakeAway) ...[
+                  _flightField(viewModel),
+                  _flightDateField(),
+                ],
                 _passportField(),
                 _englishNameField(),
                 _genderField(),
@@ -1183,7 +1201,9 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
                 _agentField(viewModel),
                 _guideField(viewModel),
                 _customerTypeField(),
-                _takeAwaySwitch(),
+                // Legacy offers Non International Flight only off airport
+                // mPOS.
+                if (!widget.isAirportMpos) _takeAwaySwitch(),
               ]),
               ?_errorText(viewModel),
             ],
@@ -1415,6 +1435,8 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
       );
 
   Widget _customerTypeField() => AppTextField(
+    // The id also gives it the ✕ the other fields have.
+    id: RegisterIds.customerTypeField,
     controller: _customerTypeController,
     label: 'Customer type',
     inputFormatters: FormInputs.upperCase,
@@ -1428,7 +1450,7 @@ class _CustomerRegistrationPageState extends State<CustomerRegistrationPage> {
       contentPadding: EdgeInsets.zero,
       title: const Text('Allow take-away'),
       value: _allowTakeAway,
-      onChanged: (value) => setState(() => _allowTakeAway = value),
+      onChanged: _setNonInternational,
     ),
   );
 }

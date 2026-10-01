@@ -128,6 +128,11 @@ class CustomerPerson {
     this.cardTypeCode = '',
   });
 
+  /// A King Power member — legacy `customer.ts` treats a `MID` identity as
+  /// one (the Sale page's `isMember`). Only members carry Carat, e-Purse
+  /// and privileges.
+  bool get isMember => memberId.isNotEmpty;
+
   /// Carat balance — the `listWalletMember` entry whose `PaymentCode` is
   /// `CARAT` (the `CARAT_WALLET`, legacy `PaymentType.CARAT`). Null when the
   /// customer has no such wallet.

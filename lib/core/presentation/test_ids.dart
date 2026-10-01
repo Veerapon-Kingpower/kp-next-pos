@@ -18,6 +18,7 @@ abstract class MenuIds {
   static const sheet = 'menu.sheet';
   static const settings = 'menu.settings';
   static const logout = 'menu.logout';
+  static const loggingOut = 'menu.loggingOut';
 }
 
 abstract class LoginIds {
@@ -32,6 +33,8 @@ abstract class LoginIds {
 }
 
 abstract class HomeIds {
+  /// Desktop Home's "Find customer" scan input.
+  static const dashboardScanInput = 'home.dashboardScanInput';
   static const greeting = 'home.greeting';
   static const sessionLine = 'home.sessionLine';
   static const onlineStatus = 'home.onlineStatus';
@@ -149,6 +152,8 @@ abstract class EditLineIds {
   static const pickupCollect = 'editLine.pickup.collect';
   static const pickupTake = 'editLine.pickup.take';
   static const voidButton = 'editLine.voidButton';
+  static const cites = 'editLine.cites';
+  static String vas(int index) => 'editLine.vas.$index';
 }
 
 abstract class DiscountIds {
@@ -285,6 +290,7 @@ abstract class FieldIds {
 
 abstract class RegisterIds {
   static const page = 'register.page';
+  static const customerTypeField = 'register.customerTypeField';
   static const passportField = 'register.passportField';
   static const englishNameField = 'register.englishNameField';
   static const emailField = 'register.emailField';
@@ -302,6 +308,19 @@ abstract class RegisterIds {
   static const submitButton = 'register.submitButton';
   static const cancelButton = 'register.cancelButton';
   static const statusBanner = 'register.statusBanner';
+}
+
+/// Member sign-up (non-member notice, QR dialog), customer Trip card and
+/// the "no customer found" panel / banner — shared by desktop and handheld.
+abstract class MemberIds {
+  static const nonMember = 'member.nonMember';
+  static const signUpButton = 'member.signUpButton';
+  static const signUpDialog = 'member.signUpDialog';
+  static const signUpQr = 'member.signUpQr';
+  static const signUpSearchAgain = 'member.signUpSearchAgain';
+  static const trip = 'member.trip';
+  static const notFound = 'member.notFound';
+  static const notFoundSearchAgain = 'member.notFoundSearchAgain';
 }
 
 abstract class ProfileIds {
@@ -406,11 +425,8 @@ abstract class DesktopSaleIds {
   static const mode = 'desktop.sale.mode';
   static const grand = 'desktop.sale.grand';
   static const removeButton = 'desktop.sale.removeButton';
-  static const freezeButton = 'desktop.sale.freezeButton';
-  static const pickupButton = 'desktop.sale.pickupButton';
+  static const editLineButton = 'desktop.sale.editLineButton';
   static const selectionHint = 'desktop.sale.selectionHint';
-  static const printBasketButton = 'desktop.sale.printBasketButton';
-  static const claimCheckButton = 'desktop.sale.claimCheckButton';
 
   static String qtyDecrease(String row) => 'desktop.sale.line.$row.qtyDecrease';
   static String qtyIncrease(String row) => 'desktop.sale.line.$row.qtyIncrease';

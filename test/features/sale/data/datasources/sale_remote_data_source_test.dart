@@ -139,6 +139,120 @@ void main() {
     },
   );
 
+  test('getSerialByBarcode returns Article.SerialNo', () async {
+    apiClient.response = {
+      'isCompleted': true,
+      'Data': {
+        'Article': {'SerialNo': 'SN-REAL-1'},
+      },
+      'Message': [],
+    };
+
+    final serial = await dataSource.getSerialByBarcode(
+      saleEngineEndpoint: 'https://sale-engine',
+      siteCode: 'CPX',
+      barcode: '012345678901234567890123',
+    );
+
+    expect(
+      apiClient.lastUrl,
+      'https://sale-engine/SaleEngine/GetMasterByBarcodeDLL',
+    );
+    final sent = apiClient.lastData as Map<String, dynamic>;
+    expect(sent['siteCode'], 'CPX');
+    expect(sent['barcode'], '012345678901234567890123');
+    expect(serial, 'SN-REAL-1');
+  });
+
+  group('editItem (legacy EditSalePage.saveItem)', () {
+    Future<({dynamic order, String? warning})> edit() async {
+      final r = await dataSource.editItem(
+        saleEngineEndpoint: 'https://sale-engine',
+        sessionKey: 'abc123',
+        row: '1',
+        quantity: 3,
+        isFreeze: true,
+        isLockDiscount: false,
+        collectStatus: 'C',
+        serialNo: 'SN1',
+      );
+      return (order: r.order, warning: r.warning);
+    }
+
+    test('sends all five actions in one ActionItemToOrder', () async {
+      apiClient.response = {
+        'isCompleted': true,
+        'Data': [
+          {'Guid': 'order-1', 'isCheckOut': false, 'OrderDetails': []},
+        ],
+        'Message': [],
+      };
+
+      final result = await edit();
+
+      expect(
+        apiClient.lastUrl,
+        'https://sale-engine/SaleEngine/ActionItemToOrder',
+      );
+      expect(apiClient.lastData, {
+        'SessionKey': 'abc123',
+        'Row': '1',
+        'ActionItemValues': [
+          {'Action': 'change_qty', 'Value': '3'},
+          {'Action': 'is_freeze', 'Value': '1'},
+          {'Action': 'is_lock', 'Value': '0'},
+          {'Action': 'take_collect', 'Value': 'C'},
+          {'Action': 'SerialNo', 'Value': 'SN1'},
+        ],
+      });
+      expect(result.warning, isNull);
+    });
+
+    test('a WARNING still returns the order with the warning', () async {
+      apiClient.response = {
+        'isCompleted': false,
+        'Data': [
+          {'Guid': 'order-1', 'isCheckOut': false, 'OrderDetails': []},
+        ],
+        'Message': [
+          {
+            'MessageType': 'WARNING',
+            'MessageCode': 'W1',
+            'MessageDesc': 'Stock is low.',
+          },
+        ],
+      };
+
+      final result = await edit();
+
+      expect(result.warning, 'Stock is low.');
+      expect(result.order.guid, 'order-1');
+    });
+
+    test('any other failure throws the server message', () async {
+      apiClient.response = {
+        'isCompleted': false,
+        'Data': null,
+        'Message': [
+          {
+            'MessageType': 'ERROR',
+            'MessageCode': 'E1',
+            'MessageDesc': 'Not allowed.',
+          },
+        ],
+      };
+
+      await expectLater(
+        edit(),
+        throwsA(
+          isA<ApiException>()
+              .having((e) => e.messageCode, 'messageCode', 'E1')
+              .having((e) => e.messageDesc, 'messageDesc', 'Not allowed.'),
+        ),
+      );
+    });
+  });
+
   test(
     'removeItem posts to SaleEngine/ActionListItemToOrder with a delete action',
     () async {

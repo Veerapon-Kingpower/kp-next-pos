@@ -155,6 +155,44 @@ void main() {
       handle.dispose();
     });
 
+    testWidgets('Edit (F7) opens Edit line for the selected Buying line and '
+        'saves it', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pump(tester);
+      expect(
+        tester.getSemantics(byTestId(DesktopSaleIds.editLineButton)),
+        isSemantics(hasEnabledState: true, isEnabled: false),
+      );
+      await tester.tap(find.text('JOHNNIE WALKER BLUE LABEL 1L'));
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.f7);
+      await tester.pumpAndSettle();
+
+      expect(byTestId(EditLineIds.page), findsOneWidget);
+      expect(find.text('Order item · line 2'), findsOneWidget);
+      await tester.tap(byTestId(EditLineIds.qtyIncrease));
+      await tester.tap(byTestId(EditLineIds.freezeSwitch));
+      await tester.pump();
+      await tester.tap(byTestId(EditLineIds.saveCloseButton));
+      await tester.pumpAndSettle();
+
+      expect(sale.lineEdits.single.row, '2');
+      expect(sale.lineEdits.single.edit.quantity, 3);
+      expect(sale.lineEdits.single.edit.isFreeze, isTrue);
+      expect(byTestId(EditLineIds.page), findsNothing);
+      handle.dispose();
+    });
+
+    testWidgets('Edit line hides Pickup on airport mPOS', (tester) async {
+      await pump(tester, isAirportMpos: true);
+      await tester.tap(find.text('JOHNNIE WALKER BLUE LABEL 1L'));
+      await tester.pump();
+      await tester.tap(byTestId(DesktopSaleIds.editLineButton));
+      await tester.pumpAndSettle();
+      expect(byTestId(EditLineIds.page), findsOneWidget);
+      expect(byTestId(EditLineIds.pickupCollect), findsNothing);
+    });
+
     testWidgets('Discount (F6) opens the overlay for the selected line', (
       tester,
     ) async {
@@ -443,7 +481,9 @@ void main() {
       });
 
       testWidgets('a long name fits the narrow summary: two lines, the code '
-          'on its own line, Change on the heading above, room below', (tester) async {
+          'on its own line, Change on the heading above, room below', (
+        tester,
+      ) async {
         final viewModel = await pump(tester, size: const Size(1100, 700));
         await viewModel.openOrder(
           const SaleOrderContext(shoppingCard: 'CPX0001', memberId: 'M1'),
@@ -561,7 +601,8 @@ void main() {
       expect(sale.lastRemovedRow, isNull);
     });
 
-    testWidgets('Basket keeps its print / claim actions', (tester) async {
+    testWidgets('Basket has only the legacy actions — no print basket, '
+        'claim check or Edit', (tester) async {
       final handle = tester.ensureSemantics();
       await pump(tester, cart: mixedCart);
       await tester.tap(byTestId(SaleIds.tabBasket));
@@ -570,16 +611,13 @@ void main() {
         tester.getSemantics(byTestId(SaleIds.tabBasket)),
         isSemantics(isSelected: true),
       );
-      for (final id in [
-        DesktopSaleIds.printBasketButton,
-        DesktopSaleIds.claimCheckButton,
-      ]) {
-        expect(
-          tester.getSemantics(byTestId(id)),
-          isSemantics(hasEnabledState: true, isEnabled: false),
-          reason: id,
-        );
-      }
+      // Legacy Sale has neither; Claim Check lives in Enquiry.
+      expect(find.text('Print basket'), findsNothing);
+      expect(find.text('Claim check'), findsNothing);
+      expect(byTestId(SaleIds.discountButton), findsOneWidget);
+      expect(byTestId(DesktopSaleIds.removeButton), findsOneWidget);
+      // Legacy has no Edit Detail on Basket lines.
+      expect(byTestId(DesktopSaleIds.editLineButton), findsNothing);
       handle.dispose();
     });
   });

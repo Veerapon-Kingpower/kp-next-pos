@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/config/device_settings.dart';
 import 'package:kp_pos/core/error/app_exception.dart';
@@ -32,7 +34,7 @@ void main() {
               'branch_no': '03',
               'user_code': 'U001',
               'user_name': 'Test User',
-              'MachineEnv': {'MachineNo': 'KPPOS05'},
+              'MachineEnv': {'MachineNo': 'KPPOS05', 'site': 'CPX'},
               'list_authorize': [],
             },
           },
@@ -53,12 +55,14 @@ void main() {
       expect(session.sessionKey, 'abc123');
       expect(session.machineNo, 'KPPOS05');
       expect((await local.read())!.machineNo, 'KPPOS05');
+      // `MachineEnv.site` — the serial lookup's siteCode.
+      expect(session.site, 'CPX');
       expect(apiClient.lastData, {
         'user_code': 'U001',
         'user_password': 'pass',
         'branch_no': '03',
         'module_code': 'MposKpi',
-        'machine_ip': 'device-uuid-1',
+        'machine_ip': '01afaa68-f583-9816-2868-591032116435',
       });
       expect(await local.read(), isNotNull);
       expect(await coreSession.readSessionKey(), 'abc123');
@@ -66,7 +70,7 @@ void main() {
   );
 
   test(
-    'login falls back to the legacy hardcoded UUID when the device has no uuid set',
+    'login sends the fixed machine UUID even when the device has no uuid set',
     () async {
       final apiClient = FakeApiClient(
         response: {
@@ -163,29 +167,43 @@ void main() {
       expect(await coreSession.readSessionKey(), 'abc123');
     });
 
-    test('clears a session saved without a machine number, forcing login', () async {
-      final local = FakeAuthLocalDataSource(
-        UserSessionModel.fromJson({
-          'sessionKey': 'abc123',
-          'branchNo': '03',
-          'userCode': 'U001',
-          'userName': 'Test User',
-          'authorizedActions': [],
-        }),
-      );
-      final coreSession = FakeSessionStorage('abc123');
-      final validity = AuthSessionValidity(
-        local: local,
-        coreSessionStorage: coreSession,
-      );
+    test(
+      'clears a session saved without a machine number, forcing login',
+      () async {
+        final local = FakeAuthLocalDataSource(
+          UserSessionModel.fromJson({
+            'sessionKey': 'abc123',
+            'branchNo': '03',
+            'userCode': 'U001',
+            'userName': 'Test User',
+            'authorizedActions': [],
+          }),
+        );
+        final coreSession = FakeSessionStorage('abc123');
+        final validity = AuthSessionValidity(
+          local: local,
+          coreSessionStorage: coreSession,
+        );
 
-      expect(await validity.isSessionComplete(), isFalse);
-      expect(await local.read(), isNull);
-      expect(await coreSession.readSessionKey(), isNull);
-    });
+        expect(await validity.isSessionComplete(), isFalse);
+        expect(await local.read(), isNull);
+        expect(await coreSession.readSessionKey(), isNull);
+      },
+    );
 
     test('the machine number survives the persisted round trip', () {
-      final restored = UserSessionModel.fromJson(complete.toJson());
+      final restored = UserSessionModel.fromJson(
+        const UserSessionModel(
+          sessionKey: 'abc123',
+          branchNo: '03',
+          userCode: 'U001',
+          userName: 'Test User',
+          authorizedActions: [],
+          machineNo: 'KPPOS05',
+          site: 'CPX',
+        ).toJson(),
+      );
+      expect(restored.site, 'CPX');
       expect(restored.machineNo, 'KPPOS05');
       expect(restored.isComplete, isTrue);
     });
@@ -214,6 +232,39 @@ void main() {
 
       await repo.logout();
 
+      expect(await local.read(), isNull);
+      expect(await coreSession.readSessionKey(), isNull);
+    },
+  );
+
+  testWidgets(
+    'a SignOut stuck on a dead connection gives up after the timeout and '
+    'still clears the local session',
+    (tester) async {
+      final local = FakeAuthLocalDataSource(
+        const UserSessionModel(
+          sessionKey: 'abc123',
+          branchNo: '03',
+          userCode: 'U001',
+          userName: 'Test User',
+          authorizedActions: [],
+        ),
+      );
+      final coreSession = FakeSessionStorage('abc123');
+      final repo = AuthRepositoryImpl(
+        remote: AuthRemoteDataSource(apiClient: FakeApiClient(hang: true)),
+        local: local,
+        coreSessionStorage: coreSession,
+        deviceSettingsStorage: FakeDeviceSettingsStorage(deviceSettings),
+      );
+
+      var done = false;
+      unawaited(repo.logout().then((_) => done = true));
+      await tester.pump(const Duration(seconds: 5));
+      expect(done, isFalse, reason: 'still waiting on SignOut');
+
+      await tester.pump(logoutSignOutTimeout);
+      expect(done, isTrue);
       expect(await local.read(), isNull);
       expect(await coreSession.readSessionKey(), isNull);
     },

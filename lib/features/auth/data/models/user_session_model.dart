@@ -13,6 +13,7 @@ class UserSessionModel extends UserSession {
     required super.userName,
     required super.authorizedActions,
     super.machineNo,
+    super.site,
   });
 
   /// [json] is the `Data` object of a `ReturnObject<LoginResult>` response.
@@ -27,6 +28,7 @@ class UserSessionModel extends UserSession {
       userCode: userInfo['user_code'] as String? ?? '',
       userName: userInfo['user_name'] as String? ?? '',
       machineNo: '${machineEnv['MachineNo'] ?? ''}',
+      site: '${machineEnv['site'] ?? ''}',
       authorizedActions:
           (userInfo['list_authorize'] as List<dynamic>? ?? const [])
               .map(
@@ -46,6 +48,7 @@ class UserSessionModel extends UserSession {
     'userCode': userCode,
     'userName': userName,
     'machineNo': machineNo,
+    'site': site,
     'authorizedActions': authorizedActions
         .map(
           (a) => {
@@ -66,6 +69,7 @@ class UserSessionModel extends UserSession {
         // Absent from sessions saved before it was stored — such a session
         // is incomplete and startup sends the user back to login.
         machineNo: json['machineNo'] as String? ?? '',
+        site: json['site'] as String? ?? '',
         authorizedActions:
             (json['authorizedActions'] as List<dynamic>? ?? const [])
                 .map(

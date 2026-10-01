@@ -144,6 +144,9 @@ class HandheldHomeView extends StatelessWidget {
   final VoidCallback onSale;
   final VoidCallback onEnquiry;
 
+  /// The scan field's focus — Search again (after a miss) returns to it.
+  final FocusNode? searchFocus;
+
   const HandheldHomeView({
     super.key,
     required this.searchController,
@@ -152,6 +155,7 @@ class HandheldHomeView extends StatelessWidget {
     required this.onRegister,
     required this.onSale,
     required this.onEnquiry,
+    this.searchFocus,
   });
 
   @override
@@ -169,6 +173,12 @@ class HandheldHomeView extends StatelessWidget {
           ScanField(
             id: HomeIds.scanField,
             controller: searchController,
+            focusNode: searchFocus,
+            // Ready for a trigger scan as soon as Home opens, and after
+            // each one.
+            autofocus: true,
+            keepFocusOnSubmit: true,
+            clearButtonId: FieldIds.clear(HomeIds.scanField),
             hintText: 'Scan shopping card or passport',
             onSubmitted: onSearch,
           ),

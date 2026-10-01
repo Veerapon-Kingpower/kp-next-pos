@@ -13,12 +13,14 @@ import '../domain/entities/cart_item.dart';
 import '../domain/entities/currency.dart';
 import '../domain/entities/exchange_quote.dart';
 import '../domain/entities/line_discount.dart';
+import '../domain/entities/line_edit.dart';
 import '../domain/entities/order_status.dart';
 import '../domain/entities/promotion.dart';
 import '../domain/entities/sale_order_context.dart';
 import '../domain/usecases/add_item_to_cart_usecase.dart';
 import '../domain/usecases/cash_payment_usecases.dart';
 import '../domain/usecases/change_order_currency_usecase.dart';
+import '../domain/usecases/edit_cart_item_usecase.dart';
 import '../domain/usecases/exchange_change_usecase.dart';
 import '../domain/usecases/get_cart_usecase.dart';
 import '../domain/usecases/leave_sale_usecases.dart';
@@ -41,6 +43,8 @@ class SaleCartViewModel extends GetxController {
   final ActOnLinesUseCase _actOnLines;
   final AddItemToCartUseCase _addItemToCart;
   final UpdateCartItemQuantityUseCase _updateCartItemQuantity;
+  final EditCartItemUseCase _editCartItem;
+  final LookupSerialUseCase _lookupSerial;
   final RemoveCartItemUseCase _removeCartItem;
 
   final ListCurrenciesUseCase _listCurrencies;
@@ -60,6 +64,8 @@ class SaleCartViewModel extends GetxController {
     required ActOnLinesUseCase actOnLines,
     required AddItemToCartUseCase addItemToCart,
     required UpdateCartItemQuantityUseCase updateCartItemQuantity,
+    required EditCartItemUseCase editCartItem,
+    required LookupSerialUseCase lookupSerial,
     required RemoveCartItemUseCase removeCartItem,
     required ListCurrenciesUseCase listCurrencies,
     required ChangeOrderCurrencyUseCase changeOrderCurrency,
@@ -76,6 +82,8 @@ class SaleCartViewModel extends GetxController {
        _actOnLines = actOnLines,
        _addItemToCart = addItemToCart,
        _updateCartItemQuantity = updateCartItemQuantity,
+       _editCartItem = editCartItem,
+       _lookupSerial = lookupSerial,
        _removeCartItem = removeCartItem,
        _listCurrencies = listCurrencies,
        _changeOrderCurrency = changeOrderCurrency,
@@ -729,6 +737,66 @@ class SaleCartViewModel extends GetxController {
     }
     isBusy = false;
     update();
+  }
+
+  /// Legacy `AuthorizeCode.TakeOrUntake`, which `setPickupMode()` checks.
+  static const takeOrUntakeAuthCode = 'actTake';
+
+  /// Legacy `EditSalePage.setPickupMode()`'s gate.
+  Future<bool> canTakeOrUntake() async {
+    final session = await _restoreSession();
+    return session?.hasAuthCode(takeOrUntakeAuthCode) ?? false;
+  }
+
+  /// Legacy `EditSalePage.onSubmit()`: a serial longer than 20 characters
+  /// is a barcode, resolved to the article's `SerialNo`; a shorter one is
+  /// kept as typed. Null when the lookup fails (legacy keeps the field).
+  Future<String?> resolveSerial(String scanned) async {
+    if (scanned.length <= 20) return scanned;
+    final session = await _restoreSession();
+    if (session == null) return null;
+    isBusy = true;
+    update();
+    String? serial;
+    try {
+      serial = await _lookupSerial(site: session.site, barcode: scanned);
+    } on ApiException catch (e) {
+      _log('[Sale] serial lookup failed: ${e.messageDesc}');
+    }
+    isBusy = false;
+    update();
+    return serial;
+  }
+
+  /// Legacy `EditSalePage.saveItem()`: saves [edit] on [row]. Returns the
+  /// sale engine's warning (the order is still updated, as legacy keeps the
+  /// returned line) or error (`code: desc`; the cart is unchanged).
+  Future<({String? warning, String? error})> editLine(
+    String row,
+    LineEdit edit,
+  ) async {
+    final sessionKey = await _sessionKey();
+    if (sessionKey == null) return (warning: null, error: 'No active session.');
+    isBusy = true;
+    update();
+    String? warning;
+    String? error;
+    try {
+      final result = await _editCartItem(
+        sessionKey: sessionKey,
+        row: row,
+        edit: edit,
+      );
+      cart = result.cart;
+      warning = result.warning;
+    } on ApiException catch (e) {
+      error = e.messageCode == null || e.messageCode!.isEmpty
+          ? e.messageDesc
+          : '${e.messageCode}: ${e.messageDesc}';
+    }
+    isBusy = false;
+    update();
+    return (warning: warning, error: error);
   }
 
   Future<void> removeItem(String row) async {

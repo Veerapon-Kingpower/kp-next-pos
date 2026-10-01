@@ -2,6 +2,7 @@ import 'package:kp_pos/features/sale/domain/entities/article.dart';
 import 'package:kp_pos/features/sale/domain/entities/cart.dart';
 import 'package:kp_pos/features/sale/domain/entities/currency.dart';
 import 'package:kp_pos/features/sale/domain/entities/exchange_quote.dart';
+import 'package:kp_pos/features/sale/domain/entities/line_edit.dart';
 import 'package:kp_pos/features/sale/domain/entities/promotion.dart';
 import 'package:kp_pos/features/sale/domain/entities/sale_order_context.dart';
 import 'package:kp_pos/features/sale/domain/repositories/sale_repository.dart';
@@ -95,6 +96,37 @@ class FakeSaleRepository implements SaleRepository {
     lastUpdatedQuantity = quantity;
     if (mutationError != null) throw mutationError!;
     return cartResult;
+  }
+
+  final List<({String row, LineEdit edit})> lineEdits = [];
+
+  /// The `WARNING` the next line edit answers with (the order still
+  /// returned), as legacy `saveItem()` handles it.
+  String? lineEditWarning;
+
+  @override
+  Future<LineEditResult> editCartItem({
+    required String sessionKey,
+    required String row,
+    required LineEdit edit,
+  }) async {
+    lineEdits.add((row: row, edit: edit));
+    if (mutationError != null) throw mutationError!;
+    return LineEditResult(cart: cartResult, warning: lineEditWarning);
+  }
+
+  /// What a serial-barcode lookup returns; the calls it got.
+  String serialResult = '';
+  final List<({String site, String barcode})> serialLookups = [];
+
+  @override
+  Future<String> lookupSerial({
+    required String site,
+    required String barcode,
+  }) async {
+    serialLookups.add((site: site, barcode: barcode));
+    if (mutationError != null) throw mutationError!;
+    return serialResult;
   }
 
   @override

@@ -19,18 +19,19 @@ import '../sale_currency.dart';
 import '../widgets/applied_privilege_card.dart';
 import '../widgets/privilege_picker.dart';
 import 'desktop_discount_overlay.dart';
+import 'desktop_edit_line_overlay.dart';
 
 /// Desktop Sale (POS Desktop mockup screens 3 + 4): scan row, Buying /
 /// Basket tabs, the lines table and the permanent bill summary.
 ///
 /// Real (`SaleCartViewModel`): scan-to-add, qty change, remove, line /
-/// unit totals, selected privilege. Keyboard: F6 discount, F8 remove, F9
-/// search the typed code, ↑↓ move the selection; the scan field keeps
-/// focus. Shown as "—" or inert because the cart doesn't carry them yet
-/// (desktop Phase 2 data-reality map): per-line discount and fulfilment,
-/// Collect / Take grouping and cancelled lines on Basket, discount /
-/// Cash-D / VAT breakdown, Freeze, Pickup, Print basket,
-/// Claim check, Suspend. Take payment (F12) opens the 2c Checkout.
+/// unit totals, selected privilege, Edit line (qty / serial / Freeze /
+/// Lock / Pickup). Keyboard: F6 discount, F7 edit, F8 remove, F9 search
+/// the typed code, ↑↓ move the selection; the scan field keeps focus.
+/// Shown as "—" or inert because the cart doesn't carry them yet (desktop
+/// Phase 2 data-reality map): per-line fulfilment, Collect / Take grouping
+/// and cancelled lines on Basket, discount / Cash-D / VAT breakdown,
+/// Suspend. Take payment (F12) opens the 2c Checkout.
 // TODO(pos-desktop): line discount / fulfilment /
 // cancelled state once the order API carries them (openspec 4.4 / 5.2 /
 // 6.1).
@@ -190,6 +191,20 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
     if (mounted) _scanFocus.requestFocus();
   }
 
+  // Legacy `editDetail()`: Buying lines only — Basket has no Edit Detail.
+  Future<void> _editSelected() async {
+    final index = _selectedIndex;
+    if (_basket || index < 0 || widget.viewModel.isBusy) return;
+    await showDesktopEditLineOverlay(
+      context,
+      viewModel: widget.viewModel,
+      line: _lines[index],
+      title: 'Order item · line ${index + 1}',
+      isAirportMpos: widget.isAirportMpos,
+    );
+    if (mounted) _scanFocus.requestFocus();
+  }
+
   Future<void> _changeCurrency() async {
     await changeOrderCurrency(context, widget.viewModel);
     if (mounted) _scanFocus.requestFocus();
@@ -257,6 +272,7 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
       builder: (viewModel) => CallbackShortcuts(
         bindings: {
           const SingleActivator(LogicalKeyboardKey.f6): _discountSelected,
+          const SingleActivator(LogicalKeyboardKey.f7): _editSelected,
           const SingleActivator(LogicalKeyboardKey.f9): _searchTyped,
           const SingleActivator(LogicalKeyboardKey.f8): () =>
               _basket ? _cancelSelected() : _removeSelected(),
@@ -618,37 +634,20 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
                   height: 44,
                   onPressed: _discountLines.isEmpty ? null : _discountSelected,
                 ),
-                if (_basket) ...[
-                  const DesktopButton(
-                    id: DesktopSaleIds.printBasketButton,
-                    label: 'Print basket',
-                    icon: Icons.print_outlined,
+                if (!_basket)
+                  // Legacy Buying swipe "Edit Detail" — qty, serial,
+                  // Freeze, Lock and Pickup in one place.
+                  DesktopButton(
+                    id: DesktopSaleIds.editLineButton,
+                    label: 'Edit',
+                    icon: Icons.edit_outlined,
+                    hotkey: 'F7',
                     secondary: true,
                     height: 44,
+                    onPressed: !hasSelection || viewModel.isBusy
+                        ? null
+                        : _editSelected,
                   ),
-                  const DesktopButton(
-                    id: DesktopSaleIds.claimCheckButton,
-                    label: 'Claim check',
-                    icon: Icons.confirmation_number_outlined,
-                    secondary: true,
-                    height: 44,
-                  ),
-                ] else ...[
-                  const DesktopButton(
-                    id: DesktopSaleIds.freezeButton,
-                    label: 'Freeze',
-                    icon: Icons.ac_unit,
-                    secondary: true,
-                    height: 44,
-                  ),
-                  const DesktopButton(
-                    id: DesktopSaleIds.pickupButton,
-                    label: 'Pickup',
-                    icon: Icons.flight_takeoff,
-                    secondary: true,
-                    height: 44,
-                  ),
-                ],
                 DesktopButton(
                   id: DesktopSaleIds.removeButton,
                   label: !_basket

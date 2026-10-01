@@ -16,6 +16,11 @@ class UserSession {
   /// usable: see [isComplete].
   final String machineNo;
 
+  /// `userInfo.MachineEnv.site` — legacy's `siteCode` for
+  /// `GetMasterByBarcodeDLL`. Empty for a session saved before it was
+  /// stored.
+  final String site;
+
   const UserSession({
     required this.sessionKey,
     required this.branchNo,
@@ -23,6 +28,7 @@ class UserSession {
     required this.userName,
     required this.authorizedActions,
     this.machineNo = '',
+    this.site = '',
   });
 
   /// Whether this session carries everything later calls need. A session

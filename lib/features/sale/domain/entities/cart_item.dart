@@ -38,6 +38,21 @@ class CartItem {
   /// collect (at the airport); empty when not set.
   final String collectStatus;
 
+  /// `serialNo` — the serial captured on the line.
+  final String serialNo;
+
+  /// `outputDLL.RequireSerial`: legacy Edit Detail shows the serial field
+  /// only for such an article.
+  final bool requireSerial;
+
+  /// `cites` / `citesPermitNo`: legacy Edit Detail shows "Cites
+  /// Infomation" when [cites] is set.
+  final String cites;
+  final String citesPermitNo;
+
+  /// `VASs` — the value-added-service articles tied to the line.
+  final List<VasItem> vasItems;
+
   const CartItem({
     required this.row,
     required this.articleCode,
@@ -54,5 +69,27 @@ class CartItem {
     this.isCancel = false,
     this.lineNo = 0,
     this.collectStatus = '',
+    this.serialNo = '',
+    this.requireSerial = false,
+    this.cites = '',
+    this.citesPermitNo = '',
+    this.vasItems = const [],
+  });
+}
+
+/// Legacy `VasItem` (`OutputDLL.ts`), as Edit Detail lists it.
+class VasItem {
+  final String articleCode;
+  final String articleName;
+  final num totalRequireQty;
+  final num existQty;
+  final num remainQty;
+
+  const VasItem({
+    required this.articleCode,
+    required this.articleName,
+    required this.totalRequireQty,
+    required this.existQty,
+    required this.remainQty,
   });
 }

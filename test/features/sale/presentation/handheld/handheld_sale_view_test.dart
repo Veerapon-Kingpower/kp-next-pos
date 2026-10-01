@@ -125,6 +125,35 @@ void main() {
       expect(byTestId(SaleIds.line('1')), findsOneWidget);
     });
 
+    testWidgets('the scan field has focus on open and gets it back after a '
+        'scan (it is disabled while busy)', (tester) async {
+      await pump(tester, cart: null);
+      bool focused() => tester
+          .state<EditableTextState>(
+            find.descendant(
+              of: byTestId(SaleIds.scanField),
+              matching: find.byType(EditableText),
+            ),
+          )
+          .widget
+          .focusNode
+          .hasFocus;
+      expect(focused(), isTrue);
+
+      await tester.enterText(
+        find.descendant(
+          of: byTestId(SaleIds.scanField),
+          matching: find.byType(TextField),
+        ),
+        '8850012345678',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+
+      expect(sale.lastAddedItemCode, '8850012345678');
+      expect(focused(), isTrue);
+    });
+
     testWidgets('the search button submits the typed code', (tester) async {
       await pump(tester, cart: null);
       await tester.enterText(

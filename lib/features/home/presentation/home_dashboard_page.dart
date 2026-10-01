@@ -69,8 +69,9 @@ class HomeDashboardPage extends StatelessWidget {
         const SingleActivator(LogicalKeyboardKey.escape):
             lookup?.onClear ?? scanController.clear,
       },
+      // The scan field below takes focus; the shortcuts above catch keys
+      // bubbling up from it.
       child: Focus(
-        autofocus: true,
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
           child: Column(
@@ -342,17 +343,25 @@ class _FindCustomerPanel extends StatelessWidget {
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: TextField(
-                            controller: controller,
-                            textInputAction: TextInputAction.search,
-                            onSubmitted: onScan,
-                            style: const TextStyle(fontSize: 20),
-                            decoration: const InputDecoration.collapsed(
-                              hintText:
-                                  'Scan or type shopping card, passport or ID card number',
-                              hintStyle: TextStyle(
-                                fontSize: 16,
-                                color: AppColors.hintText,
+                          child: TestId(
+                            HomeIds.dashboardScanInput,
+                            child: TextField(
+                              controller: controller,
+                              // Ready for a scan as soon as Home shows, and
+                              // after each one (a TextField otherwise drops
+                              // focus on submit).
+                              autofocus: true,
+                              onEditingComplete: () {},
+                              textInputAction: TextInputAction.search,
+                              onSubmitted: onScan,
+                              style: const TextStyle(fontSize: 20),
+                              decoration: const InputDecoration.collapsed(
+                                hintText:
+                                    'Scan or type shopping card, passport or ID card number',
+                                hintStyle: TextStyle(
+                                  fontSize: 16,
+                                  color: AppColors.hintText,
+                                ),
                               ),
                             ),
                           ),

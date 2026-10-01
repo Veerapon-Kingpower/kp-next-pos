@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:kp_pos/features/auth/domain/entities/user_session.dart';
 import 'package:kp_pos/features/auth/domain/repositories/auth_repository.dart';
 
@@ -9,10 +11,14 @@ class FakeAuthRepository implements AuthRepository {
   final UserSession? currentSessionResult;
   int logoutCallCount = 0;
 
+  /// When set, logout waits for it — a slow sign-out still in flight.
+  Completer<void>? logoutGate;
+
   FakeAuthRepository({
     this.loginResult,
     this.loginError,
     this.currentSessionResult,
+    this.logoutGate,
   });
 
   @override
@@ -34,6 +40,7 @@ class FakeAuthRepository implements AuthRepository {
   @override
   Future<void> logout() async {
     logoutCallCount++;
+    await logoutGate?.future;
   }
 
   @override

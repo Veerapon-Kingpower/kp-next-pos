@@ -4,6 +4,7 @@ import 'package:kp_pos/core/presentation/test_ids.dart';
 import 'package:kp_pos/features/customer/domain/entities/customer.dart';
 import 'package:kp_pos/features/customer/domain/entities/privilege.dart';
 import 'package:kp_pos/features/customer/presentation/handheld/customer_profile_page.dart';
+import 'package:kp_pos/features/customer/presentation/widgets/member_sign_up.dart';
 import 'package:kp_pos/features/flight/domain/entities/flight.dart';
 
 import '../../../../helpers/test_id_finders.dart';
@@ -20,6 +21,7 @@ const sofia = Customer(
   action: 'found',
   isFound: true,
   person: CustomerPerson(
+    memberId: 'M1',
     englishName: 'Sofia Almeida',
     passportNo: 'CB912447',
     nationality: 'PRT',
@@ -139,6 +141,7 @@ void main() {
       action: 'found',
       isFound: true,
       person: CustomerPerson(
+        memberId: 'M2',
         englishName: 'KP DEV',
         passportNo: '1234567',
         nationality: 'USA',
@@ -266,8 +269,6 @@ void main() {
     await open(tester, customer: walkIn);
     expect(textIn(tester, ProfileIds.status), 'Not registered');
     expect(byTestId(ProfileIds.badge), findsNothing);
-    expect(textIn(tester, ProfileIds.ePurseStat), '—');
-    expect(textIn(tester, ProfileIds.caratStat), '—');
     expect(
       find.descendant(
         of: byTestId(ProfileIds.flightCard),
@@ -275,7 +276,56 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text('None on this card'), findsOneWidget);
+  });
+
+  testWidgets('a non-member: no Carat / e-Purse / privileges — the notice '
+      'and Sign up instead', (tester) async {
+    await open(tester, customer: walkIn);
+    expect(byTestId(ProfileIds.caratStat), findsNothing);
+    expect(byTestId(ProfileIds.ePurseStat), findsNothing);
+    expect(byTestId(ProfileIds.privileges), findsNothing);
+    await tester.ensureVisible(byTestId(MemberIds.nonMember));
+    expect(find.text('Not a King Power member'), findsOneWidget);
+
+    await tester.tap(byTestId(MemberIds.signUpButton));
+    await tester.pumpAndSettle();
+    expect(byTestId(MemberIds.signUpDialog), findsOneWidget);
+    expect(byTestId(MemberIds.signUpQr), findsOneWidget);
+    expect(find.text(memberSignUpUrl), findsOneWidget);
+  });
+
+  testWidgets('without a sign-up page Sign up still opens and says why', (
+    tester,
+  ) async {
+    setDeviceSize(tester, compactSize);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CustomerProfilePage(
+          customer: walkIn,
+          searchFlights: (_) async => const <Flight>[],
+          onPrivilegeChanged: picked.add,
+          onEdit: () => edits++,
+          signUpUrl: '',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(byTestId(MemberIds.signUpButton));
+    await tester.tap(byTestId(MemberIds.signUpButton));
+    await tester.pumpAndSettle();
+
+    expect(byTestId(MemberIds.signUpDialog), findsOneWidget);
+    expect(find.byKey(const Key('memberSignUpUnavailable')), findsOneWidget);
+    expect(byTestId(MemberIds.signUpQr), findsNothing);
+  });
+
+  testWidgets('a member keeps Carat, e-Purse and privileges, no notice', (
+    tester,
+  ) async {
+    await open(tester);
+    expect(byTestId(ProfileIds.caratStat), findsOneWidget);
+    expect(byTestId(ProfileIds.privileges), findsOneWidget);
+    expect(byTestId(MemberIds.nonMember), findsNothing);
   });
 
   testWidgets('a registered customer: checks pass; no Start sale here, '

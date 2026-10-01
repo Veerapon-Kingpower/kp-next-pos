@@ -8,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../customer/domain/entities/customer.dart';
 import '../../customer/domain/entities/privilege.dart';
 import '../../customer/presentation/customer_summary.dart';
+import '../../customer/presentation/widgets/member_sign_up.dart';
 import '../../customer/presentation/widgets/privilege_radio_list.dart';
 import '../../customer/presentation/widgets/registration_checks_list.dart';
 
@@ -32,6 +33,9 @@ class HomeCustomerResult extends StatelessWidget {
   final VoidCallback onEditProfile;
   final VoidCallback onClear;
 
+  /// Looks the same query up again — after a non-member signs up.
+  final VoidCallback onSearchAgain;
+
   const HomeCustomerResult({
     super.key,
     required this.customer,
@@ -45,6 +49,7 @@ class HomeCustomerResult extends StatelessWidget {
     required this.onEnquiry,
     required this.onEditProfile,
     required this.onClear,
+    required this.onSearchAgain,
   });
 
   @override
@@ -81,6 +86,7 @@ class HomeCustomerResult extends StatelessWidget {
                           selectedPrivilege: selectedPrivilege,
                           onSelectPrivilege: onSelectPrivilege,
                           onEditProfile: onEditProfile,
+                          onSearchAgain: onSearchAgain,
                         ),
                       ),
                     ),
@@ -181,6 +187,7 @@ class _Identity extends StatelessWidget {
   final Privilege? selectedPrivilege;
   final ValueChanged<Privilege?> onSelectPrivilege;
   final VoidCallback onEditProfile;
+  final VoidCallback onSearchAgain;
 
   const _Identity({
     required this.customer,
@@ -188,6 +195,7 @@ class _Identity extends StatelessWidget {
     required this.selectedPrivilege,
     required this.onSelectPrivilege,
     required this.onEditProfile,
+    required this.onSearchAgain,
   });
 
   static String _initials(String name) {
@@ -373,11 +381,18 @@ class _Identity extends StatelessWidget {
           ),
         ],
         const SizedBox(height: 16),
-        PrivilegeRadioList(
-          privileges: person.privileges,
-          selected: selectedPrivilege,
-          onChanged: onSelectPrivilege,
-        ),
+        // Only members have privileges (legacy Sale's `isMember`).
+        if (person.isMember)
+          PrivilegeRadioList(
+            privileges: person.privileges,
+            selected: selectedPrivilege,
+            onChanged: onSelectPrivilege,
+          )
+        else
+          NonMemberNotice(
+            signUpUrl: memberSignUpUrl,
+            onSearchAgain: onSearchAgain,
+          ),
       ],
     );
   }

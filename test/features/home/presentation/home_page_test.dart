@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -18,6 +20,7 @@ import 'package:kp_pos/features/customer/domain/usecases/list_customer_types_use
 import 'package:kp_pos/features/customer/domain/usecases/register_customer_usecase.dart';
 import 'package:kp_pos/features/customer/domain/usecases/search_customer_usecase.dart';
 import 'package:kp_pos/features/customer/presentation/customer_registration_view_model.dart';
+import 'package:kp_pos/features/customer/presentation/widgets/member_sign_up.dart';
 import 'package:kp_pos/features/flight/domain/usecases/get_date_by_flight_usecase.dart';
 import 'package:kp_pos/features/flight/domain/usecases/get_flight_by_code_usecase.dart';
 import 'package:kp_pos/features/home/presentation/home_page.dart';
@@ -35,6 +38,7 @@ import 'package:kp_pos/features/sale/domain/usecases/change_order_currency_useca
 import 'package:kp_pos/features/sale/domain/usecases/exchange_change_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/list_currencies_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/remove_cart_item_usecase.dart';
+import 'package:kp_pos/features/sale/domain/usecases/edit_cart_item_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/update_cart_item_quantity_usecase.dart';
 import 'package:kp_pos/features/sale/presentation/sale_cart_view_model.dart';
 import 'package:kp_pos/features/settings/domain/usecases/list_sub_branches_usecase.dart';
@@ -114,6 +118,8 @@ void main() {
       actOnLines: ActOnLinesUseCase(sale),
       addItemToCart: AddItemToCartUseCase(sale),
       updateCartItemQuantity: UpdateCartItemQuantityUseCase(sale),
+      editCartItem: EditCartItemUseCase(sale),
+      lookupSerial: LookupSerialUseCase(sale),
       removeCartItem: RemoveCartItemUseCase(sale),
       listCurrencies: ListCurrenciesUseCase(sale),
       changeOrderCurrency: ChangeOrderCurrencyUseCase(sale),
@@ -265,6 +271,33 @@ void main() {
     expect(authRepository.logoutCallCount, 1);
   });
 
+  testWidgets('a slow logout shows Logging out… until it finishes', (
+    tester,
+  ) async {
+    final gate = Completer<void>();
+    final authRepository = FakeAuthRepository(logoutGate: gate);
+    await tester.pumpWidget(
+      MaterialApp(home: buildPage(logoutRepository: authRepository)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.logout));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Log out'));
+    await tester.pump();
+    await tester.pump();
+
+    // Legacy's loading — not a silent screen while the calls run.
+    expect(byTestId(MenuIds.loggingOut), findsOneWidget);
+    expect(find.text('Logging out…'), findsOneWidget);
+    expect(authRepository.logoutCallCount, 1);
+
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(byTestId(MenuIds.loggingOut), findsNothing);
+    expect(authRepository.logoutCallCount, 1);
+  });
+
   testWidgets('cancelling the logout dialog does not log out', (tester) async {
     final authRepository = FakeAuthRepository();
     await tester.pumpWidget(
@@ -291,6 +324,7 @@ void main() {
         action: 'found',
         isFound: true,
         person: CustomerPerson(
+          memberId: 'M1',
           englishName: 'Jane Doe',
           passportNo: 'P1234567',
           nationality: 'THA',
@@ -334,9 +368,65 @@ void main() {
       await tester.tap(byTestId(DesktopCustomerIds.searchButton));
       await tester.pumpAndSettle();
 
-      expect(inProfile(find.text('No customer found.')), findsOneWidget);
+      expect(inProfile(byTestId(MemberIds.notFound)), findsOneWidget);
+      expect(inProfile(find.text('No customer found')), findsOneWidget);
+      expect(inProfile(find.text('for "CPX9999"')), findsOneWidget);
+      // The two ways on: the register form beside it, or member sign-up.
+      expect(inProfile(byTestId(MemberIds.signUpButton)), findsOneWidget);
     },
   );
+
+  testWidgets(
+    'the search field ✕ shows with text, empties it and keeps focus',
+    (tester) async {
+      await pumpCustomerTab(tester, buildPage());
+      final input = find.descendant(
+        of: byTestId(DesktopCustomerIds.searchField),
+        matching: find.byType(TextField),
+      );
+      final clear = byTestId(FieldIds.clear(DesktopCustomerIds.searchField));
+      expect(clear, findsNothing);
+
+      await tester.enterText(input, 'CPX0001');
+      await tester.pump();
+      await tester.tap(clear);
+      await tester.pump();
+
+      final field = tester.widget<TextField>(input);
+      expect(field.controller!.text, isEmpty);
+      expect(field.focusNode!.hasFocus, isTrue);
+      expect(clear, findsNothing);
+    },
+  );
+
+  testWidgets('not found: Search again selects the query in the search field', (
+    tester,
+  ) async {
+    await pumpCustomerTab(tester, buildPage());
+    final searchField = find.widgetWithText(
+      TextField,
+      'Search by shopping card, passport, or ID card number',
+    );
+    await tester.enterText(searchField, 'CPX9999');
+    await tester.tap(byTestId(DesktopCustomerIds.searchButton));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(byTestId(MemberIds.notFoundSearchAgain));
+    await tester.tap(byTestId(MemberIds.notFoundSearchAgain));
+    await tester.pump();
+
+    final field = tester.widget<TextField>(
+      find.descendant(
+        of: byTestId(DesktopCustomerIds.searchField),
+        matching: find.byType(TextField),
+      ),
+    );
+    expect(field.focusNode!.hasFocus, isTrue);
+    expect(
+      field.controller!.selection.textInside(field.controller!.text),
+      'CPX9999',
+    );
+  });
 
   testWidgets(
     'the card shows privileges but no raw wallet, tour, contact, or header '
@@ -562,9 +652,8 @@ void main() {
     expect(checkedIn(ProfileIds.noPrivilege), findsOneWidget);
   });
 
-  testWidgets('the card shows no flight block — the form holds the flight', (
-    tester,
-  ) async {
+  testWidgets('a non-member: their Trip and the Not a member notice instead '
+      'of Carat / e-Purse / privileges', (tester) async {
     const customer = Customer(
       action: 'found',
       isFound: true,
@@ -600,9 +689,19 @@ void main() {
     await tester.tap(byTestId(DesktopCustomerIds.searchButton));
     await tester.pumpAndSettle();
 
-    expect(inProfile(find.textContaining('TG101')), findsNothing);
-    expect(inProfile(find.textContaining('BKK - NRT')), findsNothing);
-    expect(inProfile(find.text('Flight: Not available')), findsNothing);
+    // Trip: what decides Collect or Take.
+    expect(inProfile(byTestId(MemberIds.trip)), findsOneWidget);
+    expect(inProfile(find.text('TG101 · BKK - NRT')), findsOneWidget);
+    expect(
+      inProfile(find.textContaining('Departs 18 Aug 10:00')),
+      findsOneWidget,
+    );
+    expect(inProfile(find.text('Pickup: Gate A1')), findsOneWidget);
+    // No member data, and why.
+    expect(inProfile(byTestId(MemberIds.nonMember)), findsOneWidget);
+    expect(inProfile(byTestId(ProfileIds.caratStat)), findsNothing);
+    expect(inProfile(byTestId(ProfileIds.privileges)), findsNothing);
+    // The rest stays in the form.
     expect(inProfile(find.textContaining('VIP Member')), findsNothing);
     expect(inProfile(find.textContaining('GD1')), findsNothing);
     expect(inProfile(find.text('CPX0001')), findsNothing);
@@ -676,7 +775,7 @@ void main() {
       expect(searchLabel.didExceedMaxLines, isFalse);
 
       await search(tester, 'CPX9999');
-      expect(inProfile(find.text('No customer found.')), findsOneWidget);
+      expect(inProfile(byTestId(MemberIds.notFound)), findsOneWidget);
       expect(find.text('NEW CUSTOMER'), findsOneWidget);
     });
 
@@ -816,6 +915,7 @@ void main() {
         action: 'found',
         isFound: true,
         person: CustomerPerson(
+          memberId: 'M2',
           englishName: 'KP DEV',
           passportNo: '1234567',
           nationality: 'USA',
@@ -940,12 +1040,19 @@ void main() {
       );
     });
 
-    testWidgets('New customer clears the lookup and resets the form', (
+    testWidgets('New Register clears the lookup and resets the form', (
       tester,
     ) async {
       await pumpCustomerTab(tester, buildPage(searchResult: const [found]));
       await search(tester, 'CPX0001');
       expect(find.text('UPDATE CUSTOMER'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: byTestId(DesktopCustomerIds.newCustomerButton),
+          matching: find.text('New Register'),
+        ),
+        findsOneWidget,
+      );
 
       await tester.tap(byTestId(DesktopCustomerIds.newCustomerButton));
       await tester.pumpAndSettle();
@@ -1183,6 +1290,31 @@ void main() {
     Finder inLookup(Finder finder) =>
         find.descendant(of: byTestId(DesktopIds.homeLookup), matching: finder);
 
+    bool scanHasFocus(WidgetTester tester) => tester
+        .state<EditableTextState>(
+          find.descendant(
+            of: byTestId(DesktopIds.homeScanField),
+            matching: find.byType(EditableText),
+          ),
+        )
+        .widget
+        .focusNode
+        .hasFocus;
+
+    testWidgets('the scan field has focus on open and keeps it after a scan', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1440, 1000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(home: buildPage()));
+      await tester.pumpAndSettle();
+      expect(scanHasFocus(tester), isTrue, reason: 'autofocus on open');
+
+      await lookUp(tester, buildPage(searchResult: const [sofia]), 'CB912447');
+      expect(scanHasFocus(tester), isTrue, reason: 'kept after the scan');
+    });
+
     testWidgets('a registered customer shows on Home, ready to start a sale', (
       tester,
     ) async {
@@ -1408,8 +1540,53 @@ void main() {
         tester.getSemantics(byTestId(NavIds.customer)),
         isSemantics(isSelected: true),
       );
-      expect(inProfile(find.text('No customer found.')), findsOneWidget);
+      expect(inProfile(byTestId(MemberIds.notFound)), findsOneWidget);
+      expect(inProfile(find.text('for "CPX9999"')), findsOneWidget);
       expect(find.text('NEW CUSTOMER'), findsOneWidget);
+    });
+
+    testWidgets('a non-member result shows the notice, not privileges', (
+      tester,
+    ) async {
+      const walkIn = Customer(
+        action: 'found',
+        isFound: true,
+        person: CustomerPerson(
+          englishName: 'John Smith',
+          passportNo: 'CB111111',
+          nationality: 'GBR',
+          contacts: [],
+          privileges: [],
+          walletMembers: [],
+          shoppingCard: 'CPX0009',
+          isActivate: true,
+        ),
+        tour: {},
+        agentCode: '',
+        isMember: false,
+      );
+      await lookUp(tester, buildPage(searchResult: const [walkIn]), 'CB111111');
+
+      expect(byTestId(MemberIds.nonMember), findsOneWidget);
+      expect(byTestId(ProfileIds.privileges), findsNothing);
+
+      await tester.ensureVisible(byTestId(MemberIds.signUpButton));
+      await tester.tap(byTestId(MemberIds.signUpButton));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(byTestId(MemberIds.signUpQr), findsOneWidget);
+      expect(find.text(memberSignUpUrl), findsOneWidget);
+    });
+
+    testWidgets('not found: Sign up opens the QR on the Customer tab', (
+      tester,
+    ) async {
+      await lookUp(tester, buildPage(), 'CPX9999');
+      await tester.ensureVisible(byTestId(MemberIds.signUpButton));
+      await tester.tap(byTestId(MemberIds.signUpButton));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(byTestId(MemberIds.signUpQr), findsOneWidget);
     });
 
     testWidgets('Clear returns to the dashboard; Edit profile opens the form', (

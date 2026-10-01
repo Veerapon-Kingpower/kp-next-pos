@@ -23,6 +23,33 @@ void main() {
     expect(item.lineTotal, 8000);
   });
 
+  test('fromJson maps Edit Detail fields: serial, CITES, VASs', () {
+    final item = CartItemModel.fromJson({
+      'Guid': 'g1',
+      'serialNo': 'SN1',
+      'outputDLL': {'RequireSerial': true},
+      'cites': 'Y',
+      'citesPermitNo': 'P-77',
+      'VASs': [
+        {
+          'ArticleCode': 'VAS01',
+          'ArticleName': 'GIFT BOX',
+          'TotalRequireQty': 2,
+          'ExistQty': 1,
+          'RemainQty': 1,
+        },
+      ],
+    });
+
+    expect(item.serialNo, 'SN1');
+    expect(item.requireSerial, isTrue);
+    expect(item.cites, 'Y');
+    expect(item.citesPermitNo, 'P-77');
+    expect(item.vasItems.single.articleCode, 'VAS01');
+    expect(item.vasItems.single.totalRequireQty, 2);
+    expect(item.vasItems.single.remainQty, 1);
+  });
+
   test('fromJson falls back to the earlier guessed field names', () {
     final item = CartItemModel.fromJson({
       'Row': '1',

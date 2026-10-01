@@ -131,6 +131,8 @@ void main() {
     List<Flight> flightDates = _flightDates,
     Customer? existingCustomer,
     FakeCustomerRepository? repository,
+    String? notFoundQuery,
+    VoidCallback? onSearchAgain,
   }) {
     final repo =
         repository ??
@@ -159,6 +161,8 @@ void main() {
       userCode: 'U001',
       isAirportMpos: false,
       existingCustomer: existingCustomer,
+      notFoundQuery: notFoundQuery,
+      onSearchAgain: onSearchAgain,
     );
 
     return MaterialApp(
@@ -201,6 +205,47 @@ void main() {
     await tester.tap(find.text('TG101 — Bangkok - Tokyo'));
     await tester.pump();
   }
+
+  group('opened because nothing was found (handheld)', () {
+    testWidgets('the banner names the query and offers Sign up / Search '
+        'again', (tester) async {
+      await tester.pumpWidget(buildHarness(notFoundQuery: 'AA1234567'));
+      await openPage(tester);
+
+      expect(byTestId(MemberIds.notFound), findsOneWidget);
+      expect(find.text('No customer for "AA1234567"'), findsOneWidget);
+      expect(byTestId(MemberIds.signUpButton), findsOneWidget);
+      // It replaces the found-customer status banner.
+      expect(byTestId(RegisterIds.statusBanner), findsNothing);
+
+      await tester.tap(byTestId(MemberIds.signUpButton));
+      await tester.pumpAndSettle();
+      expect(byTestId(MemberIds.signUpQr), findsOneWidget);
+    });
+
+    testWidgets('Search again goes back to the lookup', (tester) async {
+      var searchedAgain = 0;
+      await tester.pumpWidget(
+        buildHarness(
+          notFoundQuery: 'AA1234567',
+          onSearchAgain: () => searchedAgain++,
+        ),
+      );
+      await openPage(tester);
+
+      await tester.tap(byTestId(MemberIds.notFoundSearchAgain));
+      await tester.pumpAndSettle();
+
+      expect(searchedAgain, 1);
+      expect(byTestId(RegisterIds.page), findsNothing);
+    });
+
+    testWidgets('no banner when opened any other way', (tester) async {
+      await tester.pumpWidget(buildHarness());
+      await openPage(tester);
+      expect(byTestId(MemberIds.notFound), findsNothing);
+    });
+  });
 
   testWidgets('shows every form field', (tester) async {
     await tester.pumpWidget(buildHarness());
@@ -454,8 +499,12 @@ void main() {
       // Allow take-away skips passport/name/nationality/flight
       // requiredness entirely — Customer Type is still required off
       // Airport mode.
+      expect(byTestId(RegisterIds.flightField), findsOneWidget);
       await tester.tap(find.widgetWithText(SwitchListTile, 'Allow take-away'));
       await tester.pump();
+      // Legacy hides Flight Code / Flight Date under allowTakeAway.
+      expect(byTestId(RegisterIds.flightField), findsNothing);
+      expect(find.byKey(const Key('flightDateField')), findsNothing);
       await enterByLabel(tester, 'Customer type', 'VIP');
       await tester.pump();
 
@@ -930,6 +979,22 @@ void main() {
       expect(clear, findsNothing);
     });
 
+    testWidgets('Customer type clears like the other fields', (tester) async {
+      await tester.pumpWidget(buildHarness());
+      await openPage(tester);
+      final clear = byTestId(FieldIds.clear(RegisterIds.customerTypeField));
+      expect(clear, findsNothing);
+
+      await tester.enterText(field(RegisterIds.customerTypeField), 'VIP');
+      await tester.pump();
+      await tester.ensureVisible(clear);
+      await tester.tap(clear);
+      await tester.pump();
+
+      expect(textOf(tester, RegisterIds.customerTypeField), isEmpty);
+      expect(clear, findsNothing);
+    });
+
     testWidgets('desktop fields follow the same rules and clear', (
       tester,
     ) async {
@@ -1220,8 +1285,8 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('non-international clears the flight and its required '
-        'markers', (tester) async {
+    testWidgets('non-international hides and clears the flight fields, as '
+        'legacy hides them under allowTakeAway', (tester) async {
       await openDesktop(tester);
       await lookup(tester, DesktopCustomerIds.flightCode, 'TG');
       expect(flightDateText(tester), 'Tue 18 Aug 2026 10:00');
@@ -1236,12 +1301,30 @@ void main() {
       await tester.tap(byTestId(DesktopCustomerIds.nonInternational));
       await tester.pumpAndSettle();
 
-      expect(textOf(tester, DesktopCustomerIds.flightCode), isEmpty);
-      expect(flightDateText(tester), 'Pick a flight first');
-      expect(find.text('FLIGHT CODE'), findsOneWidget);
+      expect(byTestId(DesktopCustomerIds.flightCode), findsNothing);
+      expect(byTestId(DesktopCustomerIds.flightDate), findsNothing);
       expect(find.text('PASSPORT NO.'), findsOneWidget);
       // Customer type stays required off Airport mode.
       expect(find.text('CUSTOMER TYPE *'), findsOneWidget);
+
+      // Unticking brings the flight fields back, empty.
+      await tester.tap(byTestId(DesktopCustomerIds.nonInternational));
+      await tester.pumpAndSettle();
+      expect(textOf(tester, DesktopCustomerIds.flightCode), isEmpty);
+      expect(flightDateText(tester), 'Pick a flight first');
+    });
+
+    testWidgets('non-international hides the flight pane of Flight & '
+        'passport', (tester) async {
+      await openDesktop(tester);
+      await tester.tap(byTestId(DesktopCustomerIds.nonInternational));
+      await tester.pumpAndSettle();
+
+      await tester.tap(byTestId(DesktopCustomerIds.travellerButton));
+      await tester.pumpAndSettle();
+
+      expect(byTestId(DesktopCustomerIds.traveller), findsOneWidget);
+      expect(byTestId(TravellerIds.flightSearch), findsNothing);
     });
 
     testWidgets('clearing a lookup drops its value — the flight takes its '

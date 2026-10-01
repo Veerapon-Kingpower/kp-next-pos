@@ -117,11 +117,8 @@ class CustomerRegistrationViewModel extends GetxController {
     errorMessage = null;
     update();
     _log(
-      '[CustomerRegistrationViewModel.submit] '
-      'action=${isEdit ? _registerEditAction : _registerAddAction} '
-      'isActivate=$isActivate allowTakeAway=$allowTakeAway '
-      'isAirport=$isAirportMpos flight=$flightCode $flightDate $flightTime '
-      'airline=$airlineCode listIdentity=${listIdentity.length}',
+      '[Customer] submit ${isEdit ? _registerEditAction : _registerAddAction} '
+      'takeAway=$allowTakeAway flight=$flightCode $flightDate $flightTime',
     );
 
     try {
@@ -165,7 +162,7 @@ class CustomerRegistrationViewModel extends GetxController {
       );
       status = CustomerRegistrationStatus.success;
       _log(
-        '[CustomerRegistrationViewModel.submit] ok shoppingCard='
+        '[Customer] ok card='
         '${result?.outputs.map((o) => o.shoppingCard).join(', ')}',
       );
       update();
@@ -175,7 +172,7 @@ class CustomerRegistrationViewModel extends GetxController {
       errorMessage = e is ApiException
           ? e.messageDesc
           : 'Could not register the customer.';
-      _log('[CustomerRegistrationViewModel.submit] failed: $e');
+      _log('[Customer] failed: $e');
       update();
       return false;
     }

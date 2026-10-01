@@ -12,6 +12,7 @@ import 'domain/usecases/leave_sale_usecases.dart';
 import 'domain/usecases/line_discount_usecases.dart';
 import 'domain/usecases/cash_payment_usecases.dart';
 import 'domain/usecases/change_order_currency_usecase.dart';
+import 'domain/usecases/edit_cart_item_usecase.dart';
 import 'domain/usecases/exchange_change_usecase.dart';
 import 'domain/usecases/list_currencies_usecase.dart';
 import 'domain/usecases/lookup_article_by_barcode_usecase.dart';
@@ -42,6 +43,12 @@ void setupSaleServiceLocator() {
   );
   sl.registerFactory<UpdateCartItemQuantityUseCase>(
     () => UpdateCartItemQuantityUseCase(sl<SaleRepository>()),
+  );
+  sl.registerFactory<EditCartItemUseCase>(
+    () => EditCartItemUseCase(sl<SaleRepository>()),
+  );
+  sl.registerFactory<LookupSerialUseCase>(
+    () => LookupSerialUseCase(sl<SaleRepository>()),
   );
   sl.registerFactory<RemoveCartItemUseCase>(
     () => RemoveCartItemUseCase(sl<SaleRepository>()),
@@ -94,6 +101,8 @@ void setupSaleServiceLocator() {
       actOnLines: sl<ActOnLinesUseCase>(),
       addItemToCart: sl<AddItemToCartUseCase>(),
       updateCartItemQuantity: sl<UpdateCartItemQuantityUseCase>(),
+      editCartItem: sl<EditCartItemUseCase>(),
+      lookupSerial: sl<LookupSerialUseCase>(),
       removeCartItem: sl<RemoveCartItemUseCase>(),
       listCurrencies: sl<ListCurrenciesUseCase>(),
       changeOrderCurrency: sl<ChangeOrderCurrencyUseCase>(),

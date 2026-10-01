@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:kp_pos/core/network/api_client.dart';
 
 /// Shared test double for [ApiClient] — records the last call and returns
@@ -9,8 +11,14 @@ class FakeApiClient implements ApiClient {
   Map<String, dynamic> response;
   Object? errorToThrow;
 
-  FakeApiClient({Map<String, dynamic>? response, this.errorToThrow})
-    : response = response ?? const {};
+  /// A request on a dead connection: `post` never answers.
+  bool hang;
+
+  FakeApiClient({
+    Map<String, dynamic>? response,
+    this.errorToThrow,
+    this.hang = false,
+  }) : response = response ?? const {};
 
   @override
   Future<Map<String, dynamic>> post(
@@ -21,6 +29,7 @@ class FakeApiClient implements ApiClient {
     lastUrl = url;
     lastData = data;
     lastQueryParameters = queryParameters;
+    if (hang) await Completer<void>().future;
     if (errorToThrow != null) throw errorToThrow!;
     return response;
   }

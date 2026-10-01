@@ -91,19 +91,11 @@ class CustomerRemoteDataSource {
         'listPersonal': listPersonal,
       },
     ];
-    if (kDebugMode) {
-      debugPrint(
-        '[CustomerRemoteDataSource.register] POST $url\n'
-        '  request: ${_json(data)}',
-      );
-    }
     final response = await _apiClient.post(url, data: data);
     if (kDebugMode) {
       debugPrint(
-        '[CustomerRemoteDataSource.register] '
-        'isCompleted=${response['isCompleted']} '
-        'Message=${_json(response['Message'])}\n'
-        '  response: ${_json(response)}',
+        '[Customer] RegisterAPI isCompleted=${response['isCompleted']} '
+        'Message=${_json(response['Message'])}',
       );
     }
 

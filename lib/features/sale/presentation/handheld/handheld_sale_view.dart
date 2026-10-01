@@ -56,32 +56,47 @@ class HandheldSaleView extends StatefulWidget {
 
 class _HandheldSaleViewState extends State<HandheldSaleView> {
   final _scanController = TextEditingController();
+  final _scanFocus = FocusNode();
   bool _showBasket = false;
 
   @override
   void dispose() {
     _scanController.dispose();
+    _scanFocus.dispose();
     super.dispose();
+  }
+
+  // The scan field is disabled while busy, which drops its focus — take
+  // it back so the next trigger scan lands there.
+  void _refocusScan() {
+    if (!mounted || _showBasket) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_showBasket) _scanFocus.requestFocus();
+    });
   }
 
   Future<void> _scan(String value) async {
     await widget.viewModel.scan(value);
     if (widget.viewModel.scanError == null) _scanController.clear();
+    _refocusScan();
   }
 
-  void _openLine(CartItem line, int number) {
-    openEditLinePage(
+  Future<void> _openLine(CartItem line, int number) async {
+    await openEditLinePage(
       context,
       viewModel: widget.viewModel,
       row: line.row,
       lineNumber: number,
+      isAirportMpos: widget.isAirportMpos,
     );
+    _refocusScan();
   }
 
   // Legacy `changeTab()`: the tab left behind loses its selection.
   void _showTab(bool basket) {
     setState(() => _showBasket = basket);
     widget.viewModel.clearSelection(basket: !basket);
+    _refocusScan();
   }
 
   // Legacy Basket swipe "Cancel" / "Uncancel": confirm, then `cancel`.
@@ -247,6 +262,7 @@ class _HandheldSaleViewState extends State<HandheldSaleView> {
             orderType: widget.orderType,
             lineCount: orderLines.length,
             scanController: _scanController,
+            scanFocus: _scanFocus,
             // Legacy: scanning only on the Buying tab.
             scanEnabled:
                 !viewModel.isBusy && viewModel.hasCustomer && !_showBasket,
@@ -369,6 +385,7 @@ class _SaleHeader extends StatelessWidget {
   final SaleOrderType orderType;
   final int lineCount;
   final TextEditingController scanController;
+  final FocusNode scanFocus;
   final bool scanEnabled;
   final ValueChanged<String> onScan;
   final VoidCallback onExit;
@@ -382,6 +399,7 @@ class _SaleHeader extends StatelessWidget {
     required this.orderType,
     required this.lineCount,
     required this.scanController,
+    required this.scanFocus,
     required this.scanEnabled,
     required this.onScan,
     required this.onExit,
@@ -452,6 +470,10 @@ class _SaleHeader extends StatelessWidget {
                         child: ScanField(
                           id: SaleIds.scanField,
                           controller: scanController,
+                          focusNode: scanFocus,
+                          // Ready for a trigger scan as soon as Sale opens.
+                          autofocus: true,
+                          keepFocusOnSubmit: true,
                           hintText: 'Scan or type item code',
                           onSubmitted: onScan,
                           enabled: scanEnabled,

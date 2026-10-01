@@ -20,6 +20,11 @@ class EnvironmentConfig {
   final String memberApi;
   final String cashCardApi;
 
+  /// The King Power member sign-up page a non-member scans (as a QR) to
+  /// enrol on their own phone. Empty: not known for this environment, so
+  /// Sign up is unavailable. Not in legacy — the POS has no enrol API.
+  final String memberSignUpUrl;
+
   const EnvironmentConfig({
     required this.environment,
     required this.saleEngineEndpoint,
@@ -28,6 +33,7 @@ class EnvironmentConfig {
     required this.printHubEndpoint,
     required this.memberApi,
     required this.cashCardApi,
+    this.memberSignUpUrl = '',
   });
 
   static const uat = EnvironmentConfig(
@@ -52,6 +58,7 @@ class EnvironmentConfig {
   );
 
   // Mirrors `uat` — no separate legacy "development" backend exists (see class doc comment).
+  // TODO(member-sign-up): UAT / production sign-up URLs once known.
   static const development = EnvironmentConfig(
     environment: AppEnvironment.development,
     saleEngineEndpoint:
@@ -61,6 +68,7 @@ class EnvironmentConfig {
     printHubEndpoint: 'http://printhub.kingpower.com',
     memberApi: 'https://uat-api2.kingpower.com/KPServicesapi',
     cashCardApi: 'https://uat-api2.kingpower.com/cashcardapi/api',
+    memberSignUpUrl: 'https://dev-member-web.gwl.kpc-dev.com/en',
   );
 
   static const _envName = String.fromEnvironment(

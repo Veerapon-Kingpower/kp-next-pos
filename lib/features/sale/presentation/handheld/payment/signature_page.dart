@@ -80,6 +80,9 @@ class _SignaturePageState extends State<SignaturePage> {
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.gold,
                 foregroundColor: AppColors.ink,
+                // The app theme's full-width minimum can't size in the
+                // header's Row (unbounded width).
+                minimumSize: const Size(0, 40),
               ),
               child: const Text('Save'),
             ),

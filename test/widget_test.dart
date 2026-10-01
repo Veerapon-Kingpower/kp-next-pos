@@ -29,6 +29,7 @@ import 'package:kp_pos/features/sale/domain/usecases/change_order_currency_useca
 import 'package:kp_pos/features/sale/domain/usecases/exchange_change_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/list_currencies_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/remove_cart_item_usecase.dart';
+import 'package:kp_pos/features/sale/domain/usecases/edit_cart_item_usecase.dart';
 import 'package:kp_pos/features/sale/domain/usecases/update_cart_item_quantity_usecase.dart';
 import 'package:kp_pos/features/sale/presentation/sale_cart_view_model.dart';
 import 'package:kp_pos/features/settings/domain/usecases/list_sub_branches_usecase.dart';
@@ -93,6 +94,8 @@ SaleCartViewModel _saleCartViewModel() {
     actOnLines: ActOnLinesUseCase(FakeSaleRepository()),
     addItemToCart: AddItemToCartUseCase(FakeSaleRepository()),
     updateCartItemQuantity: UpdateCartItemQuantityUseCase(FakeSaleRepository()),
+    editCartItem: EditCartItemUseCase(FakeSaleRepository()),
+    lookupSerial: LookupSerialUseCase(FakeSaleRepository()),
     removeCartItem: RemoveCartItemUseCase(FakeSaleRepository()),
     listCurrencies: ListCurrenciesUseCase(FakeSaleRepository()),
     changeOrderCurrency: ChangeOrderCurrencyUseCase(FakeSaleRepository()),

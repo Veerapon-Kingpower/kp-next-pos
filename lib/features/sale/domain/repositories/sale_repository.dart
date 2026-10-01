@@ -2,6 +2,7 @@ import '../entities/article.dart';
 import '../entities/cart.dart';
 import '../entities/currency.dart';
 import '../entities/exchange_quote.dart';
+import '../entities/line_edit.dart';
 import '../entities/promotion.dart';
 import '../entities/sale_order_context.dart';
 
@@ -23,6 +24,19 @@ abstract class SaleRepository {
     required String row,
     required int quantity,
   });
+
+  /// `SaleEngine/ActionItemToOrder` with every legacy Edit Detail value
+  /// (`change_qty`, `is_freeze`, `is_lock`, `take_collect`, `SerialNo`).
+  Future<LineEditResult> editCartItem({
+    required String sessionKey,
+    required String row,
+    required LineEdit edit,
+  });
+
+  /// `SaleEngine/GetMasterByBarcodeDLL` for a scanned serial barcode:
+  /// the article's `SerialNo`. [site] is the session's `MachineEnv.site`
+  /// (empty: this device's sub-branch).
+  Future<String> lookupSerial({required String site, required String barcode});
 
   /// `SaleEngine/ActionListItemToOrder` with `Action: "delete"` (op 11).
   Future<Cart> removeCartItem({

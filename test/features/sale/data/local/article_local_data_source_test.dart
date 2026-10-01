@@ -34,28 +34,31 @@ void main() {
     expect(dataSource.getByBarcode('8850012345678'), isNull);
   });
 
-  test('upsert then getByBarcode returns the cached article, flagged as from cache', () {
-    dataSource.upsert(
-      barcode: '8850012345678',
-      article: const Article(
-        articleCode: 'ART001',
-        articleName: 'Test Article',
-        eanCode: '8850012345678',
-        brandCode: 'B1',
-        brandName: 'Brand One',
-        price: 100,
-        vatRate: 7,
-      ),
-    );
+  test(
+    'upsert then getByBarcode returns the cached article, flagged as from cache',
+    () {
+      dataSource.upsert(
+        barcode: '8850012345678',
+        article: const Article(
+          articleCode: 'ART001',
+          articleName: 'Test Article',
+          eanCode: '8850012345678',
+          brandCode: 'B1',
+          brandName: 'Brand One',
+          price: 100,
+          vatRate: 7,
+        ),
+      );
 
-    final cached = dataSource.getByBarcode('8850012345678');
+      final cached = dataSource.getByBarcode('8850012345678');
 
-    expect(cached, isNotNull);
-    expect(cached!.articleCode, 'ART001');
-    expect(cached.brandName, 'Brand One');
-    expect(cached.price, 100);
-    expect(cached.isFromCache, isTrue);
-  });
+      expect(cached, isNotNull);
+      expect(cached!.articleCode, 'ART001');
+      expect(cached.brandName, 'Brand One');
+      expect(cached.price, 100);
+      expect(cached.isFromCache, isTrue);
+    },
+  );
 
   test('upsert replaces an existing entry for the same barcode', () {
     dataSource.upsert(

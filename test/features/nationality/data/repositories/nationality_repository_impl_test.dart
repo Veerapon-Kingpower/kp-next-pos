@@ -7,7 +7,9 @@ import '../../../../core/network/fake_api_client.dart';
 import '../../../../core/storage/fakes.dart';
 
 void main() {
-  const deviceSettings = DeviceSettings(webServiceEndpoint: 'https://web-service');
+  const deviceSettings = DeviceSettings(
+    webServiceEndpoint: 'https://web-service',
+  );
 
   NationalityRepositoryImpl buildRepo(
     FakeApiClient apiClient,

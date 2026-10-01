@@ -77,9 +77,7 @@ void main() {
         (w) =>
             w is Image &&
             w.image is AssetImage &&
-            (w.image as AssetImage).assetName.contains(
-              'kingpower_mobile_logo',
-            ),
+            (w.image as AssetImage).assetName.contains('kingpower_mobile_logo'),
       ),
       findsNothing,
     );

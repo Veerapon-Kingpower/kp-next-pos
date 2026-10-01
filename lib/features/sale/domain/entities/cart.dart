@@ -1,4 +1,5 @@
 import 'cart_item.dart';
+import 'line_discount.dart';
 
 /// Port of the top-level `OrderClass` fields `api-contracts.md` actually
 /// names (`Guid`, `OrderDetails`, `isCheckOut` — section 5b, ops 8-11).
@@ -26,6 +27,21 @@ class Cart {
   /// `UpdateOrderStatus` takes as `orderNo`.
   final String orderNo;
 
+  /// `TotalBillingAmount.ValueAdjusts` — the bill (special) discounts
+  /// legacy's Checkout → Discount page lists.
+  final List<LineDiscount> billDiscounts;
+
+  /// `GWPDetails` — legacy Checkout → More → Gift with Purchase.
+  final List<GiftWithPurchase> giftsWithPurchase;
+
+  /// `isRequireSignature` — legacy shows Signature only then.
+  final bool requireSignature;
+
+  /// `DFA` / `Promoter` / `CreateDate` — legacy's airport-mPOS profile.
+  final String dfa;
+  final String promoter;
+  final String createDate;
+
   const Cart({
     required this.guid,
     required this.isCheckOut,
@@ -35,9 +51,24 @@ class Cart {
     this.remaining,
     this.change = 0,
     this.orderNo = '',
+    this.billDiscounts = const [],
+    this.giftsWithPurchase = const [],
+    this.requireSignature = false,
+    this.dfa = '',
+    this.promoter = '',
+    this.createDate = '',
   });
 
   int get itemCount => items.length;
+}
+
+/// One `GWPDetails` entry: the text legacy lists and whether this bill
+/// already qualifies (`CanApplied`).
+class GiftWithPurchase {
+  final String text;
+  final bool canApply;
+
+  const GiftWithPurchase({required this.text, required this.canApply});
 }
 
 /// One `OrderPayment` on the order (legacy `OrderClass.ts`).
@@ -96,6 +127,18 @@ class CartBilling {
   /// `TotalBillingAmount.TotalNetPay.BaseCurrAmt` — net pay in baht.
   final double netPayBase;
 
+  /// `TotalBillingAmount.PercentDiscountSpecial` — legacy "(%)Discount".
+  final double percentDiscountSpecial;
+
+  /// `TotalBillingAmount.DiscountSpecial.CurrAmt` — legacy "Baht Disc."
+  /// (0 when the order has none).
+  final double discountSpecial;
+
+  /// `TotalBillingAmount.CurrentValueAdjust.VADetail` — legacy "Promotion"
+  /// (`Code | Desc`); empty without one.
+  final String promotionCode;
+  final String promotionName;
+
   const CartBilling({
     required this.currencyCode,
     required this.currencyDescription,
@@ -106,6 +149,10 @@ class CartBilling {
     required this.cashD,
     required this.netPay,
     required this.netPayBase,
+    this.percentDiscountSpecial = 0,
+    this.discountSpecial = 0,
+    this.promotionCode = '',
+    this.promotionName = '',
   });
 
   bool get isBaht => currencyCode.isEmpty || currencyCode == 'THB';

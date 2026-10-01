@@ -116,6 +116,15 @@ abstract class SaleRepository {
     required String value,
   });
 
+  /// `SaleEngine/ActionOrderPayment`: a bill (special) discount [action]
+  /// with [value]; [orderGuid] as legacy sends it for that action.
+  Future<Cart> actOnOrder({
+    required String sessionKey,
+    required String action,
+    required String value,
+    String? orderGuid,
+  });
+
   /// `SaleEngine/SaveOrder`: saves the shopping card's order.
   Future<Cart> saveOrder({
     required String sessionKey,

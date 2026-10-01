@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/presentation/widgets/app_text_field.dart';
+import '../../../helpers/test_app.dart';
 
 void main() {
   testWidgets('shows the label, error text, and reports changes', (
@@ -10,7 +11,7 @@ void main() {
     String? changed;
 
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Scaffold(
           body: AppTextField(
             controller: controller,

@@ -16,6 +16,7 @@ import 'package:kp_pos/features/sale/presentation/handheld/discount_sheet.dart';
 import '../../../../helpers/test_id_finders.dart';
 import '../../fake_sale_repository.dart';
 import '../handheld/sale_test_helpers.dart';
+import '../../../../helpers/test_app.dart';
 
 const _privilege = LineDiscount(
   guid: 'va-1',
@@ -93,7 +94,7 @@ void main() {
         ? 'Discount · line 1'
         : 'Discount · ${lines.length} lines';
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Scaffold(
           body: Builder(
             builder: (context) => TextButton(

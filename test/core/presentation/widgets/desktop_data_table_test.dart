@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/presentation/widgets/desktop_data_table.dart';
+import '../../../helpers/test_app.dart';
 
 void main() {
   testWidgets('renders column headers and one row per data row', (
     tester,
   ) async {
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Scaffold(
           body: DesktopDataTable(
             columns: const [
@@ -35,7 +36,7 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Scaffold(
           body: DesktopDataTable(
             columns: const [DesktopDataColumn(label: 'Item')],
@@ -54,7 +55,7 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const MaterialApp(
+      TestApp(
         home: Scaffold(
           body: DesktopDataTable(
             columns: [DesktopDataColumn(label: 'Item')],

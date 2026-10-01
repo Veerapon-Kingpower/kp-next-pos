@@ -3,8 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/presentation/widgets/app_buttons.dart';
 import 'package:kp_pos/core/presentation/widgets/app_shell.dart';
 import 'package:kp_pos/core/presentation/widgets/status_chip.dart';
-import 'package:kp_pos/core/theme/app_theme.dart';
 import 'package:kp_pos/core/theme/transaction_status.dart';
+
+import '../../../helpers/test_app.dart';
 
 /// Golden (reference-image) tests for the shared component states built in
 /// task 3.3, verifying the responsive Android/Windows layouts from task
@@ -23,7 +24,7 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
     final home = wrapInScaffold ? Scaffold(body: child) : child;
-    await tester.pumpWidget(MaterialApp(theme: AppTheme.light(), home: home));
+    await tester.pumpWidget(TestApp(home: home));
   }
 
   testWidgets('AppShell — Android touch-first (narrow, bottom navigation)', (

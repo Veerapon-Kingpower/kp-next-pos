@@ -14,16 +14,22 @@ import '../handheld/payment/signature_page.dart';
 import '../../domain/entities/cart.dart';
 import '../sale_cart_view_model.dart';
 import '../sale_currency.dart';
+import '../widgets/checkout_details.dart';
+import 'desktop_discount_overlay.dart';
 import 'desktop_payment_page.dart';
 
 /// Pushes the desktop Checkout step for the current cart.
 Future<void> openDesktopCheckoutPage(
   BuildContext context, {
   required SaleCartViewModel viewModel,
+  bool isAirportMpos = false,
 }) {
   return Navigator.of(context).push(
     MaterialPageRoute<void>(
-      builder: (_) => DesktopCheckoutPage(viewModel: viewModel),
+      builder: (_) => DesktopCheckoutPage(
+        viewModel: viewModel,
+        isAirportMpos: isAirportMpos,
+      ),
     ),
   );
 }
@@ -32,18 +38,25 @@ Future<void> openDesktopCheckoutPage(
 /// screen 5, "Step 2 of 3"): customer, flight & passport, read-only lines,
 /// blocking-flags panel, amount due, customer signature, Take payment.
 ///
-/// Real: lines / units / totals from the cart, the selected privilege,
-/// signature capture (local), Take payment → step 3 (Enter). Not available,
-/// so reported as such rather than shown as cleared / invented: blocking
-/// flags (serial, CITES, shipping address), linked flight & passport,
-/// discount / Cash-D / VAT breakdown, FX rate; Suspend and Print quote
-/// are inert.
-// TODO(pos-desktop): real blocking-flags check and checkout totals
-// (openspec 4.4 / 5.4); attach flight & passport; Suspend / Print quote.
+/// Real: legacy Checkout's customer profile (customer, flight & passport,
+/// sale), lines with their discounts, totals with the bill (special)
+/// discount and its Bill discount editor, Gift with Purchase, signature
+/// (only when the order requires one), Take payment → step 3 (Enter).
+/// Not available, so reported as such: blocking flags (serial, CITES,
+/// shipping address), VAT; Suspend and Print quote are inert.
+// TODO(pos-desktop): real blocking-flags check (openspec 4.4 / 5.4);
+// Suspend / Print quote.
 class DesktopCheckoutPage extends StatefulWidget {
   final SaleCartViewModel viewModel;
 
-  const DesktopCheckoutPage({super.key, required this.viewModel});
+  /// Legacy shows DFA / promoter / order date in the profile only here.
+  final bool isAirportMpos;
+
+  const DesktopCheckoutPage({
+    super.key,
+    required this.viewModel,
+    this.isAirportMpos = false,
+  });
 
   @override
   State<DesktopCheckoutPage> createState() => _DesktopCheckoutPageState();
@@ -114,8 +127,15 @@ class _DesktopCheckoutPageState extends State<DesktopCheckoutPage> {
                       child: _ReviewColumn(
                         lines: lines,
                         units: units,
-                        privilegeName: viewModel.selectedPrivilege?.name,
-                        privilegeCode: _code(viewModel),
+                        customer: checkoutCustomerFacts(viewModel),
+                        trip: checkoutTripFacts(viewModel, DateTime.now()),
+                        sale: checkoutSaleFacts(
+                          viewModel,
+                          isAirportMpos: widget.isAirportMpos,
+                        ),
+                        gifts:
+                            viewModel.cart?.giftsWithPurchase ??
+                            const <GiftWithPurchase>[],
                       ),
                     ),
                     const SizedBox(width: 20),
@@ -131,6 +151,16 @@ class _DesktopCheckoutPageState extends State<DesktopCheckoutPage> {
                             ? null
                             : () => changeOrderCurrency(context, viewModel),
                         hasLines: lines.isNotEmpty,
+                        // Legacy Checkout → More → Discount.
+                        onBillDiscount: lines.isEmpty || viewModel.isBusy
+                            ? null
+                            : () => showDesktopBillDiscountOverlay(
+                                context,
+                                viewModel: viewModel,
+                              ),
+                        // Legacy shows Signature only for such an order.
+                        requireSignature:
+                            viewModel.cart?.requireSignature ?? false,
                         signatureCaptured: _signature != null,
                         onSignature: () => _captureSignature(netPay),
                         onTakePayment: takePayment,
@@ -145,25 +175,68 @@ class _DesktopCheckoutPageState extends State<DesktopCheckoutPage> {
       ),
     );
   }
+}
 
-  static String? _code(SaleCartViewModel viewModel) {
-    final p = viewModel.selectedPrivilege;
-    if (p == null || (p.typeCode.isEmpty && p.promoCode.isEmpty)) return null;
-    return '[${p.typeCode}]:${p.promoCode}';
+/// Label over value, two per row — the Checkout details.
+class _Facts extends StatelessWidget {
+  final List<CheckoutFact> facts;
+
+  const _Facts(this.facts);
+
+  // Rows of two Expanded cells — no LayoutBuilder, as the Customer /
+  // Flight panels sit in an IntrinsicHeight row.
+  @override
+  Widget build(BuildContext context) {
+    Widget cell(CheckoutFact fact) => Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(fact.label.toUpperCase(), style: DesktopText.fieldLabel),
+        const SizedBox(height: 3),
+        Text(
+          fact.value,
+          style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600),
+        ),
+      ],
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < facts.length; i += 2)
+          Padding(
+            padding: EdgeInsets.only(top: i == 0 ? 0 : 10),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: cell(facts[i])),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: i + 1 < facts.length
+                      ? cell(facts[i + 1])
+                      : const SizedBox.shrink(),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
   }
 }
 
 class _ReviewColumn extends StatelessWidget {
   final List<CartItem> lines;
   final int units;
-  final String? privilegeName;
-  final String? privilegeCode;
+  final List<CheckoutFact> customer;
+  final List<CheckoutFact> trip;
+  final List<CheckoutFact> sale;
+  final List<GiftWithPurchase> gifts;
 
   const _ReviewColumn({
     required this.lines,
     required this.units,
-    required this.privilegeName,
-    required this.privilegeCode,
+    required this.customer,
+    required this.trip,
+    required this.sale,
+    required this.gifts,
   });
 
   @override
@@ -180,44 +253,27 @@ class _ReviewColumn extends StatelessWidget {
                 child: DesktopPanel(
                   id: CheckoutIds.customerCard,
                   title: 'Customer',
-                  child: privilegeName == null
-                      ? const Text(
-                          'Walk-in · no customer attached',
-                          style: muted,
-                        )
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              privilegeName!.isEmpty
-                                  ? 'Privilege'
-                                  : privilegeName!,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            if (privilegeCode != null)
-                              Text(
-                                privilegeCode!,
-                                style: const TextStyle(
-                                  fontSize: 12.5,
-                                  color: AppColors.goldDark,
-                                ),
-                              ),
-                          ],
-                        ),
+                  child: _Facts(customer),
                 ),
               ),
               const SizedBox(width: 16),
-              const Expanded(
+              Expanded(
                 child: DesktopPanel(
                   id: DesktopPaymentIds.flightCard,
                   title: 'Flight & passport',
-                  child: Text(
-                    'Linking a flight and passport to the bill is not '
-                    'available yet.',
-                    style: muted,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (trip.isEmpty)
+                        const Text(
+                          'No customer attached to this bill.',
+                          style: muted,
+                        )
+                      else
+                        TestId(CheckoutIds.tripCard, child: _Facts(trip)),
+                      const Divider(height: 24, color: AppColors.line),
+                      TestId(CheckoutIds.saleCard, child: _Facts(sale)),
+                    ],
                   ),
                 ),
               ),
@@ -256,10 +312,20 @@ class _ReviewColumn extends StatelessWidget {
                             ),
                           ),
                           Text('${l.quantity}', textAlign: TextAlign.right),
-                          const Text(
-                            '—',
-                            textAlign: TextAlign.right,
-                            style: TextStyle(color: AppColors.hintText),
+                          // `BillingAmount.DiscountAmount` of the line.
+                          TestId(
+                            CheckoutIds.lineDiscount(l.row),
+                            child: Text(
+                              l.discountAmount == 0
+                                  ? '—'
+                                  : formatAmount(-l.discountAmount),
+                              textAlign: TextAlign.right,
+                              style: TextStyle(
+                                color: l.discountAmount == 0
+                                    ? AppColors.hintText
+                                    : AppColors.danger,
+                              ),
+                            ),
                           ),
                           Text(
                             formatAmount(l.lineTotal),
@@ -281,6 +347,14 @@ class _ReviewColumn extends StatelessWidget {
             ),
           ),
         ),
+        if (gifts.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          DesktopPanel(
+            id: CheckoutIds.gwpCard,
+            title: 'Gift with Purchase',
+            child: GiftWithPurchaseList(gifts: gifts),
+          ),
+        ],
         const SizedBox(height: 12),
         TestId(
           CheckoutIds.flagsNotice,
@@ -320,6 +394,8 @@ class _AmountColumn extends StatelessWidget {
   final String? currencyError;
   final VoidCallback? onCurrency;
   final bool hasLines;
+  final VoidCallback? onBillDiscount;
+  final bool requireSignature;
   final bool signatureCaptured;
   final VoidCallback onSignature;
   final VoidCallback onTakePayment;
@@ -330,6 +406,8 @@ class _AmountColumn extends StatelessWidget {
     required this.currencyError,
     required this.onCurrency,
     required this.hasLines,
+    required this.onBillDiscount,
+    required this.requireSignature,
     required this.signatureCaptured,
     required this.onSignature,
     required this.onTakePayment,
@@ -409,8 +487,27 @@ class _AmountColumn extends StatelessWidget {
                         billing!.currencyRate.toStringAsFixed(5),
                         id: CurrencyIds.rate,
                       ),
+                      const Divider(height: 20, color: AppColors.line),
+                      TestId(
+                        CheckoutIds.billDiscountRows,
+                        child: Column(
+                          children: [
+                            for (final fact in billDiscountFacts(billing!))
+                              row(fact.label, fact.value),
+                          ],
+                        ),
+                      ),
                     ],
             ),
+          ),
+          const SizedBox(height: 10),
+          DesktopButton(
+            id: CheckoutIds.billDiscountButton,
+            label: 'Bill discount',
+            icon: Icons.percent,
+            secondary: true,
+            height: 52,
+            onPressed: onBillDiscount,
           ),
           if (currencyError != null)
             TestId(
@@ -469,39 +566,41 @@ class _AmountColumn extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          const Text('CUSTOMER SIGNATURE', style: DesktopText.fieldLabel),
-          const SizedBox(height: 8),
-          TestId(
-            DesktopPaymentIds.signatureBox,
-            child: Material(
-              color: const Color(0xFFFBFCFD),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-                side: const BorderSide(color: Color(0xFFC3C9D2)),
-              ),
-              child: InkWell(
-                onTap: onSignature,
-                borderRadius: BorderRadius.circular(10),
-                child: SizedBox(
-                  height: 96,
-                  child: Center(
-                    child: Text(
-                      signatureCaptured
-                          ? 'Signature captured · not uploaded yet · tap to redo'
-                          : 'Tap to capture the customer signature',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: signatureCaptured
-                            ? AppColors.success
-                            : AppColors.mutedText,
+          if (requireSignature) ...[
+            const SizedBox(height: 16),
+            const Text('CUSTOMER SIGNATURE', style: DesktopText.fieldLabel),
+            const SizedBox(height: 8),
+            TestId(
+              DesktopPaymentIds.signatureBox,
+              child: Material(
+                color: const Color(0xFFFBFCFD),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  side: const BorderSide(color: Color(0xFFC3C9D2)),
+                ),
+                child: InkWell(
+                  onTap: onSignature,
+                  borderRadius: BorderRadius.circular(10),
+                  child: SizedBox(
+                    height: 96,
+                    child: Center(
+                      child: Text(
+                        signatureCaptured
+                            ? 'Signature captured · not uploaded yet · tap to redo'
+                            : 'Tap to capture the customer signature',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: signatureCaptured
+                              ? AppColors.success
+                              : AppColors.mutedText,
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
+          ],
           const SizedBox(height: 16),
           DesktopButton(
             id: CheckoutIds.takePaymentButton,

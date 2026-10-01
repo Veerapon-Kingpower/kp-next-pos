@@ -2,31 +2,70 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/presentation/test_ids.dart';
+import 'package:kp_pos/features/customer/domain/entities/customer.dart';
 import 'package:kp_pos/features/customer/domain/entities/privilege.dart';
 import 'package:kp_pos/features/sale/domain/entities/cart.dart';
+import 'package:kp_pos/features/sale/domain/entities/cart_item.dart';
 import 'package:kp_pos/features/sale/presentation/desktop/desktop_checkout_page.dart';
+import 'package:kp_pos/features/sale/presentation/sale_cart_view_model.dart';
 
 import '../../../../helpers/test_id_finders.dart';
 import '../../fake_sale_repository.dart';
 import '../handheld/sale_test_helpers.dart';
+import '../../../../helpers/test_app.dart';
+
+const _jane = Customer(
+  action: 'found',
+  isFound: true,
+  person: CustomerPerson(
+    englishName: 'JANE DOE',
+    passportNo: 'P1234567',
+    nationality: 'THA',
+    contacts: [],
+    privileges: [],
+    walletMembers: [],
+    shoppingCard: 'CPX0001',
+    customerTypeCode: 'FIT',
+    isActivate: true,
+    flightCode: 'TG101',
+    flightDate: '2026-08-18',
+    flightTime: '10:00',
+    flightRouteDetail: 'BKK - NRT',
+    flightPickup: 'Gate A1',
+  ),
+  tour: {},
+  agentCode: '',
+  isMember: false,
+);
 
 void main() {
-  Future<void> open(
+  late FakeSaleRepository sale;
+
+  Future<SaleCartViewModel> open(
     WidgetTester tester, {
     Cart? cart = sampleCart,
     Privilege? privilege,
+    Customer? customer,
+    bool isAirportMpos = false,
     Size size = const Size(1440, 900),
   }) async {
     setDeviceSize(tester, size);
-    final viewModel = buildSaleViewModel(FakeSaleRepository(), cart: cart);
-    viewModel.selectedPrivilege = privilege;
+    sale = FakeSaleRepository(cartResult: cart ?? sampleCart);
+    final viewModel = buildSaleViewModel(sale, cart: cart);
+    viewModel
+      ..selectedPrivilege = privilege
+      ..customer = customer
+      ..session = testSession;
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Builder(
           builder: (context) => Scaffold(
             body: TextButton(
-              onPressed: () =>
-                  openDesktopCheckoutPage(context, viewModel: viewModel),
+              onPressed: () => openDesktopCheckoutPage(
+                context,
+                viewModel: viewModel,
+                isAirportMpos: isAirportMpos,
+              ),
               child: const Text('open'),
             ),
           ),
@@ -35,7 +74,11 @@ void main() {
     );
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
+    return viewModel;
   }
+
+  Finder inCard(String id, Finder finder) =>
+      find.descendant(of: byTestId(id), matching: finder);
 
   String textIn(WidgetTester tester, String id) => tester
       .widget<Text>(
@@ -72,33 +115,67 @@ void main() {
     );
   });
 
-  testWidgets('flags / flight are reported as unavailable, not cleared', (
+  testWidgets('blocking flags are reported as unavailable, not cleared', (
     tester,
   ) async {
     await open(tester);
     expect(find.textContaining('All blocking flags cleared'), findsNothing);
     expect(
-      find.descendant(
-        of: byTestId(CheckoutIds.flagsNotice),
-        matching: find.textContaining('not available yet'),
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(
-        of: byTestId(DesktopPaymentIds.flightCard),
-        matching: find.textContaining('not available yet'),
-      ),
+      inCard(CheckoutIds.flagsNotice, find.textContaining('not available yet')),
       findsOneWidget,
     );
   });
 
-  testWidgets('customer: walk-in, or the selected privilege', (tester) async {
-    await open(tester);
+  testWidgets('customer profile, flight & passport and the sale — legacy '
+      'Checkout → Customer', (tester) async {
+    await open(tester, customer: _jane);
+    for (final text in ['JANE DOE', 'FIT', 'THA', 'CPX0001', 'Registered']) {
+      expect(
+        inCard(CheckoutIds.customerCard, find.text(text)),
+        findsOneWidget,
+        reason: text,
+      );
+    }
+    expect(inCard(CheckoutIds.tripCard, find.text('P1234567')), findsOneWidget);
     expect(
-      find.descendant(
-        of: byTestId(CheckoutIds.customerCard),
-        matching: find.text('Walk-in · no customer attached'),
+      inCard(CheckoutIds.tripCard, find.text('TG101 · BKK - NRT')),
+      findsOneWidget,
+    );
+    expect(inCard(CheckoutIds.tripCard, find.text('Gate A1')), findsOneWidget);
+    expect(
+      inCard(CheckoutIds.saleCard, find.text('U001 · Test User')),
+      findsOneWidget,
+    );
+    // DFA / promoter / order date only on airport mPOS.
+    expect(inCard(CheckoutIds.saleCard, find.text('DFA')), findsNothing);
+  });
+
+  testWidgets('airport mPOS adds DFA, promoter and order date', (tester) async {
+    await open(
+      tester,
+      customer: _jane,
+      isAirportMpos: true,
+      cart: const Cart(
+        guid: 'order-1',
+        isCheckOut: false,
+        items: [chanel],
+        dfa: 'D01',
+        promoter: 'PR9',
+      ),
+    );
+    expect(inCard(CheckoutIds.saleCard, find.text('D01')), findsOneWidget);
+    expect(inCard(CheckoutIds.saleCard, find.text('PR9')), findsOneWidget);
+  });
+
+  testWidgets('without a customer: shopping card / order only, no trip', (
+    tester,
+  ) async {
+    await open(tester);
+    expect(byTestId(CheckoutIds.tripCard), findsNothing);
+    expect(
+      inCard(
+        DesktopPaymentIds.flightCard,
+        find.text('No customer attached to this bill.'),
       ),
       findsOneWidget,
     );
@@ -115,12 +192,120 @@ void main() {
       ),
     );
     expect(
-      find.descendant(
-        of: byTestId(CheckoutIds.customerCard),
-        matching: find.text('[VIP]:P1'),
-      ),
+      inCard(CheckoutIds.customerCard, find.text('Gold Member · [VIP]:P1')),
       findsOneWidget,
     );
+  });
+
+  testWidgets('the Discount column shows each line discount', (tester) async {
+    await open(
+      tester,
+      cart: const Cart(
+        guid: 'order-1',
+        isCheckOut: false,
+        items: [
+          CartItem(
+            row: '1',
+            articleCode: 'A1',
+            articleName: 'PERFUME',
+            quantity: 1,
+            unitPrice: 1000,
+            lineTotal: 900,
+            discountAmount: 100,
+          ),
+        ],
+      ),
+    );
+    // formatAmount uses the typographic minus (U+2212).
+    expect(textIn(tester, CheckoutIds.lineDiscount('1')), '−100.00');
+  });
+
+  testWidgets('bill discount rows, and Bill discount saves through '
+      'ActionOrderPayment (legacy SpecialDiscountPage)', (tester) async {
+    await open(
+      tester,
+      cart: const Cart(
+        guid: 'order-1',
+        isCheckOut: false,
+        items: [chanel],
+        billing: CartBilling(
+          currencyCode: 'THB',
+          currencyDescription: 'Baht',
+          currencyRate: 1,
+          total: 5900,
+          grand: 5900,
+          discount: 0,
+          cashD: 0,
+          netPay: 5310,
+          netPayBase: 5310,
+          percentDiscountSpecial: 10,
+          discountSpecial: 590,
+          promotionCode: 'SP10',
+          promotionName: 'Special 10%',
+        ),
+      ),
+    );
+    expect(
+      inCard(CheckoutIds.billDiscountRows, find.text('10.00%')),
+      findsOneWidget,
+    );
+    expect(
+      inCard(CheckoutIds.billDiscountRows, find.text('590.00')),
+      findsOneWidget,
+    );
+    expect(
+      inCard(CheckoutIds.billDiscountRows, find.text('SP10 | Special 10%')),
+      findsOneWidget,
+    );
+
+    await tester.tap(byTestId(CheckoutIds.billDiscountButton));
+    await tester.pumpAndSettle();
+    expect(byTestId(DiscountIds.sheet), findsOneWidget);
+    expect(find.text('Bill discount'), findsWidgets);
+
+    // A scanned promotion QR goes as add_special_discount_by_qrcode.
+    await tester.enterText(
+      find.descendant(
+        of: byTestId(DiscountIds.scanField),
+        matching: find.byType(TextField),
+      ),
+      'QR1',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+    expect(sale.orderActions.single.action, 'add_special_discount_by_qrcode');
+    expect(sale.orderActions.single.value, 'QR1');
+    expect(sale.orderActions.single.orderGuid, '');
+  });
+
+  testWidgets('Gift with Purchase lists the offers, applied ones ticked', (
+    tester,
+  ) async {
+    await open(
+      tester,
+      cart: const Cart(
+        guid: 'order-1',
+        isCheckOut: false,
+        items: [chanel],
+        giftsWithPurchase: [
+          GiftWithPurchase(text: 'Free pouch over 5,000', canApply: true),
+          GiftWithPurchase(text: 'Tote over 10,000', canApply: false),
+        ],
+      ),
+    );
+    expect(
+      inCard(CheckoutIds.gwpCard, find.text('Free pouch over 5,000')),
+      findsOneWidget,
+    );
+    expect(
+      inCard(CheckoutIds.gwpCard, find.byIcon(Icons.check_circle)),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('no signature box unless the order requires one', (tester) async {
+    await open(tester);
+    expect(byTestId(DesktopPaymentIds.signatureBox), findsNothing);
   });
 
   testWidgets('Take payment (button or Enter) opens step 3', (tester) async {
@@ -148,7 +333,15 @@ void main() {
     tester,
   ) async {
     final handle = tester.ensureSemantics();
-    await open(tester);
+    await open(
+      tester,
+      cart: const Cart(
+        guid: 'order-1',
+        isCheckOut: false,
+        items: [chanel, johnnie],
+        requireSignature: true,
+      ),
+    );
     for (final id in [
       CheckoutIds.suspendButton,
       CheckoutIds.printQuoteButton,

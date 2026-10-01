@@ -184,6 +184,21 @@ class FakeSaleRepository implements SaleRepository {
     return cartResult;
   }
 
+  final List<({String action, String value, String? orderGuid})> orderActions =
+      [];
+
+  @override
+  Future<Cart> actOnOrder({
+    required String sessionKey,
+    required String action,
+    required String value,
+    String? orderGuid,
+  }) async {
+    orderActions.add((action: action, value: value, orderGuid: orderGuid));
+    if (mutationError != null) throw mutationError!;
+    return cartResult;
+  }
+
   final List<String> savedOrders = [];
   Object? saveOrderError;
   int reverseVirtualStockCalls = 0;

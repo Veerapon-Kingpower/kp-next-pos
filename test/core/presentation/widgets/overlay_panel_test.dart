@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/presentation/widgets/overlay_panel.dart';
+import '../../../helpers/test_app.dart';
 
 void main() {
   testWidgets('renders the title and child', (tester) async {
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Scaffold(
           body: OverlayPanel(
             title: 'Discount & promotion',
@@ -24,7 +25,7 @@ void main() {
   testWidgets('tapping the close button invokes onClose', (tester) async {
     var closed = false;
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Scaffold(
           body: OverlayPanel(
             title: 'Discount',
@@ -44,7 +45,7 @@ void main() {
   testWidgets('pressing Escape invokes onClose', (tester) async {
     var closed = false;
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Scaffold(
           body: OverlayPanel(
             title: 'Discount',

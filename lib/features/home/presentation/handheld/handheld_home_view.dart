@@ -174,9 +174,8 @@ class HandheldHomeView extends StatelessWidget {
             id: HomeIds.scanField,
             controller: searchController,
             focusNode: searchFocus,
-            // Ready for a trigger scan as soon as Home opens, and after
-            // each one.
-            autofocus: true,
+            // No autofocus: on a phone it would pop the on-screen keyboard
+            // over Home. Once tapped, it stays ready for the next scan.
             keepFocusOnSubmit: true,
             clearButtonId: FieldIds.clear(HomeIds.scanField),
             hintText: 'Scan shopping card or passport',

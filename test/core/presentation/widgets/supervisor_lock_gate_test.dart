@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/presentation/widgets/supervisor_lock_gate.dart';
+import '../../../helpers/test_app.dart';
 
 void main() {
   testWidgets('shows the lock message and hides child when locked', (
     tester,
   ) async {
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Scaffold(
           body: SupervisorLockGate(
             locked: true,
@@ -24,7 +25,7 @@ void main() {
 
   testWidgets('shows child directly when unlocked', (tester) async {
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Scaffold(
           body: SupervisorLockGate(
             locked: false,
@@ -42,7 +43,7 @@ void main() {
   testWidgets('tapping Unlock invokes onUnlock', (tester) async {
     var unlocked = false;
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Scaffold(
           body: SupervisorLockGate(
             locked: true,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/presentation/widgets/search_scan_input.dart';
+import '../../../helpers/test_app.dart';
 
 void main() {
   testWidgets(
@@ -10,7 +11,7 @@ void main() {
       var scanned = false;
 
       await tester.pumpWidget(
-        MaterialApp(
+        TestApp(
           home: Scaffold(
             body: SearchScanInput(
               controller: controller,
@@ -37,7 +38,7 @@ void main() {
     String? submitted;
 
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Scaffold(
           body: SearchScanInput(
             controller: controller,

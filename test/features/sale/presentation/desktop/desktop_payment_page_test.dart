@@ -5,6 +5,7 @@ import 'package:kp_pos/core/presentation/test_ids.dart';
 import 'package:kp_pos/features/sale/presentation/desktop/desktop_payment_page.dart';
 
 import '../../../../helpers/test_id_finders.dart';
+import '../../../../helpers/test_app.dart';
 
 void main() {
   Future<void> pump(
@@ -12,9 +13,7 @@ void main() {
     Size size = const Size(1440, 900),
   }) async {
     setDeviceSize(tester, size);
-    await tester.pumpWidget(
-      const MaterialApp(home: DesktopPaymentPage(netPay: 27370)),
-    );
+    await tester.pumpWidget(TestApp(home: DesktopPaymentPage(netPay: 27370)));
     await tester.pumpAndSettle();
   }
 

@@ -76,8 +76,11 @@ class _EditLineBodyState extends State<_EditLineBody> {
     return null;
   }
 
+  /// Nothing changed: just closes, with no call.
   Future<void> _saveAndClose(CartItem line, LineEditDraft draft) async {
-    final ok = await saveLineEdit(context, widget.viewModel, line, draft);
+    final ok =
+        !draft.isChanged ||
+        await saveLineEdit(context, widget.viewModel, line, draft);
     if (ok && mounted) Navigator.of(context).pop();
   }
 
@@ -128,7 +131,7 @@ class _EditLineBodyState extends State<_EditLineBody> {
                         label: 'Save',
                         secondary: true,
                         height: 48,
-                        onPressed: busy
+                        onPressed: busy || !draft.isChanged
                             ? null
                             : () =>
                                   saveLineEdit(context, viewModel, line, draft),

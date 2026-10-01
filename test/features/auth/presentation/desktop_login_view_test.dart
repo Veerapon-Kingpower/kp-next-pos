@@ -5,6 +5,7 @@ import 'package:kp_pos/core/presentation/test_ids.dart';
 import 'package:kp_pos/features/auth/presentation/desktop/desktop_login_view.dart';
 
 import '../../../helpers/test_id_finders.dart';
+import '../../../helpers/test_app.dart';
 
 void main() {
   late TextEditingController user;
@@ -36,7 +37,7 @@ void main() {
   }) async {
     setDeviceSize(tester, size);
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: DesktopLoginView(
           userCodeController: user,
           passwordController: password,

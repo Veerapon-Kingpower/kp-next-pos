@@ -59,7 +59,7 @@ class CartItemModel extends CartItem {
         for (final adjust
             in (billing['ValueAdjusts'] as List<dynamic>? ?? const [])
                 .whereType<Map<String, dynamic>>())
-          _discount(adjust),
+          discountFromJson(adjust),
       ],
       discountAmount:
           (_map(billing['DiscountAmount'])['CurrAmt'] as num?)?.toDouble() ?? 0,
@@ -98,8 +98,8 @@ class CartItemModel extends CartItem {
     return '';
   }
 
-  // Legacy `ValueAdjust`.
-  static LineDiscount _discount(Map<String, dynamic> json) {
+  /// Legacy `ValueAdjust` — a line's, or the bill's (special) discounts.
+  static LineDiscount discountFromJson(Map<String, dynamic> json) {
     final detail = _map(json['VADetail']);
     final amount = _map(json['Amount']);
     return LineDiscount(

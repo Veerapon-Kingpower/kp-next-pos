@@ -452,6 +452,7 @@ class _HomePageState extends State<HomePage> {
       ),
       privilege: privilege,
       privileges: person.privileges,
+      customer: customer,
     );
   }
 

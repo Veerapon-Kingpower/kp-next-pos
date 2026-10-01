@@ -21,6 +21,7 @@ import '../../../helpers/test_id_finders.dart';
 import '../../flight/fake_flight_repository.dart';
 import '../../nationality/fake_nationality_repository.dart';
 import '../fake_customer_repository.dart';
+import '../../../helpers/test_app.dart';
 
 const _nationalities = [
   Nationality(countryCode: 'THA', countryName: 'Thailand'),
@@ -165,7 +166,7 @@ void main() {
       onSearchAgain: onSearchAgain,
     );
 
-    return MaterialApp(
+    return TestApp(
       home: Scaffold(
         body: Builder(
           builder: (context) => Center(
@@ -1488,7 +1489,7 @@ void main() {
       );
       final savedCards = <String>[];
       await tester.pumpWidget(
-        MaterialApp(
+        TestApp(
           home: Scaffold(
             body: SingleChildScrollView(
               child: CustomerRegistrationPage(

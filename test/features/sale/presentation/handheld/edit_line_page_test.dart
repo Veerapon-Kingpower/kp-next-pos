@@ -12,6 +12,7 @@ import 'package:kp_pos/features/sale/presentation/sale_cart_view_model.dart';
 import '../../../../helpers/test_id_finders.dart';
 import '../../fake_sale_repository.dart';
 import 'sale_test_helpers.dart';
+import '../../../../helpers/test_app.dart';
 
 void main() {
   late FakeSaleRepository sale;
@@ -33,7 +34,7 @@ void main() {
   Future<void> open(WidgetTester tester, {Size size = compactSize}) async {
     setDeviceSize(tester, size);
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Builder(
           builder: (context) => Scaffold(
             body: TextButton(
@@ -52,6 +53,15 @@ void main() {
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
   }
+
+  bool saveEnabled(WidgetTester tester) => tester
+      .widget<ButtonStyleButton>(
+        find.descendant(
+          of: byTestId(EditLineIds.saveButton),
+          matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
+        ),
+      )
+      .enabled;
 
   String textIn(WidgetTester tester, String id) => tester
       .widget<Text>(
@@ -115,16 +125,36 @@ void main() {
     expect(byTestId(EditLineIds.page), findsNothing);
   });
 
-  testWidgets('Save always calls the backend, as legacy does, and stays', (
+  testWidgets('nothing changed: Save is disabled, Save & close just closes', (
+    tester,
+  ) async {
+    await open(tester);
+    expect(saveEnabled(tester), isFalse);
+    await tester.tap(byTestId(EditLineIds.qtyIncrease));
+    await tester.pump();
+    expect(saveEnabled(tester), isTrue);
+    await tester.tap(byTestId(EditLineIds.qtyDecrease));
+    await tester.pump();
+    expect(saveEnabled(tester), isFalse, reason: 'back to the saved value');
+
+    await tester.tap(byTestId(EditLineIds.saveCloseButton));
+    await tester.pumpAndSettle();
+    expect(sale.lineEdits, isEmpty);
+    expect(byTestId(EditLineIds.page), findsNothing);
+  });
+
+  testWidgets('a change enables Save; Save calls the backend and stays', (
     tester,
   ) async {
     // The saved line comes back in the returned order.
     sale = FakeSaleRepository(cartResult: sampleCart);
     viewModel = buildSaleViewModel(sale, cart: sampleCart);
     await open(tester);
+    await tester.tap(byTestId(EditLineIds.qtyIncrease));
+    await tester.pump();
     await tester.tap(byTestId(EditLineIds.saveButton));
     await tester.pumpAndSettle();
-    expect(sale.lineEdits.single.edit.quantity, 2);
+    expect(sale.lineEdits.single.edit.quantity, 3);
     expect(byTestId(EditLineIds.page), findsOneWidget);
   });
 
@@ -241,9 +271,9 @@ void main() {
     expect(find.text(SaleCartViewModel.noCurrencyPermission), findsOneWidget);
     await tester.tap(find.text('OK'));
     await tester.pumpAndSettle();
-    await tester.tap(byTestId(EditLineIds.saveButton));
-    await tester.pumpAndSettle();
-    expect(sale.lineEdits.single.edit.collectStatus, '');
+    // The refused choice leaves nothing to save.
+    expect(saveEnabled(tester), isFalse);
+    expect(sale.lineEdits, isEmpty);
   });
 
   testWidgets('Pickup with actTake saves take_collect', (tester) async {
@@ -273,7 +303,7 @@ void main() {
   testWidgets('airport mPOS hides Pickup, as legacy does', (tester) async {
     setDeviceSize(tester, compactSize);
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: EditLinePage(
           viewModel: viewModel,
           row: johnnie.row,
@@ -316,6 +346,7 @@ void main() {
       ),
       'SN123',
     );
+    await tester.pump();
     await tester.tap(byTestId(EditLineIds.saveButton));
     await tester.pumpAndSettle();
 
@@ -326,6 +357,7 @@ void main() {
     sale.lineEditWarning = 'Stock is low.';
     await open(tester);
     await tester.tap(byTestId(EditLineIds.qtyIncrease));
+    await tester.pump();
     await tester.tap(byTestId(EditLineIds.saveButton));
     await tester.pumpAndSettle();
 
@@ -340,6 +372,7 @@ void main() {
     );
     await open(tester);
     await tester.tap(byTestId(EditLineIds.qtyIncrease));
+    await tester.pump();
     await tester.tap(byTestId(EditLineIds.saveButton));
     await tester.pumpAndSettle();
 

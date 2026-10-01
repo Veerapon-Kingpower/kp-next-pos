@@ -7,6 +7,7 @@ import 'package:kp_pos/features/sale/presentation/handheld/payment/wallet_scan_p
 import 'package:kp_pos/features/sale/presentation/handheld/payment/wallet_void_page.dart';
 
 import '../../../../../helpers/test_id_finders.dart';
+import '../../../../../helpers/test_app.dart';
 
 const _alipay = Tender(
   method: TenderMethod.wallet,
@@ -31,7 +32,7 @@ Future<void> _pumpPage(
 }) async {
   setDeviceSize(tester, size);
   await tester.pumpWidget(
-    MaterialApp(
+    TestApp(
       home: Builder(
         builder: (context) => Scaffold(
           body: TextButton(

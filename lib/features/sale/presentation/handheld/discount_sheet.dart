@@ -19,6 +19,32 @@ Future<void> showDiscountSheet(
 }) async {
   if (!await ensureCanDiscount(context, viewModel, lines)) return;
   if (!context.mounted) return;
+  await _show(
+    context,
+    title: title,
+    editor: LineDiscountEditor(
+      viewModel: viewModel,
+      rows: [for (final line in lines) line.row],
+    ),
+  );
+}
+
+/// The bill (special) discount sheet — legacy Checkout → More → Discount
+/// (`SpecialDiscountPage`); no permission gate, as legacy.
+Future<void> showBillDiscountSheet(
+  BuildContext context, {
+  required SaleCartViewModel viewModel,
+}) => _show(
+  context,
+  title: 'Bill discount',
+  editor: LineDiscountEditor.bill(viewModel: viewModel),
+);
+
+Future<void> _show(
+  BuildContext context, {
+  required String title,
+  required Widget editor,
+}) async {
   await showHandheldSheet<void>(
     context,
     id: DiscountIds.sheet,
@@ -48,10 +74,7 @@ Future<void> showDiscountSheet(
             ],
           ),
           const SizedBox(height: 12),
-          LineDiscountEditor(
-            viewModel: viewModel,
-            rows: [for (final line in lines) line.row],
-          ),
+          editor,
         ],
       ),
     ),

@@ -476,6 +476,30 @@ class SaleRemoteDataSource {
     return _firstOrder(response);
   }
 
+  /// Ports legacy `SpecialDiscountPage`: `ActionOrderPayment` with a bill
+  /// (special) discount [action] — `Rows` empty, `OrderGuid` the order's
+  /// for update / remove, empty for add, left out for clear-all, exactly
+  /// as legacy sends them.
+  Future<CartModel> actionOrderPayment({
+    required String saleEngineEndpoint,
+    required String sessionKey,
+    required String action,
+    required String value,
+    String? orderGuid,
+  }) async {
+    final response = await _apiClient.post(
+      '$saleEngineEndpoint/SaleEngine/ActionOrderPayment',
+      data: {
+        'OrderGuid': ?orderGuid,
+        'SessionKey': sessionKey,
+        'Rows': const <String>[],
+        'Action': action,
+        'Value': value,
+      },
+    );
+    return _firstOrder(response);
+  }
+
   /// Ports legacy `ChangePage.onSave()`: `ActionOrderPayment` with
   /// `Action: "edit_exchange"` — hand [amount] of the change back in
   /// [currencyCode].

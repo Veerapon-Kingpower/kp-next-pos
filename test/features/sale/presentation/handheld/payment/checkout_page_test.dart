@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/presentation/test_ids.dart';
+import 'package:kp_pos/features/customer/domain/entities/customer.dart';
 import 'package:kp_pos/features/customer/domain/entities/privilege.dart';
 import 'package:kp_pos/features/sale/domain/entities/cart.dart';
 import 'package:kp_pos/features/sale/presentation/handheld/payment/checkout_page.dart';
@@ -9,23 +10,59 @@ import 'package:kp_pos/features/sale/presentation/sale_cart_view_model.dart';
 import '../../../../../helpers/test_id_finders.dart';
 import '../../../fake_sale_repository.dart';
 import '../sale_test_helpers.dart';
+import '../../../../../helpers/test_app.dart';
+
+const _jane = Customer(
+  action: 'found',
+  isFound: true,
+  person: CustomerPerson(
+    englishName: 'JANE DOE',
+    passportNo: 'P1234567',
+    nationality: 'THA',
+    contacts: [],
+    privileges: [],
+    walletMembers: [],
+    shoppingCard: 'CPX0001',
+    isActivate: true,
+    flightCode: 'TG101',
+    flightRouteDetail: 'BKK - NRT',
+  ),
+  tour: {},
+  agentCode: '',
+  isMember: false,
+);
+
+const _signedCart = Cart(
+  guid: 'order-1',
+  isCheckOut: false,
+  items: [chanel, johnnie],
+  requireSignature: true,
+);
 
 void main() {
+  late FakeSaleRepository sale;
+
   Future<SaleCartViewModel> pump(
     WidgetTester tester, {
     Cart? cart = sampleCart,
     Privilege? privilege,
+    Customer? customer,
     Size size = compactSize,
   }) async {
     setDeviceSize(tester, size);
-    final viewModel = buildSaleViewModel(FakeSaleRepository(), cart: cart);
-    viewModel.selectedPrivilege = privilege;
-    await tester.pumpWidget(
-      MaterialApp(home: CheckoutPage(viewModel: viewModel)),
-    );
+    sale = FakeSaleRepository(cartResult: cart ?? sampleCart);
+    final viewModel = buildSaleViewModel(sale, cart: cart);
+    viewModel
+      ..selectedPrivilege = privilege
+      ..customer = customer
+      ..session = testSession;
+    await tester.pumpWidget(TestApp(home: CheckoutPage(viewModel: viewModel)));
     await tester.pumpAndSettle();
     return viewModel;
   }
+
+  Finder inCard(String id, Finder finder) =>
+      find.descendant(of: byTestId(id), matching: finder);
 
   String textIn(WidgetTester tester, String id) => tester
       .widget<Text>(
@@ -68,13 +105,29 @@ void main() {
     expect(find.textContaining('All flags cleared'), findsNothing);
   });
 
-  testWidgets('customer card: walk-in without a privilege', (tester) async {
-    await pump(tester);
+  testWidgets('customer, flight & passport and sale cards — legacy '
+      'Checkout → Customer', (tester) async {
+    await pump(tester, customer: _jane);
     expect(
-      find.descendant(
-        of: byTestId(CheckoutIds.customerCard),
-        matching: find.text('Walk-in · no customer attached'),
-      ),
+      inCard(CheckoutIds.customerCard, find.text('JANE DOE')),
+      findsOneWidget,
+    );
+    expect(
+      inCard(CheckoutIds.customerCard, find.text('Registered')),
+      findsOneWidget,
+    );
+    expect(inCard(CheckoutIds.tripCard, find.text('P1234567')), findsOneWidget);
+    expect(
+      inCard(CheckoutIds.saleCard, find.text('U001 · Test User')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('without a customer: no flight & passport card', (tester) async {
+    await pump(tester);
+    expect(byTestId(CheckoutIds.tripCard), findsNothing);
+    expect(
+      inCard(CheckoutIds.customerCard, find.text('CPX0001')),
       findsOneWidget,
     );
   });
@@ -89,15 +142,59 @@ void main() {
         promoCode: 'PROMO123',
       ),
     );
-    final card = byTestId(CheckoutIds.customerCard);
     expect(
-      find.descendant(of: card, matching: find.text('Gold Member')),
+      inCard(
+        CheckoutIds.customerCard,
+        find.text('Gold Member · [VIP]:PROMO123'),
+      ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('Bill discount opens the bill discount sheet and saves through '
+      'ActionOrderPayment', (tester) async {
+    await pump(tester);
+    await tester.ensureVisible(byTestId(CheckoutIds.billDiscountButton));
+    await tester.tap(byTestId(CheckoutIds.billDiscountButton));
+    await tester.pumpAndSettle();
+    expect(byTestId(DiscountIds.sheet), findsOneWidget);
+
+    await tester.enterText(
+      find.descendant(
+        of: byTestId(DiscountIds.scanField),
+        matching: find.byType(TextField),
+      ),
+      'QR1',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+    expect(sale.orderActions.single.action, 'add_special_discount_by_qrcode');
+  });
+
+  testWidgets('Gift with Purchase shows when the order has offers', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      cart: const Cart(
+        guid: 'order-1',
+        isCheckOut: false,
+        items: [chanel],
+        giftsWithPurchase: [
+          GiftWithPurchase(text: 'Free pouch', canApply: true),
+        ],
+      ),
+    );
+    await tester.ensureVisible(byTestId(CheckoutIds.gwpCard));
     expect(
-      find.descendant(of: card, matching: find.text('[VIP]:PROMO123')),
+      inCard(CheckoutIds.gwpCard, find.text('Free pouch')),
       findsOneWidget,
     );
+  });
+
+  testWidgets('no signature row unless the order requires one', (tester) async {
+    await pump(tester);
+    expect(byTestId(CheckoutIds.signatureRow), findsNothing);
   });
 
   testWidgets('Take payment opens Payment with the net pay', (tester) async {
@@ -117,7 +214,7 @@ void main() {
   testWidgets('signature: capture on the pad, then shown as captured', (
     tester,
   ) async {
-    await pump(tester);
+    await pump(tester, cart: _signedCart);
     expect(
       find.descendant(
         of: byTestId(CheckoutIds.signatureRow),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/presentation/widgets/app_card.dart';
+import '../../../helpers/test_app.dart';
 
 void main() {
   testWidgets('renders its child and invokes onTap when tapped', (
@@ -9,7 +10,7 @@ void main() {
     var tapped = false;
 
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Scaffold(
           body: AppCard(
             onTap: () => tapped = true,
@@ -29,7 +30,7 @@ void main() {
 
   testWidgets('is not tappable when onTap is omitted', (tester) async {
     await tester.pumpWidget(
-      const MaterialApp(
+      TestApp(
         home: Scaffold(body: AppCard(child: Text('Static content'))),
       ),
     );

@@ -19,6 +19,33 @@ Future<void> showDesktopDiscountOverlay(
 }) async {
   if (!await ensureCanDiscount(context, viewModel, lines)) return;
   if (!context.mounted) return;
+  await _show(
+    context,
+    title: title,
+    editor: LineDiscountEditor(
+      viewModel: viewModel,
+      rows: [for (final line in lines) line.row],
+      wide: true,
+    ),
+  );
+}
+
+/// The bill (special) discount — legacy Checkout → More → Discount
+/// (`SpecialDiscountPage`); no permission gate, as legacy.
+Future<void> showDesktopBillDiscountOverlay(
+  BuildContext context, {
+  required SaleCartViewModel viewModel,
+}) => _show(
+  context,
+  title: 'Bill discount',
+  editor: LineDiscountEditor.bill(viewModel: viewModel, wide: true),
+);
+
+Future<void> _show(
+  BuildContext context, {
+  required String title,
+  required Widget editor,
+}) async {
   await showDialog<void>(
     context: context,
     barrierColor: AppColors.ink.withValues(alpha: 0.55),
@@ -34,11 +61,7 @@ Future<void> showDesktopDiscountOverlay(
             onClose: () => Navigator.of(dialogContext).pop(),
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(28),
-              child: LineDiscountEditor(
-                viewModel: viewModel,
-                rows: [for (final line in lines) line.row],
-                wide: true,
-              ),
+              child: editor,
             ),
           ),
         ),

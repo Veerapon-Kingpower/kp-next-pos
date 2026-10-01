@@ -92,6 +92,7 @@ SaleCartViewModel _saleCartViewModel() {
     listPromotions: ListPromotionsUseCase(FakeSaleRepository()),
     findPromotion: FindPromotionUseCase(FakeSaleRepository()),
     actOnLines: ActOnLinesUseCase(FakeSaleRepository()),
+    actOnOrder: ActOnOrderUseCase(FakeSaleRepository()),
     addItemToCart: AddItemToCartUseCase(FakeSaleRepository()),
     updateCartItemQuantity: UpdateCartItemQuantityUseCase(FakeSaleRepository()),
     editCartItem: EditCartItemUseCase(FakeSaleRepository()),

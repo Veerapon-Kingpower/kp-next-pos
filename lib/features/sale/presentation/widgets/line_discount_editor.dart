@@ -58,12 +58,24 @@ class LineDiscountEditor extends StatefulWidget {
   /// Desktop: form and line detail side by side; handheld: stacked.
   final bool wide;
 
+  /// The bill (special) discount — legacy Checkout → Discount
+  /// (`SpecialDiscountPage`): the same form, sent with `ActionOrderPayment`,
+  /// over the bill's figures and its discounts.
+  final bool bill;
+
   const LineDiscountEditor({
     super.key,
     required this.viewModel,
     required this.rows,
     this.wide = false,
-  });
+  }) : bill = false;
+
+  const LineDiscountEditor.bill({
+    super.key,
+    required this.viewModel,
+    this.wide = false,
+  }) : rows = const [],
+       bill = true;
 
   @override
   State<LineDiscountEditor> createState() => _LineDiscountEditorState();
@@ -106,7 +118,8 @@ class _LineDiscountEditorState extends State<LineDiscountEditor> {
 
   SaleCartViewModel get _vm => widget.viewModel;
 
-  bool get _single => widget.rows.length == 1;
+  // One line, or the bill: the full page with its figures and discounts.
+  bool get _single => widget.bill || widget.rows.length == 1;
 
   CartItem? get _line {
     for (final line in _vm.cart?.items ?? const <CartItem>[]) {
@@ -144,7 +157,9 @@ class _LineDiscountEditorState extends State<LineDiscountEditor> {
   Future<void> _submitScan() async {
     final code = _scan.text.trim();
     if (code.isEmpty) return;
-    final error = await _vm.addLineDiscountByQrCode(widget.rows, code);
+    final error = widget.bill
+        ? await _vm.addBillDiscountByQrCode(code)
+        : await _vm.addLineDiscountByQrCode(widget.rows, code);
     if (!mounted) return;
     _scan.clear();
     if (error != null) {
@@ -155,7 +170,9 @@ class _LineDiscountEditorState extends State<LineDiscountEditor> {
   }
 
   Future<void> _save({required bool close}) async {
-    final error = await _vm.saveLineDiscount(widget.rows, _form.draft);
+    final error = widget.bill
+        ? await _vm.saveBillDiscount(_form.draft)
+        : await _vm.saveLineDiscount(widget.rows, _form.draft);
     if (!mounted) return;
     if (error != null) {
       await _alert(context, 'Oops !', error);
@@ -175,7 +192,9 @@ class _LineDiscountEditorState extends State<LineDiscountEditor> {
       destructive: true,
     );
     if (!confirmed) return;
-    final error = await _vm.removeLineDiscount(widget.rows.first, discount);
+    final error = widget.bill
+        ? await _vm.removeBillDiscount(discount)
+        : await _vm.removeLineDiscount(widget.rows.first, discount);
     _form.reset();
     if (error != null && mounted) await _alert(context, 'Error!', error);
   }
@@ -188,7 +207,9 @@ class _LineDiscountEditorState extends State<LineDiscountEditor> {
       confirmLabel: 'OK',
     );
     if (!confirmed) return;
-    final error = await _vm.clearLineDiscounts(widget.rows);
+    final error = widget.bill
+        ? await _vm.clearBillDiscounts()
+        : await _vm.clearLineDiscounts(widget.rows);
     _form.reset();
     if (error != null && mounted) await _alert(context, 'Error!', error);
   }
@@ -235,21 +256,25 @@ class _LineDiscountEditorState extends State<LineDiscountEditor> {
             ],
           );
         }
-        final line = _line;
-        if (line == null) {
+        final line = widget.bill ? null : _line;
+        if (!widget.bill && line == null) {
           return const Padding(
             padding: EdgeInsets.all(24),
             child: Text('This line is no longer on the order.'),
           );
         }
+        final lineCount = vm.cart?.items.length ?? 0;
         final subtitle = Text(
-          '${line.articleName.isEmpty ? line.articleCode : line.articleName}'
-          ' · ${line.articleCode}',
+          widget.bill
+              ? 'Whole bill · $lineCount line${lineCount == 1 ? '' : 's'}'
+              : '${line!.articleName.isEmpty ? line.articleCode : line.articleName}'
+                    ' · ${line.articleCode}',
           style: TextStyle(
             fontSize: widget.wide ? 13 : 11.5,
             color: AppColors.mutedText,
           ),
         );
+        final detail = widget.bill ? _billDetail(vm) : _detail(line!);
         if (!widget.wide) {
           return Column(
             mainAxisSize: MainAxisSize.min,
@@ -259,7 +284,7 @@ class _LineDiscountEditorState extends State<LineDiscountEditor> {
               const SizedBox(height: 14),
               _entry(busy),
               const SizedBox(height: 16),
-              _detail(line),
+              detail,
               const SizedBox(height: 16),
               _actions(busy),
             ],
@@ -280,7 +305,7 @@ class _LineDiscountEditorState extends State<LineDiscountEditor> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _detail(line),
+                      detail,
                       const SizedBox(height: 16),
                       _actions(busy),
                     ],
@@ -537,44 +562,119 @@ class _LineDiscountEditorState extends State<LineDiscountEditor> {
           ),
           const SizedBox(height: 12),
           _NetBar(value: formatBaht(line.lineTotal), wide: wide),
-          if (line.discounts.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    'PROMOTION & DISCOUNT',
-                    style: DesktopText.fieldLabel,
-                  ),
-                ),
-                TestId(
-                  DiscountIds.clearAllButton,
-                  child: TextButton(
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.danger,
-                    ),
-                    onPressed: _clearAll,
-                    child: const Text('Clear All'),
-                  ),
-                ),
-              ],
-            ),
-            TestId(
-              DiscountIds.discountList,
-              child: Column(
-                children: [
-                  for (var i = 0; i < line.discounts.length; i++) ...[
-                    if (i > 0) const SizedBox(height: 8),
-                    _discountRow(i, line.discounts[i]),
-                  ],
-                ],
-              ),
-            ),
-          ],
+          ..._discounts(line.discounts),
         ],
       ),
     );
   }
+
+  /// The bill preview: legacy Checkout's discount figures (`(%)Discount`,
+  /// `Baht Disc.`, `Promotion`), the net pay, and the bill's discounts.
+  Widget _billDetail(SaleCartViewModel vm) {
+    final wide = widget.wide;
+    final billing = vm.cart?.billing;
+    Widget row(String label, String value, {Color? color}) => Padding(
+      padding: EdgeInsets.symmetric(vertical: wide ? 5 : 3),
+      child: Row(
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: wide ? 14 : 12.5,
+              color: AppColors.mutedText,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: TextStyle(
+                fontSize: wide ? 17 : 14,
+                fontWeight: FontWeight.w500,
+                color: color,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    final special = billing?.discountSpecial ?? 0;
+    final promotion = billing == null || billing.promotionCode.isEmpty
+        ? '—'
+        : '${billing.promotionCode} | ${billing.promotionName}';
+
+    return Container(
+      padding: EdgeInsets.all(wide ? 20 : 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFAFBFC),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('BILL PREVIEW', style: DesktopText.fieldLabel),
+          const SizedBox(height: 8),
+          TestId(
+            DiscountIds.lineDetail,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                row('Subtotal', formatAmount(billing?.grand ?? 0)),
+                row(
+                  '(%)Discount',
+                  '${_trim(billing?.percentDiscountSpecial ?? 0)}%',
+                ),
+                row(
+                  'Baht Disc.',
+                  special == 0 ? '—' : formatAmount(-special),
+                  color: special == 0 ? null : AppColors.danger,
+                ),
+                row('Promotion', promotion),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          _NetBar(value: formatBaht(orderNetPay(vm.cart)), wide: wide),
+          ..._discounts(vm.cart?.billDiscounts ?? const []),
+        ],
+      ),
+    );
+  }
+
+  // The applied discounts (tap to edit, remove one, or Clear All).
+  List<Widget> _discounts(List<LineDiscount> discounts) => [
+    if (discounts.isNotEmpty) ...[
+      const SizedBox(height: 16),
+      Row(
+        children: [
+          const Expanded(
+            child: Text('PROMOTION & DISCOUNT', style: DesktopText.fieldLabel),
+          ),
+          TestId(
+            DiscountIds.clearAllButton,
+            child: TextButton(
+              style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+              onPressed: _clearAll,
+              child: const Text('Clear All'),
+            ),
+          ),
+        ],
+      ),
+      TestId(
+        DiscountIds.discountList,
+        child: Column(
+          children: [
+            for (var i = 0; i < discounts.length; i++) ...[
+              if (i > 0) const SizedBox(height: 8),
+              _discountRow(i, discounts[i]),
+            ],
+          ],
+        ),
+      ),
+    ],
+  ];
 
   Widget _discountRow(int index, LineDiscount discount) {
     final value = discount.isPercent

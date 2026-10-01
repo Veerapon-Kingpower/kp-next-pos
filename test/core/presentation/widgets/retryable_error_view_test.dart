@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/presentation/widgets/retryable_error_view.dart';
+import '../../../helpers/test_app.dart';
 
 void main() {
   testWidgets('shows the message and invokes onRetry when tapped', (
@@ -9,7 +9,7 @@ void main() {
     var retried = false;
 
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: RetryableErrorView(
           message: 'Could not load the order.',
           onRetry: () => retried = true,

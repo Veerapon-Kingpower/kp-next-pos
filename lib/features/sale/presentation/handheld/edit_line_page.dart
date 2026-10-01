@@ -69,8 +69,11 @@ class _EditLinePageState extends State<EditLinePage> {
     super.dispose();
   }
 
+  /// Nothing changed: just closes, with no call.
   Future<void> _saveAndClose(CartItem line, LineEditDraft draft) async {
-    final ok = await saveLineEdit(context, widget.viewModel, line, draft);
+    final ok =
+        !draft.isChanged ||
+        await saveLineEdit(context, widget.viewModel, line, draft);
     if (ok && mounted) Navigator.of(context).pop();
   }
 
@@ -120,7 +123,7 @@ class _EditLinePageState extends State<EditLinePage> {
           builder: (context, _) => _EditLineHeader(
             lineNumber: widget.lineNumber,
             onUndo: draft.isChanged ? draft.undo : null,
-            onSave: busy
+            onSave: busy || !draft.isChanged
                 ? null
                 : () => saveLineEdit(context, viewModel, line, draft),
             onSaveClose: busy ? null : () => _saveAndClose(line, draft),

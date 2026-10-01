@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/presentation/widgets/autocomplete_field.dart';
+import '../../../helpers/test_app.dart';
 
 void main() {
   Widget buildSubject({
@@ -10,7 +11,7 @@ void main() {
     required ValueChanged<String> onSelected,
     String? initialText,
   }) {
-    return MaterialApp(
+    return TestApp(
       home: Scaffold(
         body: AutocompleteField<String>(
           label: 'Nationality',

@@ -8,6 +8,8 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../domain/entities/cart_item.dart';
 import '../../sale_cart_view_model.dart';
 import '../../sale_currency.dart';
+import '../../widgets/checkout_details.dart';
+import '../discount_sheet.dart';
 import 'payment_page.dart';
 import 'payment_widgets.dart';
 import 'signature_page.dart';
@@ -16,26 +18,36 @@ import 'signature_page.dart';
 Future<void> openCheckoutPage(
   BuildContext context, {
   required SaleCartViewModel viewModel,
+  bool isAirportMpos = false,
 }) {
   return Navigator.of(context).push(
-    MaterialPageRoute<void>(builder: (_) => CheckoutPage(viewModel: viewModel)),
+    MaterialPageRoute<void>(
+      builder: (_) =>
+          CheckoutPage(viewModel: viewModel, isAirportMpos: isAirportMpos),
+    ),
   );
 }
 
 /// Checkout (mockup screen 5) — final review before tender.
 ///
-/// Real: line / unit counts and totals from the cart, the privilege picked
-/// on Home, signature capture (local), and Take payment. Not available
-/// yet, so shown as "—" or a notice rather than guessed: the pre-checkout
-/// flag check (serial / address / flight), the attached customer's
-/// profile + flight, discount / Cash-D subsidy / VAT breakdown, exchange
-/// rate, Suspend and Print quote.
-// TODO(pos-handheld): fill these from the sale engine's checkout response
-// once it exists; wire Suspend / Print quote.
+/// Real: legacy Checkout's customer profile (customer, flight & passport,
+/// sale), totals with the bill (special) discount and its Bill discount
+/// sheet, Gift with Purchase, signature (only when the order requires
+/// one), and Take payment. Not available yet, so shown as "—" or a notice:
+/// the pre-checkout flag check (serial / address), VAT, Suspend and Print
+/// quote.
+// TODO(pos-handheld): pre-checkout flag check; wire Suspend / Print quote.
 class CheckoutPage extends StatefulWidget {
   final SaleCartViewModel viewModel;
 
-  const CheckoutPage({super.key, required this.viewModel});
+  /// Legacy shows DFA / promoter / order date in the profile only here.
+  final bool isAirportMpos;
+
+  const CheckoutPage({
+    super.key,
+    required this.viewModel,
+    this.isAirportMpos = false,
+  });
 
   @override
   State<CheckoutPage> createState() => _CheckoutPageState();
@@ -66,12 +78,13 @@ class _CheckoutPageState extends State<CheckoutPage> {
     final netPay = orderNetPay(viewModel.cart);
     final currency = orderCurrency(viewModel.cart);
     final units = lines.fold<int>(0, (sum, l) => sum + l.quantity);
-    final privilege = viewModel.selectedPrivilege;
-    final privilegeCode =
-        privilege == null ||
-            (privilege.typeCode.isEmpty && privilege.promoCode.isEmpty)
-        ? null
-        : '[${privilege.typeCode}]:${privilege.promoCode}';
+    final trip = checkoutTripFacts(viewModel, DateTime.now());
+    final gifts = viewModel.cart?.giftsWithPurchase ?? const [];
+    final requireSignature = viewModel.cart?.requireSignature ?? false;
+    List<Widget> rows(List<CheckoutFact> facts) => [
+      for (final fact in facts)
+        PaymentValueRow(label: fact.label, value: fact.value),
+    ];
 
     return TestId(
       CheckoutIds.page,
@@ -133,46 +146,39 @@ class _CheckoutPageState extends State<CheckoutPage> {
               PaymentCard(
                 id: CheckoutIds.customerCard,
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const PaymentBlockLabel('Customer'),
-                    if (privilege == null)
-                      const Text(
-                        'Walk-in · no customer attached',
-                        style: HandheldText.bodySmall,
-                      )
-                    else
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.card_giftcard,
-                            size: 18,
-                            color: AppColors.goldDark,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  privilege.name.isEmpty
-                                      ? 'Privilege'
-                                      : privilege.name,
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                if (privilegeCode != null)
-                                  Text(
-                                    privilegeCode,
-                                    style: HandheldText.bodySmall,
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ],
+                    ...rows(checkoutCustomerFacts(viewModel)),
+                  ],
+                ),
+              ),
+              if (trip.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                PaymentCard(
+                  id: CheckoutIds.tripCard,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const PaymentBlockLabel('Flight & passport'),
+                      ...rows(trip),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 14),
+              PaymentCard(
+                id: CheckoutIds.saleCard,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const PaymentBlockLabel('Sale'),
+                    ...rows(
+                      checkoutSaleFacts(
+                        viewModel,
+                        isAirportMpos: widget.isAirportMpos,
                       ),
+                    ),
                   ],
                 ),
               ),
@@ -230,6 +236,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
                         label: 'Net pay in THB',
                         value: formatBaht(billing.netPayBase),
                       ),
+                    if (billing != null)
+                      TestId(
+                        CheckoutIds.billDiscountRows,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: rows(billDiscountFacts(billing)),
+                        ),
+                      ),
                     if (viewModel.currencyError != null)
                       TestId(
                         CurrencyIds.error,
@@ -242,61 +256,95 @@ class _CheckoutPageState extends State<CheckoutPage> {
                 ),
               ),
               const SizedBox(height: 14),
-              TestId(
-                CheckoutIds.signatureRow,
-                child: Material(
-                  color: AppColors.surface,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(HandheldMetrics.radius),
-                    side: const BorderSide(color: AppColors.line),
+              // Legacy Checkout → More → Discount.
+              _ActionRow(
+                id: CheckoutIds.billDiscountButton,
+                icon: Icons.percent,
+                title: 'Bill discount',
+                subtitle: billing == null || billing.discountSpecial == 0
+                    ? 'No bill discount'
+                    : formatAmount(billing.discountSpecial),
+                onTap: lines.isEmpty || viewModel.isBusy
+                    ? null
+                    : () =>
+                          showBillDiscountSheet(context, viewModel: viewModel),
+              ),
+              if (gifts.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                PaymentCard(
+                  id: CheckoutIds.gwpCard,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const PaymentBlockLabel('Gift with Purchase'),
+                      GiftWithPurchaseList(gifts: gifts),
+                    ],
                   ),
-                  child: InkWell(
-                    onTap: () => _captureSignature(netPay),
-                    borderRadius: BorderRadius.circular(HandheldMetrics.radius),
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.draw_outlined,
-                            color: AppColors.goldDark,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Customer signature',
-                                  style: TextStyle(
-                                    fontSize: 13.5,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                Text(
-                                  _signature == null
-                                      ? 'Not captured'
-                                      : 'Captured · not uploaded yet',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: _signature == null
-                                        ? AppColors.mutedText
-                                        : AppColors.success,
-                                  ),
-                                ),
-                              ],
+                ),
+              ],
+              // Legacy shows Signature only for such an order.
+              if (requireSignature) ...[
+                const SizedBox(height: 14),
+                TestId(
+                  CheckoutIds.signatureRow,
+                  child: Material(
+                    color: AppColors.surface,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(
+                        HandheldMetrics.radius,
+                      ),
+                      side: const BorderSide(color: AppColors.line),
+                    ),
+                    child: InkWell(
+                      onTap: () => _captureSignature(netPay),
+                      borderRadius: BorderRadius.circular(
+                        HandheldMetrics.radius,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.draw_outlined,
+                              color: AppColors.goldDark,
                             ),
-                          ),
-                          const Icon(
-                            Icons.chevron_right,
-                            color: AppColors.mutedText,
-                          ),
-                        ],
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Customer signature',
+                                    style: TextStyle(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  Text(
+                                    _signature == null
+                                        ? 'Not captured'
+                                        : 'Captured · not uploaded yet',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: _signature == null
+                                          ? AppColors.mutedText
+                                          : AppColors.success,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(
+                              Icons.chevron_right,
+                              color: AppColors.mutedText,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ],
           ),
         ),
@@ -329,6 +377,66 @@ class _CheckoutPageState extends State<CheckoutPage> {
               label: 'Print quote',
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A tappable card row — icon, title over subtitle, chevron.
+class _ActionRow extends StatelessWidget {
+  final String id;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback? onTap;
+
+  const _ActionRow({
+    required this.id,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TestId(
+      id,
+      child: Material(
+        color: AppColors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(HandheldMetrics.radius),
+          side: const BorderSide(color: AppColors.line),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(HandheldMetrics.radius),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Icon(icon, color: AppColors.goldDark),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(subtitle, style: HandheldText.bodySmall),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right, color: AppColors.mutedText),
+              ],
+            ),
+          ),
         ),
       ),
     );

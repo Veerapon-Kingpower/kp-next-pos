@@ -4,8 +4,9 @@ import 'package:kp_pos/core/presentation/handheld/handheld.dart';
 import 'package:kp_pos/core/theme/app_colors.dart';
 
 import '../../../helpers/test_id_finders.dart';
+import '../../../helpers/test_app.dart';
 
-Widget _app(Widget child) => MaterialApp(home: child);
+Widget _app(Widget child) => TestApp(home: child);
 
 void main() {
   group('HandheldScaffold', () {

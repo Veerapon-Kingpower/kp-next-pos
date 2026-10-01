@@ -4,6 +4,7 @@ import 'package:kp_pos/core/presentation/test_ids.dart';
 import 'package:kp_pos/features/customer/presentation/handheld/flight_date_picker.dart';
 
 import '../../../../helpers/test_id_finders.dart';
+import '../../../../helpers/test_app.dart';
 
 void main() {
   DateTime? picked;
@@ -18,7 +19,7 @@ void main() {
     closed = false;
     setDeviceSize(tester, size);
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Builder(
           builder: (context) => Scaffold(
             body: TextButton(

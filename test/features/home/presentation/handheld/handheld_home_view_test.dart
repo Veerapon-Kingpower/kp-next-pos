@@ -4,6 +4,7 @@ import 'package:kp_pos/core/presentation/test_ids.dart';
 import 'package:kp_pos/features/home/presentation/handheld/handheld_home_view.dart';
 
 import '../../../../helpers/test_id_finders.dart';
+import '../../../../helpers/test_app.dart';
 
 void main() {
   late TextEditingController controller;
@@ -20,7 +21,7 @@ void main() {
     DateTime? now,
     bool offlineMode = false,
   }) {
-    return MaterialApp(
+    return TestApp(
       home: Scaffold(
         body: Column(
           children: [
@@ -131,9 +132,8 @@ void main() {
       expect(searched, 'CPX0001');
     });
 
-    testWidgets('the scan field has focus on open and keeps it after a scan', (
-      tester,
-    ) async {
+    testWidgets('the scan field does not take focus on open (no on-screen '
+        'keyboard), and keeps it after a scan', (tester) async {
       setDeviceSize(tester, compactSize);
       await tester.pumpWidget(build());
       await tester.pump();
@@ -147,7 +147,7 @@ void main() {
           .widget
           .focusNode
           .hasFocus;
-      expect(focused(), isTrue);
+      expect(focused(), isFalse);
 
       await tester.enterText(
         find.descendant(

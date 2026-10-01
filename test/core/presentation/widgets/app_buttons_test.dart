@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/presentation/widgets/app_buttons.dart';
+import '../../../helpers/test_app.dart';
 
 void main() {
   testWidgets('AppPrimaryButton shows its label and invokes onPressed', (
@@ -8,7 +9,7 @@ void main() {
   ) async {
     var pressed = false;
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Scaffold(
           body: AppPrimaryButton(
             label: 'Save',
@@ -29,7 +30,7 @@ void main() {
   ) async {
     var pressed = false;
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Scaffold(
           body: AppSecondaryButton(
             label: 'Cancel',
@@ -50,7 +51,7 @@ void main() {
   ) async {
     var pressed = false;
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Scaffold(
           body: AppDestructiveButton(
             label: 'Delete',
@@ -68,7 +69,7 @@ void main() {
 
   testWidgets('a null onPressed disables the button', (tester) async {
     await tester.pumpWidget(
-      const MaterialApp(
+      TestApp(
         home: Scaffold(body: AppPrimaryButton(label: 'Save', onPressed: null)),
       ),
     );

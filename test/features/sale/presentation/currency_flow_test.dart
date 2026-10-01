@@ -14,6 +14,7 @@ import '../../../helpers/test_id_finders.dart';
 import '../fake_sale_repository.dart';
 import 'currency_fixtures.dart';
 import 'handheld/sale_test_helpers.dart';
+import '../../../helpers/test_app.dart';
 
 /// Legacy parity: the order currency on handheld Sale and both Checkouts
 /// (`SalePage` / `CheckoutPage.changeCurrency()`), and change in another
@@ -51,7 +52,7 @@ void main() {
     void Function(BuildContext) open,
   ) async {
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Builder(
           builder: (context) => Scaffold(
             body: TextButton(
@@ -74,7 +75,7 @@ void main() {
       setDeviceSize(tester, compactSize);
       final vm = viewModel(shoppingCard: shoppingCard);
       await tester.pumpWidget(
-        MaterialApp(
+        TestApp(
           home: Scaffold(
             body: HandheldSaleView(
               viewModel: vm,
@@ -165,7 +166,7 @@ void main() {
       setDeviceSize(tester, const Size(1440, 1000));
       final vm = viewModel();
       await tester.pumpWidget(
-        MaterialApp(
+        TestApp(
           home: DesktopPaymentPage(
             netPay: 900,
             loadCurrencies: vm.listCurrencies,
@@ -253,9 +254,7 @@ void main() {
     testWidgets('amounts follow the order currency', (tester) async {
       setDeviceSize(tester, const Size(1440, 1000));
       await tester.pumpWidget(
-        const MaterialApp(
-          home: DesktopPaymentPage(netPay: 166.2, currencyCode: 'USD'),
-        ),
+        TestApp(home: DesktopPaymentPage(netPay: 166.2, currencyCode: 'USD')),
       );
       await tester.pumpAndSettle();
       expect(textIn(tester, PaymentIds.netPay), 'USD 166.20');
@@ -296,7 +295,7 @@ void main() {
         session: currencySession,
       );
       await tester.pumpWidget(
-        MaterialApp(
+        TestApp(
           home: PaymentPage(
             netPay: 900,
             viewModel: vm,
@@ -400,7 +399,7 @@ void main() {
         session: currencySession,
       );
       await tester.pumpWidget(
-        MaterialApp(
+        TestApp(
           home: DesktopPaymentPage(
             netPay: 900,
             viewModel: vm,
@@ -482,7 +481,7 @@ void main() {
       setDeviceSize(tester, size);
       final vm = viewModel();
       await tester.pumpWidget(
-        MaterialApp(
+        TestApp(
           home: PaymentPage(
             netPay: 900,
             loadCurrencies: vm.listCurrencies,

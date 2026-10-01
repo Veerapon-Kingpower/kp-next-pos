@@ -242,7 +242,11 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
 
   Future<void> _takePayment() async {
     if (_orderLines.isEmpty) return;
-    await openDesktopCheckoutPage(context, viewModel: widget.viewModel);
+    await openDesktopCheckoutPage(
+      context,
+      viewModel: widget.viewModel,
+      isAirportMpos: widget.isAirportMpos,
+    );
     if (mounted) _scanFocus.requestFocus();
   }
 

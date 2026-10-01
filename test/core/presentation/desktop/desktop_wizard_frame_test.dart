@@ -6,12 +6,13 @@ import 'package:kp_pos/core/presentation/test_ids.dart';
 import 'package:kp_pos/core/theme/app_colors.dart';
 
 import '../../../helpers/test_id_finders.dart';
+import '../../../helpers/test_app.dart';
 
 void main() {
   Future<void> open(WidgetTester tester) async {
     setDeviceSize(tester, const Size(1440, 900));
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Builder(
           builder: (context) => Scaffold(
             body: TextButton(

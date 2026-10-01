@@ -198,6 +198,13 @@ abstract class CheckoutIds {
   static const takePaymentButton = 'checkout.takePaymentButton';
   static const suspendButton = 'checkout.suspendButton';
   static const printQuoteButton = 'checkout.printQuoteButton';
+  static const tripCard = 'checkout.tripCard';
+  static const saleCard = 'checkout.saleCard';
+  static const billDiscountButton = 'checkout.billDiscountButton';
+  static const billDiscountRows = 'checkout.billDiscountRows';
+  static const gwpCard = 'checkout.gwpCard';
+  static const gwpList = 'checkout.gwpList';
+  static String lineDiscount(String row) => 'checkout.line.$row.discount';
 }
 
 abstract class PaymentIds {

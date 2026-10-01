@@ -27,6 +27,50 @@ void main() {
     expect(c.symbol, r'$');
   });
 
+  test('CartModel reads the Checkout extras: bill discount, promotion, '
+      'GWP, signature, DFA / promoter', () {
+    final cart = CartModel.fromJson({
+      'Guid': 'order-1',
+      'BillingAmount': {'TotalAmount': _amount(100)},
+      'TotalBillingAmount': {
+        'PercentDiscountSpecial': 10,
+        'DiscountSpecial': _amount(59),
+        'CurrentValueAdjust': {
+          'VADetail': {'Code': 'SP10', 'Desc': 'Special 10%'},
+        },
+        'ValueAdjusts': [
+          {
+            'Guid': 'va-1',
+            'VADetail': {'Code': 'SP10', 'Desc': 'Special 10%'},
+            'IsPercent': true,
+            'Percent': 10,
+            'isAllowOverwrite': true,
+          },
+        ],
+      },
+      'GWPDetails': [
+        {'DetailTextShow': 'Free pouch', 'CanApplied': true},
+      ],
+      'isRequireSignature': true,
+      'DFA': 'D01',
+      'Promoter': 'PR9',
+      'CreateDate': '2026-10-01T10:00:00',
+    });
+
+    expect(cart.billing!.percentDiscountSpecial, 10);
+    expect(cart.billing!.discountSpecial, 59);
+    expect(cart.billing!.promotionCode, 'SP10');
+    expect(cart.billing!.promotionName, 'Special 10%');
+    expect(cart.billDiscounts.single.guid, 'va-1');
+    expect(cart.billDiscounts.single.allowOverwrite, isTrue);
+    expect(cart.giftsWithPurchase.single.text, 'Free pouch');
+    expect(cart.giftsWithPurchase.single.canApply, isTrue);
+    expect(cart.requireSignature, isTrue);
+    expect(cart.dfa, 'D01');
+    expect(cart.promoter, 'PR9');
+    expect(cart.createDate, '2026-10-01T10:00:00');
+  });
+
   test('CartModel reads BillingAmount / TotalBillingAmount in the order '
       'currency (legacy OrderClass)', () {
     final cart = CartModel.fromJson({

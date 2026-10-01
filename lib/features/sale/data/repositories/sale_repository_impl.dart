@@ -288,6 +288,23 @@ class SaleRepositoryImpl implements SaleRepository {
   }
 
   @override
+  Future<Cart> actOnOrder({
+    required String sessionKey,
+    required String action,
+    required String value,
+    String? orderGuid,
+  }) async {
+    final settings = await _deviceSettingsStorage.read();
+    return _remote.actionOrderPayment(
+      saleEngineEndpoint: settings.saleEngineEndpoint,
+      sessionKey: sessionKey,
+      action: action,
+      value: value,
+      orderGuid: orderGuid,
+    );
+  }
+
+  @override
   Future<Cart> saveOrder({
     required String sessionKey,
     required String shoppingCard,

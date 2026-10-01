@@ -52,7 +52,7 @@ class LineEditDraft extends ChangeNotifier {
 
   void undo() => reset(_base);
 
-  /// Legacy `isValueChanged` — enables Undo.
+  /// Legacy `isValueChanged` — enables Undo and Save.
   bool get isChanged =>
       _quantity != _base.quantity ||
       _isFreeze != _base.isFreeze ||
@@ -75,10 +75,11 @@ class LineEditDraft extends ChangeNotifier {
   }
 }
 
-/// Legacy `saveItem()`: sends every value of [draft] for [line] — always,
-/// changed or not, as legacy's Save does. A warning is shown and the
-/// returned line kept; an error ("Error Code: …") is shown and the draft
-/// undone. True once saved (with or without warning).
+/// Legacy `saveItem()`: sends every value of [draft] for [line]. Unlike
+/// legacy, Save is only offered once something changed ([LineEditDraft
+/// .isChanged]). A warning is shown and the returned line kept; an error
+/// ("Error Code: …") is shown and the draft undone. True once saved (with
+/// or without warning).
 Future<bool> saveLineEdit(
   BuildContext context,
   SaleCartViewModel viewModel,

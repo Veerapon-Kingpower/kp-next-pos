@@ -7,6 +7,8 @@ import '../../../core/error/app_exception.dart';
 import '../../../core/error/failure.dart';
 import '../../../core/network/api_client.dart';
 import '../../auth/domain/usecases/restore_session_usecase.dart';
+import '../../auth/domain/entities/user_session.dart';
+import '../../customer/domain/entities/customer.dart';
 import '../../customer/domain/entities/privilege.dart';
 import '../domain/entities/cart.dart';
 import '../domain/entities/cart_item.dart';
@@ -41,6 +43,7 @@ class SaleCartViewModel extends GetxController {
   final ListPromotionsUseCase _listPromotions;
   final FindPromotionUseCase _findPromotion;
   final ActOnLinesUseCase _actOnLines;
+  final ActOnOrderUseCase _actOnOrder;
   final AddItemToCartUseCase _addItemToCart;
   final UpdateCartItemQuantityUseCase _updateCartItemQuantity;
   final EditCartItemUseCase _editCartItem;
@@ -62,6 +65,7 @@ class SaleCartViewModel extends GetxController {
     required ListPromotionsUseCase listPromotions,
     required FindPromotionUseCase findPromotion,
     required ActOnLinesUseCase actOnLines,
+    required ActOnOrderUseCase actOnOrder,
     required AddItemToCartUseCase addItemToCart,
     required UpdateCartItemQuantityUseCase updateCartItemQuantity,
     required EditCartItemUseCase editCartItem,
@@ -80,6 +84,7 @@ class SaleCartViewModel extends GetxController {
        _listPromotions = listPromotions,
        _findPromotion = findPromotion,
        _actOnLines = actOnLines,
+       _actOnOrder = actOnOrder,
        _addItemToCart = addItemToCart,
        _updateCartItemQuantity = updateCartItemQuantity,
        _editCartItem = editCartItem,
@@ -281,10 +286,13 @@ class SaleCartViewModel extends GetxController {
     SaleOrderContext context, {
     Privilege? privilege,
     List<Privilege> privileges = const [],
+    Customer? customer,
   }) async {
     if (_locked != null && _locked!.card != context.shoppingCard) {
       await releaseOrder();
     }
+    this.customer = customer;
+    session = await _restoreSession();
     isMember = context.isMember;
     selectedPrivilege = isMember ? privilege : null;
     this.privileges = isMember ? privileges : const [];
@@ -323,6 +331,64 @@ class SaleCartViewModel extends GetxController {
 
   // The shopping card whose order this Sale has locked, if any.
   ({String card, String orderNo})? _locked;
+
+  /// The customer Sale was opened for (Home's lookup) — legacy Checkout's
+  /// Customer profile; null when not passed.
+  Customer? customer;
+
+  /// The signed-in cashier and machine — the profile's "Sale" block.
+  UserSession? session;
+
+  /// Legacy `SpecialDiscountPage.onSave()`: `add_special_discount` (or
+  /// `update_special_discount` when editing) with the `ValueAdjust` JSON.
+  /// No permission check, as legacy. Returns the error to show, or null.
+  Future<String?> saveBillDiscount(LineDiscountDraft draft) => _orderAction(
+    draft.editing == null ? BillDiscountAction.add : BillDiscountAction.update,
+    jsonEncode(draft.toValueAdjust()),
+    orderGuid: draft.editing == null ? '' : cart?.guid,
+  );
+
+  /// Legacy `doRemoveItem()`: `clear_special_discount` with its Guid.
+  Future<String?> removeBillDiscount(LineDiscount discount) => _orderAction(
+    BillDiscountAction.remove,
+    jsonEncode([discount.guid]),
+    orderGuid: cart?.guid,
+  );
+
+  /// Legacy `clearAll()`: `clear_all_special_discount`.
+  Future<String?> clearBillDiscounts() =>
+      _orderAction(BillDiscountAction.clearAll, '');
+
+  /// Legacy `onSubmit()`: a scanned promotion QR as a bill discount.
+  Future<String?> addBillDiscountByQrCode(String code) =>
+      _orderAction(BillDiscountAction.addByQrCode, code, orderGuid: '');
+
+  Future<String?> _orderAction(
+    String action,
+    String value, {
+    String? orderGuid,
+  }) async {
+    final sessionKey = await _sessionKey();
+    if (sessionKey == null) return 'No active session.';
+    isBusy = true;
+    update();
+    String? error;
+    try {
+      cart = await _actOnOrder(
+        sessionKey: sessionKey,
+        action: action,
+        value: value,
+        orderGuid: orderGuid,
+      );
+    } on ApiException catch (e) {
+      error = e.messageCode == null || e.messageCode!.isEmpty
+          ? e.messageDesc
+          : '${e.messageCode}: ${e.messageDesc}';
+    }
+    isBusy = false;
+    update();
+    return error;
+  }
 
   /// The attached customer is a member — legacy passes it to the
   /// promotion master as `excludeMember`.
@@ -519,6 +585,7 @@ class SaleCartViewModel extends GetxController {
     }
     _locked = null;
     shoppingCard = '';
+    customer = null;
     cart = null;
     scanError = null;
     isMember = false;

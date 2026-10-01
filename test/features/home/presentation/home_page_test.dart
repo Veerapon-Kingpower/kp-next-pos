@@ -54,6 +54,7 @@ import '../../flight/fake_flight_repository.dart';
 import '../../nationality/fake_nationality_repository.dart';
 import '../../sale/fake_sale_repository.dart';
 import '../../settings/fake_settings_repository.dart';
+import '../../../helpers/test_app.dart';
 
 const _session = UserSession(
   sessionKey: 'abc123',
@@ -116,6 +117,7 @@ void main() {
       listPromotions: ListPromotionsUseCase(sale),
       findPromotion: FindPromotionUseCase(sale),
       actOnLines: ActOnLinesUseCase(sale),
+      actOnOrder: ActOnOrderUseCase(sale),
       addItemToCart: AddItemToCartUseCase(sale),
       updateCartItemQuantity: UpdateCartItemQuantityUseCase(sale),
       editCartItem: EditCartItemUseCase(sale),
@@ -194,7 +196,7 @@ void main() {
   );
 
   Future<void> pumpCustomerTab(WidgetTester tester, HomePage page) async {
-    await tester.pumpWidget(MaterialApp(home: page));
+    await tester.pumpWidget(TestApp(home: page));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Customer').last);
     await tester.pumpAndSettle();
@@ -203,7 +205,7 @@ void main() {
   testWidgets('the header shows the signed-in user, module, and branch', (
     tester,
   ) async {
-    await tester.pumpWidget(MaterialApp(home: buildPage()));
+    await tester.pumpWidget(TestApp(home: buildPage()));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Somchai P.'), findsOneWidget);
@@ -218,7 +220,7 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(MaterialApp(home: buildPage()));
+    await tester.pumpWidget(TestApp(home: buildPage()));
     await tester.pumpAndSettle();
 
     // One Text.rich per item: "Machine KPPOS05".
@@ -228,7 +230,7 @@ void main() {
   });
 
   testWidgets('tapping Sale shows the barcode scan field', (tester) async {
-    await tester.pumpWidget(MaterialApp(home: buildPage()));
+    await tester.pumpWidget(TestApp(home: buildPage()));
     await tester.pumpAndSettle();
 
     await tester.tap(byTestId(NavIds.sale));
@@ -244,7 +246,7 @@ void main() {
   ) async {
     final authRepository = FakeAuthRepository();
     await tester.pumpWidget(
-      MaterialApp(home: buildPage(logoutRepository: authRepository)),
+      TestApp(home: buildPage(logoutRepository: authRepository)),
     );
     await tester.pumpAndSettle();
 
@@ -259,7 +261,7 @@ void main() {
   testWidgets('confirming the logout dialog logs out', (tester) async {
     final authRepository = FakeAuthRepository();
     await tester.pumpWidget(
-      MaterialApp(home: buildPage(logoutRepository: authRepository)),
+      TestApp(home: buildPage(logoutRepository: authRepository)),
     );
     await tester.pumpAndSettle();
 
@@ -277,7 +279,7 @@ void main() {
     final gate = Completer<void>();
     final authRepository = FakeAuthRepository(logoutGate: gate);
     await tester.pumpWidget(
-      MaterialApp(home: buildPage(logoutRepository: authRepository)),
+      TestApp(home: buildPage(logoutRepository: authRepository)),
     );
     await tester.pumpAndSettle();
 
@@ -301,7 +303,7 @@ void main() {
   testWidgets('cancelling the logout dialog does not log out', (tester) async {
     final authRepository = FakeAuthRepository();
     await tester.pumpWidget(
-      MaterialApp(home: buildPage(logoutRepository: authRepository)),
+      TestApp(home: buildPage(logoutRepository: authRepository)),
     );
     await tester.pumpAndSettle();
 
@@ -1134,7 +1136,7 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
 
-      await tester.pumpWidget(MaterialApp(home: buildPage()));
+      await tester.pumpWidget(TestApp(home: buildPage()));
       await tester.pumpAndSettle();
 
       expect(byTestId(DesktopIds.homeIdle), findsOneWidget);
@@ -1156,7 +1158,7 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
 
-      await tester.pumpWidget(MaterialApp(home: buildPage()));
+      await tester.pumpWidget(TestApp(home: buildPage()));
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Enquiry').last);
@@ -1173,7 +1175,7 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(MaterialApp(home: buildPage()));
+    await tester.pumpWidget(TestApp(home: buildPage()));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Customer').last);
@@ -1189,7 +1191,7 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(MaterialApp(home: buildPage()));
+    await tester.pumpWidget(TestApp(home: buildPage()));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Setup').last);
@@ -1274,7 +1276,7 @@ void main() {
       tester.view.physicalSize = const Size(1440, 1000);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
-      await tester.pumpWidget(MaterialApp(home: page));
+      await tester.pumpWidget(TestApp(home: page));
       await tester.pumpAndSettle();
       await tester.enterText(
         find.descendant(
@@ -1307,7 +1309,7 @@ void main() {
       tester.view.physicalSize = const Size(1440, 1000);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
-      await tester.pumpWidget(MaterialApp(home: buildPage()));
+      await tester.pumpWidget(TestApp(home: buildPage()));
       await tester.pumpAndSettle();
       expect(scanHasFocus(tester), isTrue, reason: 'autofocus on open');
 
@@ -1611,7 +1613,7 @@ void main() {
   testWidgets('at desktop width, the rail shows the station context', (
     tester,
   ) async {
-    await tester.pumpWidget(MaterialApp(home: buildPage()));
+    await tester.pumpWidget(TestApp(home: buildPage()));
     await tester.pumpAndSettle();
     expect(find.text('Module PosKpi', findRichText: true), findsOneWidget);
     expect(find.text('Branch 03', findRichText: true), findsOneWidget);
@@ -1627,7 +1629,7 @@ void main() {
   testWidgets('at desktop width, Sign out in the rail asks to confirm', (
     tester,
   ) async {
-    await tester.pumpWidget(MaterialApp(home: buildPage()));
+    await tester.pumpWidget(TestApp(home: buildPage()));
     await tester.pumpAndSettle();
     await tester.tap(byTestId(NavIds.signOut));
     await tester.pumpAndSettle();
@@ -1667,7 +1669,7 @@ void main() {
       Size size = compactSize,
     }) async {
       setDeviceSize(tester, size);
-      await tester.pumpWidget(MaterialApp(home: page));
+      await tester.pumpWidget(TestApp(home: page));
       await tester.pumpAndSettle();
     }
 

@@ -15,6 +15,7 @@ import 'package:kp_pos/features/settings/presentation/settings_view_model.dart';
 import '../../../core/storage/fakes.dart';
 import '../../../helpers/test_id_finders.dart';
 import '../fake_settings_repository.dart';
+import '../../../helpers/test_app.dart';
 
 void main() {
   // This form is long enough that the default 800x600 test surface leaves
@@ -78,7 +79,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        TestApp(
           home: SettingsPage(viewModel: viewModel, sessionState: sessionState),
         ),
       );
@@ -116,7 +117,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: SettingsPage(viewModel: viewModel, sessionState: sessionState),
       ),
     );
@@ -152,7 +153,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        TestApp(
           home: SettingsPage(viewModel: viewModel, sessionState: sessionState),
         ),
       );
@@ -197,7 +198,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        TestApp(
           home: SettingsPage(viewModel: viewModel, sessionState: sessionState),
         ),
       );
@@ -254,7 +255,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        TestApp(
           home: SettingsPage(viewModel: viewModel, sessionState: sessionState),
         ),
       );
@@ -301,7 +302,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
+        TestApp(
           home: SettingsPage(viewModel: viewModel, sessionState: sessionState),
         ),
       );
@@ -336,7 +337,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: SettingsPage(viewModel: viewModel, sessionState: sessionState),
       ),
     );
@@ -378,7 +379,7 @@ void main() {
       final page = SettingsPage(viewModel: buildViewModel(repo));
       if (pushed) {
         await tester.pumpWidget(
-          MaterialApp(
+          TestApp(
             home: Builder(
               builder: (context) => Scaffold(
                 body: TextButton(
@@ -393,7 +394,7 @@ void main() {
         );
         await tester.tap(find.text('open'));
       } else {
-        await tester.pumpWidget(MaterialApp(home: page));
+        await tester.pumpWidget(TestApp(home: page));
       }
       await tester.pumpAndSettle();
       return repo;
@@ -537,7 +538,7 @@ void main() {
       final page = SettingsPage(viewModel: buildViewModel(repo));
       if (pushed) {
         await tester.pumpWidget(
-          MaterialApp(
+          TestApp(
             home: Builder(
               builder: (context) => Scaffold(
                 body: TextButton(
@@ -552,7 +553,7 @@ void main() {
         );
         await tester.tap(find.text('open'));
       } else {
-        await tester.pumpWidget(MaterialApp(home: page));
+        await tester.pumpWidget(TestApp(home: page));
       }
       await tester.pumpAndSettle();
       return repo;

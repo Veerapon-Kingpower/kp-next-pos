@@ -7,6 +7,7 @@ import 'package:kp_pos/features/flight/domain/entities/flight.dart';
 import 'package:kp_pos/features/nationality/domain/entities/nationality.dart';
 
 import '../../../../helpers/test_id_finders.dart';
+import '../../../../helpers/test_app.dart';
 
 Flight _flight(String code, String dest, String departs) => Flight(
   flightCode: code,
@@ -41,7 +42,7 @@ void main() {
     closed = false;
     flightQueries = [];
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Builder(
           builder: (context) => Scaffold(
             body: TextButton(

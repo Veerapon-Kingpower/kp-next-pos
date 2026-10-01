@@ -17,6 +17,7 @@ import 'package:kp_pos/features/sale/presentation/sale_cart_view_model.dart';
 import '../../../../helpers/test_id_finders.dart';
 import '../../fake_sale_repository.dart';
 import '../handheld/sale_test_helpers.dart';
+import '../../../../helpers/test_app.dart';
 
 void main() {
   late FakeSaleRepository sale;
@@ -44,7 +45,7 @@ void main() {
       shoppingCard: shoppingCard,
     );
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Scaffold(
           body: DesktopSaleView(
             viewModel: viewModel,
@@ -170,9 +171,18 @@ void main() {
 
       expect(byTestId(EditLineIds.page), findsOneWidget);
       expect(find.text('Order item · line 2'), findsOneWidget);
+      // Nothing changed yet: no Save.
+      expect(
+        tester.getSemantics(byTestId(EditLineIds.saveButton)),
+        isSemantics(hasEnabledState: true, isEnabled: false),
+      );
       await tester.tap(byTestId(EditLineIds.qtyIncrease));
       await tester.tap(byTestId(EditLineIds.freezeSwitch));
       await tester.pump();
+      expect(
+        tester.getSemantics(byTestId(EditLineIds.saveButton)),
+        isSemantics(hasEnabledState: true, isEnabled: true),
+      );
       await tester.tap(byTestId(EditLineIds.saveCloseButton));
       await tester.pumpAndSettle();
 
@@ -735,7 +745,7 @@ void main() {
         session: session,
       )..attachShoppingCard(shoppingCard);
       await tester.pumpWidget(
-        MaterialApp(
+        TestApp(
           home: Scaffold(body: DesktopSaleView(viewModel: viewModel)),
         ),
       );

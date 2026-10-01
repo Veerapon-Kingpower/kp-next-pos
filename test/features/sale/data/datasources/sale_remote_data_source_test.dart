@@ -488,6 +488,52 @@ void main() {
     expect(cart.change, 100);
   });
 
+  group('actionOrderPayment (legacy SpecialDiscountPage)', () {
+    setUp(() {
+      apiClient.response = {
+        'isCompleted': true,
+        'Data': [
+          {'Guid': 'order-1', 'isCheckOut': false, 'OrderDetails': []},
+        ],
+        'Message': [],
+      };
+    });
+
+    test('sends Action / Value with empty Rows and the OrderGuid', () async {
+      await dataSource.actionOrderPayment(
+        saleEngineEndpoint: 'https://sale-engine',
+        sessionKey: 'abc123',
+        action: 'update_special_discount',
+        value: '{"Percent":10}',
+        orderGuid: 'order-1',
+      );
+      expect(
+        apiClient.lastUrl,
+        'https://sale-engine/SaleEngine/ActionOrderPayment',
+      );
+      expect(apiClient.lastData, {
+        'OrderGuid': 'order-1',
+        'SessionKey': 'abc123',
+        'Rows': <String>[],
+        'Action': 'update_special_discount',
+        'Value': '{"Percent":10}',
+      });
+    });
+
+    test('clear-all leaves OrderGuid out, as legacy', () async {
+      await dataSource.actionOrderPayment(
+        saleEngineEndpoint: 'https://sale-engine',
+        sessionKey: 'abc123',
+        action: 'clear_all_special_discount',
+        value: '',
+      );
+      expect(
+        (apiClient.lastData as Map<String, dynamic>).containsKey('OrderGuid'),
+        isFalse,
+      );
+    });
+  });
+
   test('saveChangeExchange posts ActionOrderPayment edit_exchange '
       '(legacy ChangePage)', () async {
     apiClient.response = {

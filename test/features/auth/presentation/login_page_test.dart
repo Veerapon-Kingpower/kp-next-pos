@@ -18,6 +18,7 @@ import '../../../core/storage/fakes.dart';
 import '../../../helpers/test_id_finders.dart';
 import '../../settings/fake_settings_repository.dart';
 import '../fake_auth_repository.dart';
+import '../../../helpers/test_app.dart';
 
 void main() {
   SessionState buildSessionState() => SessionState(
@@ -52,7 +53,7 @@ void main() {
     final sessionState = buildSessionState();
 
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: LoginPage(
           viewModel: viewModel,
           sessionState: sessionState,
@@ -87,7 +88,7 @@ void main() {
       final sessionState = buildSessionState();
 
       await tester.pumpWidget(
-        MaterialApp(
+        TestApp(
           home: LoginPage(
             viewModel: viewModel,
             sessionState: sessionState,
@@ -117,7 +118,7 @@ void main() {
       final sessionState = buildSessionState();
 
       await tester.pumpWidget(
-        MaterialApp(
+        TestApp(
           home: LoginPage(
             viewModel: viewModel,
             sessionState: sessionState,
@@ -156,7 +157,7 @@ void main() {
     addTearDown(view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: LoginPage(
           viewModel: viewModel,
           sessionState: sessionState,
@@ -208,7 +209,7 @@ void main() {
     ]) {
       testWidgets('$name: username and password take no Thai', (tester) async {
         setDeviceSize(tester, size);
-        await tester.pumpWidget(MaterialApp(home: buildPage()));
+        await tester.pumpWidget(TestApp(home: buildPage()));
 
         Future<String> typed(String id, String text) async {
           final field = find.descendant(
@@ -225,7 +226,7 @@ void main() {
 
       testWidgets('$name: shows the app version', (tester) async {
         setDeviceSize(tester, size);
-        await tester.pumpWidget(MaterialApp(home: buildPage()));
+        await tester.pumpWidget(TestApp(home: buildPage()));
         await tester.pump();
 
         expect(
@@ -243,7 +244,7 @@ void main() {
     ) async {
       final handle = tester.ensureSemantics();
       setDeviceSize(tester, compactSize);
-      await tester.pumpWidget(MaterialApp(home: buildPage()));
+      await tester.pumpWidget(TestApp(home: buildPage()));
 
       expect(find.text('SMART POS MOBILE'), findsOneWidget);
       expect(find.text('USERNAME'), findsOneWidget);
@@ -269,7 +270,7 @@ void main() {
     ]) {
       testWidgets('$name: no gold King Power Mobile logo', (tester) async {
         setDeviceSize(tester, size);
-        await tester.pumpWidget(MaterialApp(home: buildPage()));
+        await tester.pumpWidget(TestApp(home: buildPage()));
 
         final logo = find.byWidgetPredicate(
           (w) =>
@@ -285,7 +286,7 @@ void main() {
 
     testWidgets('Show / Hide toggles password visibility', (tester) async {
       setDeviceSize(tester, compactSize);
-      await tester.pumpWidget(MaterialApp(home: buildPage()));
+      await tester.pumpWidget(TestApp(home: buildPage()));
 
       EditableText password() => tester.widget<EditableText>(
         find.descendant(
@@ -312,7 +313,7 @@ void main() {
       );
       final sessionState = buildSessionState();
       await tester.pumpWidget(
-        MaterialApp(
+        TestApp(
           home: LoginPage(
             viewModel: LoginViewModel(
               loginUseCase: LoginUseCase(
@@ -350,7 +351,7 @@ void main() {
     ) async {
       setDeviceSize(tester, compactSize);
       await tester.pumpWidget(
-        MaterialApp(
+        TestApp(
           home: buildPage(
             repository: FakeAuthRepository(
               loginError: const ApiException(
@@ -379,7 +380,7 @@ void main() {
     ) async {
       final handle = tester.ensureSemantics();
       setDeviceSize(tester, compactSize);
-      await tester.pumpWidget(MaterialApp(home: buildPage()));
+      await tester.pumpWidget(TestApp(home: buildPage()));
       expect(
         tester.getSemantics(byTestId(LoginIds.qrLoginButton)),
         isSemantics(isButton: true, hasEnabledState: true, isEnabled: false),
@@ -391,7 +392,7 @@ void main() {
       tester,
     ) async {
       setDeviceSize(tester, mediumSize);
-      await tester.pumpWidget(MaterialApp(home: buildPage()));
+      await tester.pumpWidget(TestApp(home: buildPage()));
       final rect = tester.getRect(byTestId(LoginIds.signInButton));
       expect(rect.width, lessThanOrEqualTo(440));
       expect(rect.center.dx, closeTo(410, 0.5));
@@ -401,7 +402,7 @@ void main() {
       tester,
     ) async {
       setDeviceSize(tester, expandedSize);
-      await tester.pumpWidget(MaterialApp(home: buildPage()));
+      await tester.pumpWidget(TestApp(home: buildPage()));
       await tester.pumpAndSettle();
       expect(byTestId(DesktopIds.loginIdentityPanel), findsOneWidget);
       expect(find.text('SMART POS MOBILE'), findsNothing);
@@ -420,7 +421,7 @@ void main() {
       );
       final sessionState = buildSessionState();
       await tester.pumpWidget(
-        MaterialApp(
+        TestApp(
           home: LoginPage(
             viewModel: LoginViewModel(
               loginUseCase: LoginUseCase(

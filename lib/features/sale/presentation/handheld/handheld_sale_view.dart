@@ -330,7 +330,11 @@ class _HandheldSaleViewState extends State<HandheldSaleView> {
           icon: Icons.payments_outlined,
           onPressed: orderLines.isEmpty
               ? null
-              : () => openCheckoutPage(context, viewModel: viewModel),
+              : () => openCheckoutPage(
+                  context,
+                  viewModel: viewModel,
+                  isAirportMpos: widget.isAirportMpos,
+                ),
         ),
         secondary: _showBasket
             ? HandheldSecondaryButton(
@@ -471,8 +475,8 @@ class _SaleHeader extends StatelessWidget {
                           id: SaleIds.scanField,
                           controller: scanController,
                           focusNode: scanFocus,
-                          // Ready for a trigger scan as soon as Sale opens.
-                          autofocus: true,
+                          // No autofocus: on a phone it would pop the
+                          // on-screen keyboard over the basket.
                           keepFocusOnSubmit: true,
                           hintText: 'Scan or type item code',
                           onSubmitted: onScan,

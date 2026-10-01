@@ -5,6 +5,7 @@ import 'package:kp_pos/features/sale/presentation/handheld/payment/payment_model
 import 'package:kp_pos/features/sale/presentation/handheld/payment/payment_page.dart';
 
 import '../../../../../helpers/test_id_finders.dart';
+import '../../../../../helpers/test_app.dart';
 
 const _approvedVisa = Tender(
   method: TenderMethod.card,
@@ -30,7 +31,7 @@ void main() {
   }) async {
     setDeviceSize(tester, size);
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: PaymentPage(netPay: netPay, tenders: tenders),
       ),
     );

@@ -1,13 +1,13 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/presentation/widgets/unavailable_state_view.dart';
+import '../../../helpers/test_app.dart';
 
 void main() {
   testWidgets(
     'shows title and message, and hides the retry button when none is provided',
     (tester) async {
       await tester.pumpWidget(
-        const MaterialApp(
+        TestApp(
           home: UnavailableStateView(
             title: 'No connection',
             message: 'Check the network and try again.',
@@ -27,7 +27,7 @@ void main() {
     var retried = false;
 
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: UnavailableStateView(
           title: 'Printer unavailable',
           message: 'Reconnect the printer to continue.',

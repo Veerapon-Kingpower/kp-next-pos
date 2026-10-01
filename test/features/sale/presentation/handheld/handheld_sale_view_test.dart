@@ -13,6 +13,7 @@ import 'package:kp_pos/features/sale/presentation/sale_cart_view_model.dart';
 import '../../../../helpers/test_id_finders.dart';
 import '../../fake_sale_repository.dart';
 import 'sale_test_helpers.dart';
+import '../../../../helpers/test_app.dart';
 
 void main() {
   late FakeSaleRepository sale;
@@ -35,7 +36,7 @@ void main() {
     );
     final viewModel = buildSaleViewModel(sale, cart: cart);
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Scaffold(
           body: HandheldSaleView(
             viewModel: viewModel,
@@ -125,8 +126,10 @@ void main() {
       expect(byTestId(SaleIds.line('1')), findsOneWidget);
     });
 
-    testWidgets('the scan field has focus on open and gets it back after a '
-        'scan (it is disabled while busy)', (tester) async {
+    testWidgets('the scan field does not take focus on open (no on-screen '
+        'keyboard), and gets it back after a scan (disabled while busy)', (
+      tester,
+    ) async {
       await pump(tester, cart: null);
       bool focused() => tester
           .state<EditableTextState>(
@@ -138,7 +141,7 @@ void main() {
           .widget
           .focusNode
           .hasFocus;
-      expect(focused(), isTrue);
+      expect(focused(), isFalse);
 
       await tester.enterText(
         find.descendant(

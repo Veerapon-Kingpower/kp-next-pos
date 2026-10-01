@@ -5,6 +5,7 @@ import 'package:kp_pos/core/presentation/test_ids.dart';
 import 'package:kp_pos/features/customer/presentation/desktop/desktop_flight_date_picker.dart';
 
 import '../../../../helpers/test_id_finders.dart';
+import '../../../../helpers/test_app.dart';
 
 void main() {
   // TG916 operates on the 26th at 23:45 and the 28th at 22:10 — no 27th.
@@ -21,7 +22,7 @@ void main() {
     closed = false;
     result = null;
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Builder(
           builder: (context) => Scaffold(
             body: TextButton(

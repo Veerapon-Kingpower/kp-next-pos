@@ -11,10 +11,17 @@ class CartModel extends Cart {
     super.remaining,
     super.change,
     super.orderNo,
+    super.billDiscounts,
+    super.giftsWithPurchase,
+    super.requireSignature,
+    super.dfa,
+    super.promoter,
+    super.createDate,
   });
 
   factory CartModel.fromJson(Map<String, dynamic> json) {
     final remaining = _map(json['RemainingAmount'])['NetAmount'];
+    final totals = _map(json['TotalBillingAmount']);
     return CartModel(
       guid: json['Guid'] as String? ?? '',
       isCheckOut: json['isCheckOut'] as bool? ?? false,
@@ -39,6 +46,25 @@ class CartModel extends Cart {
           : null,
       change: _num(_map(json['ChangeAmount'])['BaseCurrAmt']),
       orderNo: _orderNo(json['HeaderAttributes']),
+      billDiscounts: [
+        for (final adjust
+            in (totals['ValueAdjusts'] as List<dynamic>? ?? [])
+                .whereType<Map<String, dynamic>>())
+          CartItemModel.discountFromJson(adjust),
+      ],
+      giftsWithPurchase: [
+        for (final gwp
+            in (json['GWPDetails'] as List<dynamic>? ?? const [])
+                .whereType<Map<String, dynamic>>())
+          GiftWithPurchase(
+            text: gwp['DetailTextShow'] as String? ?? '',
+            canApply: gwp['CanApplied'] as bool? ?? false,
+          ),
+      ],
+      requireSignature: json['isRequireSignature'] as bool? ?? false,
+      dfa: '${json['DFA'] ?? ''}',
+      promoter: '${json['Promoter'] ?? ''}',
+      createDate: '${json['CreateDate'] ?? ''}',
     );
   }
 
@@ -69,7 +95,12 @@ class CartModel extends Cart {
         : const <String, dynamic>{};
     final totalAmount = _map(billing['TotalAmount']);
     final currency = _map(totalAmount['CurrCode']);
+    final promotion = _map(_map(totals['CurrentValueAdjust'])['VADetail']);
     return CartBilling(
+      percentDiscountSpecial: _num(totals['PercentDiscountSpecial']),
+      discountSpecial: _num(_map(totals['DiscountSpecial'])['CurrAmt']),
+      promotionCode: promotion['Code'] as String? ?? '',
+      promotionName: promotion['Desc'] as String? ?? '',
       currencyCode: currency['Code'] as String? ?? '',
       currencyDescription: currency['Desc'] as String? ?? '',
       currencyRate: _num(totalAmount['CurrRate']),

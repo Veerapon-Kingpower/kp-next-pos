@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/presentation/widgets/app_shell.dart';
+import '../../../helpers/test_app.dart';
 
 void main() {
   testWidgets(
@@ -9,7 +10,7 @@ void main() {
       int? selected;
 
       await tester.pumpWidget(
-        MaterialApp(
+        TestApp(
           home: AppShell(
             title: 'Sale',
             body: const Text('cart contents'),
@@ -37,7 +38,7 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const MaterialApp(
+      TestApp(
         home: AppShell(title: 'Detail', body: Text('content')),
       ),
     );
@@ -53,7 +54,7 @@ void main() {
       addTearDown(tester.view.reset);
 
       await tester.pumpWidget(
-        const MaterialApp(
+        TestApp(
           home: AppShell(
             title: 'Sale',
             body: Text('cart contents'),
@@ -79,7 +80,7 @@ void main() {
 
       int? selected;
       await tester.pumpWidget(
-        MaterialApp(
+        TestApp(
           home: AppShell(
             title: 'Sale',
             body: const Text('cart contents'),

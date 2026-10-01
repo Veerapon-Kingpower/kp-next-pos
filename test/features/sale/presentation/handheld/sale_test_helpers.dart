@@ -76,6 +76,7 @@ SaleCartViewModel buildSaleViewModel(
     listPromotions: ListPromotionsUseCase(sale),
     findPromotion: FindPromotionUseCase(sale),
     actOnLines: ActOnLinesUseCase(sale),
+    actOnOrder: ActOnOrderUseCase(sale),
     addItemToCart: AddItemToCartUseCase(sale),
     updateCartItemQuantity: UpdateCartItemQuantityUseCase(sale),
     editCartItem: EditCartItemUseCase(sale),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/presentation/widgets/app_dialogs.dart';
+import '../../../helpers/test_app.dart';
 
 void main() {
   testWidgets('resolves true when the confirm action is tapped', (
@@ -9,7 +10,7 @@ void main() {
     bool? result;
 
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Scaffold(
           body: Builder(
             builder: (context) => _TriggerButton(
@@ -40,7 +41,7 @@ void main() {
     bool? result;
 
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Scaffold(
           body: Builder(
             builder: (context) => _TriggerButton(

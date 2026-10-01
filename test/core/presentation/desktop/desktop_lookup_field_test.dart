@@ -5,6 +5,7 @@ import 'package:kp_pos/core/presentation/desktop/desktop.dart';
 import 'package:kp_pos/core/presentation/test_ids.dart';
 
 import '../../../helpers/test_id_finders.dart';
+import '../../../helpers/test_app.dart';
 
 class _Item {
   final String code;
@@ -50,7 +51,7 @@ void main() {
   }) async {
     setDeviceSize(tester, const Size(1280, 800));
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Scaffold(
           body: Padding(
             padding: const EdgeInsets.all(24),

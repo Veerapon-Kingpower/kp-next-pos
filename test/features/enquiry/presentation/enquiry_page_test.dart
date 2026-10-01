@@ -5,6 +5,7 @@ import 'package:kp_pos/core/presentation/widgets/desktop_data_table.dart';
 import 'package:kp_pos/features/enquiry/presentation/enquiry_page.dart';
 
 import '../../../helpers/test_id_finders.dart';
+import '../../../helpers/test_app.dart';
 
 void main() {
   Future<void> pump(
@@ -13,7 +14,7 @@ void main() {
   }) async {
     setDeviceSize(tester, size);
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Scaffold(body: EnquiryPage(today: DateTime(2026, 8, 26))),
       ),
     );

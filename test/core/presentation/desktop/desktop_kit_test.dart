@@ -5,6 +5,7 @@ import 'package:kp_pos/core/presentation/test_ids.dart';
 import 'package:kp_pos/core/theme/app_colors.dart';
 
 import '../../../helpers/test_id_finders.dart';
+import '../../../helpers/test_app.dart';
 
 void main() {
   group('DesktopShell', () {
@@ -15,7 +16,7 @@ void main() {
       final events = <String>[];
       setDeviceSize(tester, const Size(1440, 900));
       await tester.pumpWidget(
-        MaterialApp(
+        TestApp(
           home: DesktopShell(
             items: const [
               DesktopNavItem(
@@ -118,7 +119,7 @@ void main() {
   group('DesktopPanel / DesktopActionTile / buttons', () {
     testWidgets('panel title is a gold caps label', (tester) async {
       await tester.pumpWidget(
-        const MaterialApp(
+        TestApp(
           home: Scaffold(
             body: DesktopPanel(
               id: 'x.panel',
@@ -135,7 +136,7 @@ void main() {
     testWidgets('action tile shows its hotkey and fires', (tester) async {
       var taps = 0;
       await tester.pumpWidget(
-        MaterialApp(
+        TestApp(
           home: Scaffold(
             body: SizedBox(
               width: 300,
@@ -162,7 +163,7 @@ void main() {
       final handle = tester.ensureSemantics();
       var taps = 0;
       await tester.pumpWidget(
-        MaterialApp(
+        TestApp(
           home: Scaffold(
             body: Column(
               children: [

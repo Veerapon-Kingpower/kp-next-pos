@@ -6,6 +6,7 @@ import 'package:kp_pos/features/flight/domain/entities/flight.dart';
 
 import '../../../../helpers/test_id_finders.dart';
 import 'customer_profile_page_test.dart' show sofia;
+import '../../../../helpers/test_app.dart';
 
 const _flights = [
   Flight(
@@ -37,7 +38,7 @@ void main() {
     lastQuery = null;
     setDeviceSize(tester, size);
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: TravellerDetailsPage(
           customer: sofia,
           searchFlights: (q) async {
@@ -108,7 +109,7 @@ void main() {
     final handle = tester.ensureSemantics();
     setDeviceSize(tester, compactSize);
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Builder(
           builder: (context) => TextButton(
             onPressed: () => Navigator.of(context).push(

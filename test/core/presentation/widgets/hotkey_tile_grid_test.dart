@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/presentation/widgets/hotkey_tile_grid.dart';
+import '../../../helpers/test_app.dart';
 
 void main() {
   testWidgets('renders a tile per entry and invokes its onTap when tapped', (
@@ -10,7 +11,7 @@ void main() {
     var customerTapped = false;
 
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Scaffold(
           body: HotkeyTileGrid(
             tiles: [

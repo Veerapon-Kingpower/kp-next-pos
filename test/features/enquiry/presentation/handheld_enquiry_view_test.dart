@@ -4,12 +4,13 @@ import 'package:kp_pos/core/presentation/test_ids.dart';
 import 'package:kp_pos/features/enquiry/presentation/handheld_enquiry_view.dart';
 
 import '../../../helpers/test_id_finders.dart';
+import '../../../helpers/test_app.dart';
 
 void main() {
   Future<void> pump(WidgetTester tester, {Size size = compactSize}) async {
     setDeviceSize(tester, size);
     await tester.pumpWidget(
-      const MaterialApp(home: Scaffold(body: HandheldEnquiryView())),
+      TestApp(home: Scaffold(body: HandheldEnquiryView())),
     );
   }
 

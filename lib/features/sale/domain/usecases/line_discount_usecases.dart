@@ -11,6 +11,16 @@ abstract final class LineDiscountAction {
   static const addByQrCode = 'add_item_discount_by_qrcode';
 }
 
+/// Legacy `ActionToOrderCommand` values the Checkout → Discount page
+/// (`SpecialDiscountPage`) sends for the bill (special) discount.
+abstract final class BillDiscountAction {
+  static const add = 'add_special_discount';
+  static const update = 'update_special_discount';
+  static const remove = 'clear_special_discount';
+  static const clearAll = 'clear_all_special_discount';
+  static const addByQrCode = 'add_special_discount_by_qrcode';
+}
+
 class ListPromotionsUseCase {
   final SaleRepository _repository;
 
@@ -53,5 +63,23 @@ class ActOnLinesUseCase {
     rows: rows,
     action: action,
     value: value,
+  );
+}
+
+class ActOnOrderUseCase {
+  final SaleRepository _repository;
+
+  const ActOnOrderUseCase(this._repository);
+
+  Future<Cart> call({
+    required String sessionKey,
+    required String action,
+    required String value,
+    String? orderGuid,
+  }) => _repository.actOnOrder(
+    sessionKey: sessionKey,
+    action: action,
+    value: value,
+    orderGuid: orderGuid,
   );
 }

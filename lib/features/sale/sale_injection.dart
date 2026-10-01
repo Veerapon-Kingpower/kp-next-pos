@@ -68,6 +68,9 @@ void setupSaleServiceLocator() {
   sl.registerFactory<ActOnLinesUseCase>(
     () => ActOnLinesUseCase(sl<SaleRepository>()),
   );
+  sl.registerFactory<ActOnOrderUseCase>(
+    () => ActOnOrderUseCase(sl<SaleRepository>()),
+  );
   sl.registerFactory<SaveOrderUseCase>(
     () => SaveOrderUseCase(sl<SaleRepository>()),
   );
@@ -99,6 +102,7 @@ void setupSaleServiceLocator() {
       listPromotions: sl<ListPromotionsUseCase>(),
       findPromotion: sl<FindPromotionUseCase>(),
       actOnLines: sl<ActOnLinesUseCase>(),
+      actOnOrder: sl<ActOnOrderUseCase>(),
       addItemToCart: sl<AddItemToCartUseCase>(),
       updateCartItemQuantity: sl<UpdateCartItemQuantityUseCase>(),
       editCartItem: sl<EditCartItemUseCase>(),

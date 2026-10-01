@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/presentation/widgets/test_id.dart';
 
 import '../../../helpers/test_id_finders.dart';
+import '../../../helpers/test_app.dart';
 
 void main() {
   testWidgets('TestId exposes both a ValueKey and a semantics identifier', (
@@ -11,7 +12,7 @@ void main() {
     final handle = tester.ensureSemantics();
     var taps = 0;
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Scaffold(
           body: TestId(
             'demo.button',
@@ -34,7 +35,7 @@ void main() {
 
   testWidgets('byTestId finder helper matches the key', (tester) async {
     await tester.pumpWidget(
-      const MaterialApp(home: TestId('demo.label', child: Text('Hi'))),
+      TestApp(home: TestId('demo.label', child: Text('Hi'))),
     );
     expect(byTestId('demo.label'), findsOneWidget);
   });

@@ -8,6 +8,7 @@ import 'package:kp_pos/features/customer/presentation/widgets/member_sign_up.dar
 import 'package:kp_pos/features/flight/domain/entities/flight.dart';
 
 import '../../../../helpers/test_id_finders.dart';
+import '../../../../helpers/test_app.dart';
 
 const _gold = Privilege(
   name: 'Gold Member',
@@ -81,7 +82,7 @@ void main() {
   }) async {
     setDeviceSize(tester, size);
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: Builder(
           builder: (context) => Scaffold(
             body: TextButton(
@@ -299,7 +300,7 @@ void main() {
   ) async {
     setDeviceSize(tester, compactSize);
     await tester.pumpWidget(
-      MaterialApp(
+      TestApp(
         home: CustomerProfilePage(
           customer: walkIn,
           searchFlights: (_) async => const <Flight>[],

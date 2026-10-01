@@ -563,6 +563,91 @@ void main() {
         expect(sent['OrderSignature'], isNull);
       },
     );
+
+    test('PrintTaxInvoice sends PrintInvoiceParam and splits Data by '
+        'Type', () async {
+      apiClient.response = {
+        'isCompleted': true,
+        'Data': [
+          {
+            'Type': 'Invoice',
+            'Data': {
+              'Original': [
+                {'type': 'url', 'value': 'https://slip/o1.png'},
+              ],
+              'Copy': [
+                {'type': 'url', 'value': 'https://slip/c1.png'},
+              ],
+              'Confirm': [],
+            },
+          },
+          {
+            'Type': 'LV',
+            'Data': {
+              'Original': [],
+              'Copy': [
+                {'type': 'text', 'value': 'LOYALTY'},
+              ],
+              'Confirm': [],
+            },
+          },
+          {
+            'Type': 'CPN',
+            'Data': {
+              'Copy': [
+                {'type': 'url', 'value': 'https://slip/cpn.png'},
+              ],
+            },
+          },
+        ],
+        'Message': [],
+      };
+      final answer = await dataSource.printTaxInvoice(
+        saleEngineEndpoint: 'https://sale-engine',
+        sessionKey: 'abc123',
+        orderNo: 'S-1',
+      );
+      expect(
+        apiClient.lastUrl,
+        'https://sale-engine/SaleEngine/PrintTaxInvoice',
+      );
+      expect(apiClient.lastData, {
+        'OrderNo': 'S-1',
+        'ClaimcheckNo': '',
+        'SessionKey': 'abc123',
+        'Mode': '',
+      });
+      expect(answer.completed, isTrue);
+      final docs = answer.documents;
+      expect(docs.invoice.original, ['https://slip/o1.png']);
+      expect(docs.invoice.copy, ['https://slip/c1.png']);
+      expect(docs.invoice.confirm, isEmpty);
+      expect(docs.lv!.copy, ['LOYALTY']);
+      expect(docs.cpn!.copy, ['https://slip/cpn.png']);
+      expect(docs.cashCard, isNull);
+    });
+
+    test('PrintTaxInvoice keeps the error message', () async {
+      apiClient.response = {
+        'isCompleted': false,
+        'Data': null,
+        'Message': [
+          {
+            'MessageType': 'Error',
+            'MessageCode': 'SYNC_ERROR',
+            'MessageDesc': 'Not synced.',
+          },
+        ],
+      };
+      final answer = await dataSource.printTaxInvoice(
+        saleEngineEndpoint: 'https://sale-engine',
+        sessionKey: 'abc123',
+        orderNo: 'S-1',
+      );
+      expect(answer.completed, isFalse);
+      expect(answer.firstMessage!.code, 'SYNC_ERROR');
+      expect(answer.documents.invoice.original, isEmpty);
+    });
   });
 
   group('actionOrderPayment (legacy SpecialDiscountPage)', () {

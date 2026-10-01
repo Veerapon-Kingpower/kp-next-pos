@@ -46,6 +46,8 @@ dependencies:
   cookie_jar: ^4.0.9
   dio_cookie_manager: ^3.5.0
   path_provider: ^2.1.6
+  print_bluetooth_thermal: ^1.2.1
+  ffi: ^2.2.0
 
 dev_dependencies:
   flutter_test:

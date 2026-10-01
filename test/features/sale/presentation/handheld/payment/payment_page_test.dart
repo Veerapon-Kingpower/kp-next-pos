@@ -238,6 +238,7 @@ void main() {
         tester,
         const Cart(
           guid: 'order-1',
+          orderNo: 'S-1',
           isCheckOut: true,
           items: [chanel],
           requireSignature: true,
@@ -258,8 +259,9 @@ void main() {
 
       await complete(tester);
       expect(repo.finishes.single.signatures!.map((s) => s.code), ['1', '2']);
-      expect(byTestId(PaymentIds.finishSaved), findsOneWidget);
-      await tester.tap(find.text('OK'));
+      expect(repo.invoicePrints.single, 'S-1');
+      expect(find.text('Printing original'), findsOneWidget);
+      await tester.tap(byTestId(PaymentIds.printPageOk));
       await tester.pumpAndSettle();
       expect(signedOut, 1);
     });

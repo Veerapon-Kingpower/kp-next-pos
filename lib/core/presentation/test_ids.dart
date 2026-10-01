@@ -242,7 +242,13 @@ abstract class PaymentIds {
   static const finishConfirmOk = 'payment.finish.confirm.ok';
   static const finishConfirmCancel = 'payment.finish.confirm.cancel';
   static const finishAlert = 'payment.finish.alert';
-  static const finishSaved = 'payment.finish.saved';
+  /// "Save Complete — Wait for printing" while `PrintTaxInvoice` runs.
+  static const printLoading = 'payment.print.loading';
+
+  /// One "Printing original [1/2]" dialog; its OK prints the page.
+  static const printPage = 'payment.print.page';
+  static const printPageOk = 'payment.print.page.ok';
+  static const printFailed = 'payment.print.failed';
   static const chargeNotice = 'payment.chargeNotice';
   static const cashReceivedField = 'payment.cashReceivedField';
   static const cashApplied = 'payment.cashApplied';

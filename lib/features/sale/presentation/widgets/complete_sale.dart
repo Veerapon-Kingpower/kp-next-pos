@@ -5,6 +5,7 @@ import '../../../../core/presentation/widgets/app_buttons.dart';
 import '../../../../core/presentation/widgets/test_id.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../domain/entities/finish_payment.dart';
+import '../../domain/entities/print_documents.dart';
 import '../sale_cart_view_model.dart';
 import 'order_signature.dart';
 
@@ -16,11 +17,10 @@ import 'order_signature.dart';
 ///    message) blocks.
 /// 3. `savePaymentV2()`: `FinishPaymentOrder` with the signatures. Done —
 ///    or `EARN_ERROR`, which legacy treats as done — it prints the invoice
-///    and signs out ([onSignOut]). `SESSION_EXPIRE` and no network sign out
-///    too; any other error stays to try again.
+///    ([_printInvoice]) and signs out ([onSignOut]). `SESSION_EXPIRE` and no
+///    network sign out too; any other error stays to try again.
 ///
-/// Not ported: printing the invoice (`PrintTaxInvoice`, no printer here
-/// yet) and the airport RC request.
+/// Not ported: the airport RC request.
 Future<void> completeSale(
   BuildContext context,
   SaleCartViewModel viewModel, {
@@ -83,8 +83,7 @@ Future<void> completeSale(
     return;
   }
   if (done.completed) {
-    await _saved(context);
-    await onSignOut();
+    await _printInvoice(context, viewModel, onSignOut);
     return;
   }
   final error = done.messages.isEmpty ? null : done.messages.first;
@@ -97,18 +96,110 @@ Future<void> completeSale(
   if (error?.code == FinishMessageCode.sessionExpire) {
     await onSignOut();
   } else if (error?.code == FinishMessageCode.earnError) {
-    await _saved(context);
-    await onSignOut();
+    await _printInvoice(context, viewModel, onSignOut);
   }
 }
 
-// Legacy "Save Complete — Wait for printing", then the invoice prints.
-Future<void> _saved(BuildContext context) => _alert(
-  context,
-  'Save Complete',
-  'The sale is complete. Printing the invoice is not available yet.',
-  id: PaymentIds.finishSaved,
-);
+/// Legacy `onPrintInvice()`: `getInvoice()` under "Save Complete — Wait for
+/// printing", then one dialog per page ("Printing original" "[1/2]") whose
+/// OK prints it, then sign out. `SYNC_ERROR` offers RETRY; `TIMEOUT` and no
+/// network sign out; any other error stays.
+Future<void> _printInvoice(
+  BuildContext context,
+  SaleCartViewModel viewModel,
+  Future<void> Function() onSignOut,
+) async {
+  while (true) {
+    if (!context.mounted) return;
+    final answer = await _whileLoading(
+      context,
+      'Save Complete\nWait for printing',
+      viewModel.printInvoice(),
+    );
+    if (!context.mounted) return;
+    if (answer == null) {
+      await _alert(context, 'Error !', 'Network not connection');
+      await onSignOut();
+      return;
+    }
+    if (!answer.completed) {
+      final error = answer.firstMessage;
+      final code = error?.code ?? '';
+      final desc = error?.desc ?? '';
+      if (code == FinishMessageCode.syncError) {
+        await _alert(context, code, desc, ok: 'RETRY');
+        continue;
+      }
+      if (code == FinishMessageCode.timeout) {
+        await _alert(context, code, desc);
+        await onSignOut();
+        return;
+      }
+      await _alert(context, 'Error ! $code', desc);
+      return;
+    }
+
+    for (final job in printJobsFor(answer.documents)) {
+      if (!context.mounted) return;
+      await _alert(
+        context,
+        job.title,
+        '[${job.index}/${job.count}]',
+        id: PaymentIds.printPage,
+        okId: PaymentIds.printPageOk,
+      );
+      try {
+        if (job.isImage) {
+          await viewModel.slipPrinter.printImageUrl(job.value);
+        } else {
+          await viewModel.slipPrinter.printText(job.value);
+        }
+      } on Exception catch (e) {
+        if (!context.mounted) return;
+        await _alert(
+          context,
+          'Printing failed',
+          '$e',
+          id: PaymentIds.printFailed,
+        );
+      }
+    }
+    await onSignOut();
+    return;
+  }
+}
+
+Future<T> _whileLoading<T>(
+  BuildContext context,
+  String message,
+  Future<T> future,
+) async {
+  final navigator = Navigator.of(context);
+  showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => TestId(
+      PaymentIds.printLoading,
+      child: AlertDialog(
+        content: Row(
+          children: [
+            const SizedBox.square(
+              dimension: 24,
+              child: CircularProgressIndicator(strokeWidth: 3),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(child: Text(message)),
+          ],
+        ),
+      ),
+    ),
+  );
+  try {
+    return await future;
+  } finally {
+    navigator.pop();
+  }
+}
 
 Future<bool> _confirm(
   BuildContext context, {
@@ -160,6 +251,8 @@ Future<void> _alert(
   String title,
   String message, {
   String id = PaymentIds.finishAlert,
+  String? okId,
+  String ok = 'OK',
 }) => showDialog<void>(
   context: context,
   barrierDismissible: false,
@@ -169,11 +262,17 @@ Future<void> _alert(
       title: Text(title),
       content: Text(message),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('OK'),
+        _maybeId(
+          okId,
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(ok),
+          ),
         ),
       ],
     ),
   ),
 );
+
+Widget _maybeId(String? id, Widget child) =>
+    id == null ? child : TestId(id, child: child);

@@ -4,6 +4,7 @@ import 'package:kp_pos/features/sale/domain/entities/currency.dart';
 import 'package:kp_pos/features/sale/domain/entities/exchange_quote.dart';
 import 'package:kp_pos/features/sale/domain/entities/finish_payment.dart';
 import 'package:kp_pos/features/sale/domain/entities/line_edit.dart';
+import 'package:kp_pos/features/sale/domain/entities/print_documents.dart';
 import 'package:kp_pos/features/sale/domain/entities/promotion.dart';
 import 'package:kp_pos/features/sale/domain/entities/sale_order_context.dart';
 import 'package:kp_pos/features/sale/domain/repositories/sale_repository.dart';
@@ -228,6 +229,27 @@ class FakeSaleRepository implements SaleRepository {
     finishes.add((orderGuid: orderGuid, signatures: signatures));
     if (finishError != null) throw finishError!;
     return finishAnswer;
+  }
+
+  /// What PrintTaxInvoice answers (one invoice original by default), and
+  /// the order numbers it was asked for.
+  PrintInvoiceAnswer printAnswer = const PrintInvoiceAnswer(
+    completed: true,
+    documents: PrintDocuments(
+      invoice: PrintDocumentSet(original: ['https://slip/original.png']),
+    ),
+  );
+  Object? printError;
+  final List<String> invoicePrints = [];
+
+  @override
+  Future<PrintInvoiceAnswer> printTaxInvoice({
+    required String sessionKey,
+    required String orderNo,
+  }) async {
+    invoicePrints.add(orderNo);
+    if (printError != null) throw printError!;
+    return printAnswer;
   }
 
   final List<String> savedOrders = [];

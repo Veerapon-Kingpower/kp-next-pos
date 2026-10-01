@@ -1,5 +1,6 @@
 import '../../core/di/service_locator.dart';
 import '../../core/network/api_client.dart';
+import '../../core/printing/slip_printer.dart';
 import '../../core/storage/device_settings_storage.dart';
 import '../auth/domain/usecases/restore_session_usecase.dart';
 import 'data/datasources/sale_remote_data_source.dart';
@@ -118,6 +119,6 @@ void setupSaleServiceLocator() {
       addCashPayment: sl<AddCashPaymentUseCase>(),
       saveChangeExchange: sl<SaveChangeExchangeUseCase>(),
       finishPayment: sl<FinishPaymentUseCase>(),
-    ),
+    )..slipPrinter = EscPosSlipPrinter.forPlatform(sl<DeviceSettingsStorage>()),
   );
 }

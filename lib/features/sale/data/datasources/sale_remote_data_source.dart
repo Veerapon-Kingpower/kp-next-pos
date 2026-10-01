@@ -6,6 +6,7 @@ import '../../../../core/error/app_exception.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/return_object.dart';
 import '../../domain/entities/finish_payment.dart';
+import '../../domain/entities/print_documents.dart';
 import '../../domain/entities/sale_order_context.dart';
 import '../models/article_model.dart';
 import '../models/cart_model.dart';
@@ -604,6 +605,57 @@ class SaleRemoteDataSource {
       },
     );
     return _answer(response);
+  }
+
+  /// Legacy `getInvoice()`: `PrintInvoiceParam` posted to
+  /// `SaleEngine/PrintTaxInvoice` — `RCCode` left unset as legacy does.
+  /// `Data` is split by `Type` (`Invoice`, `CPN`, `LV`, `CashCard`).
+  Future<PrintInvoiceAnswer> printTaxInvoice({
+    required String saleEngineEndpoint,
+    required String sessionKey,
+    required String orderNo,
+  }) async {
+    final response = await _apiClient.post(
+      '$saleEngineEndpoint/SaleEngine/PrintTaxInvoice',
+      data: {
+        'OrderNo': orderNo,
+        'ClaimcheckNo': '',
+        'SessionKey': sessionKey,
+        'Mode': '',
+      },
+    );
+    final answer = _answer(response);
+    final groups = <String, PrintDocumentSet>{};
+    for (final item in response['Data'] as List<dynamic>? ?? const []) {
+      final map = item as Map<String, dynamic>;
+      // Legacy `Data.find(n => n.Type == …)`: the first of each type.
+      groups.putIfAbsent(
+        map['Type'] as String? ?? '',
+        () => _documentSet(map['Data'] as Map<String, dynamic>? ?? const {}),
+      );
+    }
+    return PrintInvoiceAnswer(
+      completed: answer.completed,
+      messages: answer.messages,
+      documents: PrintDocuments(
+        invoice: groups['Invoice'] ?? const PrintDocumentSet(),
+        cpn: groups['CPN'],
+        lv: groups['LV'],
+        cashCard: groups['CashCard'],
+      ),
+    );
+  }
+
+  PrintDocumentSet _documentSet(Map<String, dynamic> data) {
+    List<String> pages(String key) => [
+      for (final p in data[key] as List<dynamic>? ?? const [])
+        (p as Map<String, dynamic>)['value']?.toString() ?? '',
+    ];
+    return PrintDocumentSet(
+      original: pages('Original'),
+      copy: pages('Copy'),
+      confirm: pages('Confirm'),
+    );
   }
 
   SaleEngineAnswer _answer(Map<String, dynamic> response) {

@@ -3,6 +3,7 @@ import '../entities/cart.dart';
 import '../entities/currency.dart';
 import '../entities/exchange_quote.dart';
 import '../entities/finish_payment.dart';
+import '../entities/print_documents.dart';
 import '../entities/line_edit.dart';
 import '../entities/promotion.dart';
 import '../entities/sale_order_context.dart';
@@ -139,6 +140,13 @@ abstract class SaleRepository {
     required String sessionKey,
     required String orderGuid,
     List<OrderSignatureEntry>? signatures,
+  });
+
+  /// `SaleEngine/PrintTaxInvoice`: the finished order's invoice, coupon,
+  /// loyalty and cash card pages to print.
+  Future<PrintInvoiceAnswer> printTaxInvoice({
+    required String sessionKey,
+    required String orderNo,
   });
 
   /// `SaleEngine/SaveOrder`: saves the shopping card's order.

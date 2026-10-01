@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import '../../../core/error/app_exception.dart';
 import '../../../core/error/failure.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/printing/slip_printer.dart';
 import '../../auth/domain/usecases/restore_session_usecase.dart';
 import '../../auth/domain/entities/user_session.dart';
 import '../../customer/domain/entities/customer.dart';
@@ -32,6 +33,7 @@ import '../domain/usecases/remove_cart_item_usecase.dart';
 import '../domain/usecases/update_cart_item_quantity_usecase.dart';
 import '../domain/usecases/update_order_status_usecase.dart';
 import '../domain/entities/finish_payment.dart';
+import '../domain/entities/print_documents.dart';
 import '../domain/usecases/finish_payment_usecase.dart';
 import 'handheld/payment/signature_page.dart'
     show SignatureCapture, SignatureStrokes, signatureToDataUrl;
@@ -72,6 +74,10 @@ class SaleCartViewModel extends GetxController {
   /// replaceable in tests, where real image encoding can't run.
   Future<String> Function(SignatureStrokes strokes) encodeSignature =
       signatureToDataUrl;
+
+  /// Prints the invoice pages after Complete sale — set by the injector
+  /// (and by tests, with a fake).
+  late SlipPrinter slipPrinter;
 
   SaleCartViewModel({
     required RestoreSessionUseCase restoreSession,
@@ -150,6 +156,47 @@ class SaleCartViewModel extends GetxController {
         signatures: signatures,
       ),
     );
+  }
+
+  /// Legacy `getInvoice()`: `PrintTaxInvoice` for the finished order. Null
+  /// when the sale engine can't be reached.
+  Future<PrintInvoiceAnswer?> printInvoice() async {
+    final sessionKey = await _sessionKey();
+    final orderNo = cart?.orderNo ?? '';
+    if (sessionKey == null || orderNo.isEmpty) {
+      return const PrintInvoiceAnswer(
+        completed: false,
+        messages: [
+          SaleEngineMessage(type: 'Error', code: '', desc: 'No active order.'),
+        ],
+      );
+    }
+    isBusy = true;
+    update();
+    PrintInvoiceAnswer? answer;
+    try {
+      answer = await _finishPayment.printInvoice(
+        sessionKey: sessionKey,
+        orderNo: orderNo,
+      );
+    } on ApiException catch (e) {
+      final failure = mapExceptionToFailure(e);
+      answer = failure is NetworkFailure || failure is TimeoutFailure
+          ? null
+          : PrintInvoiceAnswer(
+              completed: false,
+              messages: [
+                SaleEngineMessage(
+                  type: 'Error',
+                  code: e.messageCode ?? '',
+                  desc: e.messageDesc,
+                ),
+              ],
+            );
+    }
+    isBusy = false;
+    update();
+    return answer;
   }
 
   Future<SaleEngineAnswer?> _finishCall(

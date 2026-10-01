@@ -19,6 +19,7 @@ import 'package:kp_pos/features/sale/presentation/sale_cart_view_model.dart';
 
 import '../../../auth/fake_auth_repository.dart';
 import '../../fake_sale_repository.dart';
+import '../../fake_slip_printer.dart';
 import 'package:kp_pos/features/sale/domain/usecases/finish_payment_usecase.dart';
 
 const testSession = UserSession(
@@ -98,8 +99,9 @@ SaleCartViewModel buildSaleViewModel(
     ..shoppingCard = shoppingCard
     // Real PNG encoding needs the engine's async image pipeline, which
     // widget tests' fake time doesn't run.
-    ..encodeSignature = (strokes) async =>
-        'data:image/png;base64,strokes=${strokes.length}';
+    ..encodeSignature = ((strokes) async =>
+        'data:image/png;base64,strokes=${strokes.length}')
+    ..slipPrinter = FakeSlipPrinter();
   return viewModel;
 }
 

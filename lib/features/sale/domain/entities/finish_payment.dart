@@ -50,4 +50,6 @@ abstract final class FinishMessageCode {
   static const gwp = 'GWP';
   static const sessionExpire = 'SESSION_EXPIRE';
   static const earnError = 'EARN_ERROR';
+  static const syncError = 'SYNC_ERROR';
+  static const timeout = 'TIMEOUT';
 }

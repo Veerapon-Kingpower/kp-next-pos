@@ -7,6 +7,7 @@ import '../../domain/entities/cart.dart';
 import '../../domain/entities/currency.dart';
 import '../../domain/entities/exchange_quote.dart';
 import '../../domain/entities/finish_payment.dart';
+import '../../domain/entities/print_documents.dart';
 import '../../domain/entities/line_edit.dart';
 import '../../domain/entities/promotion.dart';
 import '../../domain/entities/sale_order_context.dart';
@@ -330,6 +331,19 @@ class SaleRepositoryImpl implements SaleRepository {
       sessionKey: sessionKey,
       orderGuid: orderGuid,
       signatures: signatures,
+    );
+  }
+
+  @override
+  Future<PrintInvoiceAnswer> printTaxInvoice({
+    required String sessionKey,
+    required String orderNo,
+  }) async {
+    final settings = await _deviceSettingsStorage.read();
+    return _remote.printTaxInvoice(
+      saleEngineEndpoint: settings.saleEngineEndpoint,
+      sessionKey: sessionKey,
+      orderNo: orderNo,
     );
   }
 

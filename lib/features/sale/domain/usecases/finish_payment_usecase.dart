@@ -1,7 +1,9 @@
 import '../entities/finish_payment.dart';
+import '../entities/print_documents.dart';
 import '../repositories/sale_repository.dart';
 
-/// Legacy Checkout's Finish: `ValidateGWP`, then `FinishPaymentOrder`.
+/// Legacy Checkout's Finish: `ValidateGWP`, then `FinishPaymentOrder`, then
+/// `PrintTaxInvoice`.
 class FinishPaymentUseCase {
   final SaleRepository _repository;
 
@@ -21,4 +23,9 @@ class FinishPaymentUseCase {
     orderGuid: orderGuid,
     signatures: signatures,
   );
+
+  Future<PrintInvoiceAnswer> printInvoice({
+    required String sessionKey,
+    required String orderNo,
+  }) => _repository.printTaxInvoice(sessionKey: sessionKey, orderNo: orderNo);
 }

@@ -17,6 +17,7 @@ void main() {
       'onFinishPayment)', () {
     const paidSigned = Cart(
       guid: 'order-1',
+      orderNo: 'S-1',
       isCheckOut: true,
       items: [chanel],
       requireSignature: true,
@@ -72,8 +73,8 @@ void main() {
       expect(sent.orderGuid, 'order-1');
       expect(sent.signatures!.single.code, '1');
       expect(sent.signatures!.single.value, startsWith('data:image/png'));
-      expect(byTestId(PaymentIds.finishSaved), findsOneWidget);
-      await tester.tap(find.text('OK'));
+      expect(find.text('Printing original'), findsOneWidget);
+      await tester.tap(byTestId(PaymentIds.printPageOk));
       await tester.pumpAndSettle();
       expect(signedOut, 1);
     });
@@ -195,8 +196,8 @@ void main() {
       await complete(tester);
       await tester.tap(find.text('OK'));
       await tester.pumpAndSettle();
-      expect(byTestId(PaymentIds.finishSaved), findsOneWidget);
-      await tester.tap(find.text('OK'));
+      expect(find.text('Printing original'), findsOneWidget);
+      await tester.tap(byTestId(PaymentIds.printPageOk));
       await tester.pumpAndSettle();
       expect(signedOut, 1);
     });

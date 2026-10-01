@@ -256,6 +256,7 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
       context,
       viewModel: widget.viewModel,
       isAirportMpos: widget.isAirportMpos,
+      onSignOut: widget.onSignOut,
     );
     if (mounted) _scanFocus.requestFocus();
   }

@@ -16,6 +16,7 @@ import 'domain/usecases/edit_cart_item_usecase.dart';
 import 'domain/usecases/exchange_change_usecase.dart';
 import 'domain/usecases/list_currencies_usecase.dart';
 import 'domain/usecases/lookup_article_by_barcode_usecase.dart';
+import 'domain/usecases/finish_payment_usecase.dart';
 import 'domain/usecases/remove_cart_item_usecase.dart';
 import 'domain/usecases/update_cart_item_quantity_usecase.dart';
 import 'domain/usecases/update_order_status_usecase.dart';
@@ -89,6 +90,9 @@ void setupSaleServiceLocator() {
   sl.registerFactory<AddCashPaymentUseCase>(
     () => AddCashPaymentUseCase(sl<SaleRepository>()),
   );
+  sl.registerFactory<FinishPaymentUseCase>(
+    () => FinishPaymentUseCase(sl<SaleRepository>()),
+  );
   sl.registerFactory<SaveChangeExchangeUseCase>(
     () => SaveChangeExchangeUseCase(sl<SaleRepository>()),
   );
@@ -113,6 +117,7 @@ void setupSaleServiceLocator() {
       exchangeChange: sl<ExchangeChangeUseCase>(),
       addCashPayment: sl<AddCashPaymentUseCase>(),
       saveChangeExchange: sl<SaveChangeExchangeUseCase>(),
+      finishPayment: sl<FinishPaymentUseCase>(),
     ),
   );
 }

@@ -2,6 +2,7 @@ import '../entities/article.dart';
 import '../entities/cart.dart';
 import '../entities/currency.dart';
 import '../entities/exchange_quote.dart';
+import '../entities/finish_payment.dart';
 import '../entities/line_edit.dart';
 import '../entities/promotion.dart';
 import '../entities/sale_order_context.dart';
@@ -123,6 +124,21 @@ abstract class SaleRepository {
     required String action,
     required String value,
     String? orderGuid,
+  });
+
+  /// `SaleEngine/ValidateGWP` (legacy `CheckOutPaymentOrderParam`): the
+  /// gift-with-purchase check before finishing.
+  Future<SaleEngineAnswer> validateGwp({
+    required String sessionKey,
+    required String orderGuid,
+  });
+
+  /// `SaleEngine/FinishPaymentOrder`: completes the paid order, with the
+  /// signatures when it requires them (null otherwise, as legacy sends).
+  Future<SaleEngineAnswer> finishPaymentOrder({
+    required String sessionKey,
+    required String orderGuid,
+    List<OrderSignatureEntry>? signatures,
   });
 
   /// `SaleEngine/SaveOrder`: saves the shopping card's order.

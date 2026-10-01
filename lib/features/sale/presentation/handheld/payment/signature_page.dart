@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 
 import '../../../../../core/presentation/handheld/handheld.dart';
@@ -16,15 +19,17 @@ class SignatureCapture {
   const SignatureCapture({required this.paidBy, required this.customer});
 }
 
-/// Pushes the Signature page; resolves to the capture on Save, or null on
-/// Cancel / close.
+/// Pushes the Signature page — with [initial] already drawn, as legacy
+/// reopens the pad with the saved signatures; resolves to the capture on
+/// Save, or null on Cancel / close.
 Future<SignatureCapture?> openSignaturePage(
   BuildContext context, {
   required double netPay,
+  SignatureCapture? initial,
 }) {
   return Navigator.of(context).push(
     MaterialPageRoute<SignatureCapture>(
-      builder: (_) => SignaturePage(netPay: netPay),
+      builder: (_) => SignaturePage(netPay: netPay, initial: initial),
     ),
   );
 }
@@ -36,15 +41,22 @@ Future<SignatureCapture?> openSignaturePage(
 class SignaturePage extends StatefulWidget {
   final double netPay;
 
-  const SignaturePage({super.key, required this.netPay});
+  /// The signatures taken before, drawn on the pads again.
+  final SignatureCapture? initial;
+
+  const SignaturePage({super.key, required this.netPay, this.initial});
 
   @override
   State<SignaturePage> createState() => _SignaturePageState();
 }
 
 class _SignaturePageState extends State<SignaturePage> {
-  final SignatureStrokes _paidBy = [];
-  final SignatureStrokes _customer = [];
+  late final SignatureStrokes _paidBy = [
+    for (final stroke in widget.initial?.paidBy ?? const []) [...stroke],
+  ];
+  late final SignatureStrokes _customer = [
+    for (final stroke in widget.initial?.customer ?? const []) [...stroke],
+  ];
 
   bool get _canSave => _customer.isNotEmpty;
 
@@ -324,4 +336,48 @@ class _SignaturePainter extends CustomPainter {
   // Strokes are mutated in place, so always repaint on rebuild.
   @override
   bool shouldRepaint(_SignaturePainter oldDelegate) => true;
+}
+
+/// Legacy `SignaturePad.toDataURL()`: [strokes] drawn in the pad's ink on
+/// a transparent [size] canvas (wide enough for every stroke), as a
+/// `data:image/png;base64,…` string for `FinishPaymentOrder`.
+Future<String> signatureToDataUrl(
+  SignatureStrokes strokes, {
+  Size size = const Size(600, 150),
+}) async {
+  var width = size.width;
+  var height = size.height;
+  for (final stroke in strokes) {
+    for (final p in stroke) {
+      if (p.dx + 4 > width) width = p.dx + 4;
+      if (p.dy + 4 > height) height = p.dy + 4;
+    }
+  }
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder);
+  final ink = Paint()
+    ..color = Colors.black
+    ..strokeWidth = 2.4
+    ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round
+    ..style = PaintingStyle.stroke;
+  for (final stroke in strokes) {
+    if (stroke.isEmpty) continue;
+    if (stroke.length == 1) {
+      canvas.drawCircle(stroke.first, 1.2, Paint()..color = Colors.black);
+      continue;
+    }
+    final path = Path()..moveTo(stroke.first.dx, stroke.first.dy);
+    for (final point in stroke.skip(1)) {
+      path.lineTo(point.dx, point.dy);
+    }
+    canvas.drawPath(path, ink);
+  }
+  final image = await recorder.endRecording().toImage(
+    width.ceil(),
+    height.ceil(),
+  );
+  final png = await image.toByteData(format: ui.ImageByteFormat.png);
+  image.dispose();
+  return 'data:image/png;base64,${base64Encode(png!.buffer.asUint8List())}';
 }

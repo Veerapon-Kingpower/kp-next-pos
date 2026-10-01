@@ -24,6 +24,7 @@ import 'package:kp_pos/features/sale/presentation/sale_cart_view_model.dart';
 
 import '../../auth/fake_auth_repository.dart';
 import '../fake_sale_repository.dart';
+import 'package:kp_pos/features/sale/domain/usecases/finish_payment_usecase.dart';
 
 void main() {
   const session = UserSession(
@@ -60,6 +61,7 @@ void main() {
       exchangeChange: ExchangeChangeUseCase(sale),
       addCashPayment: AddCashPaymentUseCase(sale),
       saveChangeExchange: SaveChangeExchangeUseCase(sale),
+      finishPayment: FinishPaymentUseCase(sale),
     );
   }
 

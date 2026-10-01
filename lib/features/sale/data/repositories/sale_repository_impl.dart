@@ -6,6 +6,7 @@ import '../../domain/entities/article.dart';
 import '../../domain/entities/cart.dart';
 import '../../domain/entities/currency.dart';
 import '../../domain/entities/exchange_quote.dart';
+import '../../domain/entities/finish_payment.dart';
 import '../../domain/entities/line_edit.dart';
 import '../../domain/entities/promotion.dart';
 import '../../domain/entities/sale_order_context.dart';
@@ -301,6 +302,34 @@ class SaleRepositoryImpl implements SaleRepository {
       action: action,
       value: value,
       orderGuid: orderGuid,
+    );
+  }
+
+  @override
+  Future<SaleEngineAnswer> validateGwp({
+    required String sessionKey,
+    required String orderGuid,
+  }) async {
+    final settings = await _deviceSettingsStorage.read();
+    return _remote.validateGwp(
+      saleEngineEndpoint: settings.saleEngineEndpoint,
+      sessionKey: sessionKey,
+      orderGuid: orderGuid,
+    );
+  }
+
+  @override
+  Future<SaleEngineAnswer> finishPaymentOrder({
+    required String sessionKey,
+    required String orderGuid,
+    List<OrderSignatureEntry>? signatures,
+  }) async {
+    final settings = await _deviceSettingsStorage.read();
+    return _remote.finishPaymentOrder(
+      saleEngineEndpoint: settings.saleEngineEndpoint,
+      sessionKey: sessionKey,
+      orderGuid: orderGuid,
+      signatures: signatures,
     );
   }
 

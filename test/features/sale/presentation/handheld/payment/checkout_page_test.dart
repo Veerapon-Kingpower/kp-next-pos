@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kp_pos/core/error/app_exception.dart';
 import 'package:kp_pos/core/presentation/test_ids.dart';
 import 'package:kp_pos/features/customer/domain/entities/customer.dart';
 import 'package:kp_pos/features/customer/domain/entities/privilege.dart';
@@ -53,11 +54,13 @@ const _member = Customer(
   isMember: true,
 );
 
+// Paid in full — legacy only lets the customer sign then.
 const _signedCart = Cart(
   guid: 'order-1',
   isCheckOut: false,
   items: [chanel, johnnie],
   requireSignature: true,
+  remaining: 0,
 );
 
 void main() {
@@ -70,6 +73,7 @@ void main() {
     Customer? customer,
     bool isMember = false,
     Size size = compactSize,
+    Future<void> Function()? onSignOut,
   }) async {
     setDeviceSize(tester, size);
     sale = FakeSaleRepository(cartResult: cart ?? sampleCart);
@@ -79,7 +83,11 @@ void main() {
       ..selectedPrivilege = privilege
       ..customer = customer
       ..session = testSession;
-    await tester.pumpWidget(TestApp(home: CheckoutPage(viewModel: viewModel)));
+    await tester.pumpWidget(
+      TestApp(
+        home: CheckoutPage(viewModel: viewModel, onSignOut: onSignOut),
+      ),
+    );
     await tester.pumpAndSettle();
     return viewModel;
   }
@@ -326,6 +334,58 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('signature before payment: "Please pay first." (legacy)', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      cart: const Cart(
+        guid: 'order-1',
+        isCheckOut: false,
+        items: [chanel],
+        requireSignature: true,
+      ),
+    );
+    await tester.ensureVisible(byTestId(CheckoutIds.signatureRow));
+    await tester.tap(byTestId(CheckoutIds.signatureRow));
+    await tester.pumpAndSettle();
+    expect(find.text('Please pay first.'), findsOneWidget);
+    expect(byTestId(SignatureIds.page), findsNothing);
+  });
+
+  testWidgets('SESSION_EXPIRE: "Session expired", then log out', (
+    tester,
+  ) async {
+    var signedOut = 0;
+    await pump(tester, onSignOut: () async => signedOut++);
+    sale.mutationError = const ApiException(
+      messageCode: 'SESSION_EXPIRE',
+      messageDesc: 'Session expired.',
+    );
+    await tester.ensureVisible(byTestId(CheckoutIds.billDiscountButton));
+    await tester.tap(byTestId(CheckoutIds.billDiscountButton));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.descendant(
+        of: byTestId(DiscountIds.scanField),
+        matching: find.byType(TextField),
+      ),
+      'QR1',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+
+    expect(byTestId(CheckoutIds.sessionExpiredDialog), findsOneWidget);
+    await tester.tap(
+      find.descendant(
+        of: byTestId(CheckoutIds.sessionExpiredDialog),
+        matching: find.text('OK'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(signedOut, 1);
   });
 
   testWidgets('no Suspend or Print quote', (tester) async {

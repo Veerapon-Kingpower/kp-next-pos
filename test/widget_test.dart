@@ -45,6 +45,7 @@ import 'features/nationality/fake_nationality_repository.dart';
 import 'features/sale/fake_sale_repository.dart';
 import 'features/settings/fake_settings_repository.dart';
 import 'helpers/test_id_finders.dart';
+import 'package:kp_pos/features/sale/domain/usecases/finish_payment_usecase.dart';
 
 ({LoginViewModel Function() loginViewModelFactory, LogoutUseCase logoutUseCase})
 _authDeps() {
@@ -103,6 +104,7 @@ SaleCartViewModel _saleCartViewModel() {
     exchangeChange: ExchangeChangeUseCase(FakeSaleRepository()),
     addCashPayment: AddCashPaymentUseCase(FakeSaleRepository()),
     saveChangeExchange: SaveChangeExchangeUseCase(FakeSaleRepository()),
+    finishPayment: FinishPaymentUseCase(FakeSaleRepository()),
   );
 }
 

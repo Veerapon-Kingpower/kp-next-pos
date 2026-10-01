@@ -216,6 +216,9 @@ abstract class CheckoutIds {
   static const leaveOk = 'checkout.leaveDialog.ok';
   static const leaveCancel = 'checkout.leaveDialog.cancel';
   static const leaveError = 'checkout.leaveError';
+
+  /// "Session expired" before logging out (Checkout and Payment).
+  static const sessionExpiredDialog = 'checkout.sessionExpired';
 }
 
 abstract class PaymentIds {
@@ -232,6 +235,14 @@ abstract class PaymentIds {
   static const ledgerEmpty = 'payment.ledgerEmpty';
   static const chargeButton = 'payment.chargeButton';
   static const completeSaleButton = 'payment.completeSaleButton';
+  static const signatureButton = 'payment.signatureButton';
+
+  /// Complete sale's dialogs (legacy Finish).
+  static const finishConfirm = 'payment.finish.confirm';
+  static const finishConfirmOk = 'payment.finish.confirm.ok';
+  static const finishConfirmCancel = 'payment.finish.confirm.cancel';
+  static const finishAlert = 'payment.finish.alert';
+  static const finishSaved = 'payment.finish.saved';
   static const chargeNotice = 'payment.chargeNotice';
   static const cashReceivedField = 'payment.cashReceivedField';
   static const cashApplied = 'payment.cashApplied';
@@ -272,6 +283,9 @@ abstract class WalletIds {
 
 abstract class SignatureIds {
   static const page = 'signature.page';
+
+  /// "Please pay first." / "This shopping card is require signature."
+  static const alert = 'signature.alert';
   static const closeButton = 'signature.closeButton';
   static const saveButton = 'signature.saveButton';
   static const bottomSaveButton = 'signature.bottomSaveButton';

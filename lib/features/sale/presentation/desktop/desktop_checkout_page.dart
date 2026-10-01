@@ -10,12 +10,13 @@ import '../../../../core/presentation/widgets/desktop_data_table.dart';
 import '../../../../core/presentation/widgets/test_id.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../domain/entities/cart_item.dart';
-import '../handheld/payment/signature_page.dart';
 import '../../domain/entities/cart.dart';
 import '../sale_cart_view_model.dart';
 import '../sale_currency.dart';
 import '../widgets/checkout_details.dart';
 import '../widgets/leave_checkout_guard.dart';
+import '../widgets/order_signature.dart';
+import '../widgets/session_expiry_guard.dart';
 import 'desktop_discount_overlay.dart';
 import 'desktop_payment_page.dart';
 
@@ -24,12 +25,14 @@ Future<void> openDesktopCheckoutPage(
   BuildContext context, {
   required SaleCartViewModel viewModel,
   bool isAirportMpos = false,
+  Future<void> Function()? onSignOut,
 }) {
   return Navigator.of(context).push(
     MaterialPageRoute<void>(
       builder: (_) => DesktopCheckoutPage(
         viewModel: viewModel,
         isAirportMpos: isAirportMpos,
+        onSignOut: onSignOut,
       ),
     ),
   );
@@ -47,10 +50,14 @@ class DesktopCheckoutPage extends StatefulWidget {
   /// Legacy shows DFA / promoter / order date in the profile only here.
   final bool isAirportMpos;
 
+  /// Legacy `signout()` once the sale is finished on Payment.
+  final Future<void> Function()? onSignOut;
+
   const DesktopCheckoutPage({
     super.key,
     required this.viewModel,
     this.isAirportMpos = false,
+    this.onSignOut,
   });
 
   @override
@@ -58,19 +65,16 @@ class DesktopCheckoutPage extends StatefulWidget {
 }
 
 class _DesktopCheckoutPageState extends State<DesktopCheckoutPage> {
-  SignatureCapture? _signature;
-
-  Future<void> _captureSignature(double netPay) async {
-    final capture = await openSignaturePage(context, netPay: netPay);
-    if (capture != null && mounted) setState(() => _signature = capture);
-  }
-
   @override
   Widget build(BuildContext context) {
     return GetBuilder<SaleCartViewModel>(
       init: widget.viewModel,
       global: false,
-      builder: (viewModel) => _build(context, viewModel),
+      builder: (viewModel) => SessionExpiryGuard(
+        viewModel: viewModel,
+        onSignOut: widget.onSignOut,
+        child: _build(context, viewModel),
+      ),
     );
   }
 
@@ -91,6 +95,7 @@ class _DesktopCheckoutPageState extends State<DesktopCheckoutPage> {
             loadCurrencies: viewModel.listCurrencies,
             exchangeChange: viewModel.exchangeChange,
             viewModel: viewModel,
+            onSignOut: widget.onSignOut,
           ),
         ),
       );
@@ -158,8 +163,10 @@ class _DesktopCheckoutPageState extends State<DesktopCheckoutPage> {
                           // Legacy shows Signature only for such an order.
                           requireSignature:
                               viewModel.cart?.requireSignature ?? false,
-                          signatureCaptured: _signature != null,
-                          onSignature: () => _captureSignature(netPay),
+                          signatureCaptured: viewModel.signature != null,
+                          // Legacy: after payment ("Please pay first.").
+                          onSignature: () =>
+                              captureOrderSignature(context, viewModel),
                           onTakePayment: takePayment,
                         ),
                       ),

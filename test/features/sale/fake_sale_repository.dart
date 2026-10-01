@@ -2,6 +2,7 @@ import 'package:kp_pos/features/sale/domain/entities/article.dart';
 import 'package:kp_pos/features/sale/domain/entities/cart.dart';
 import 'package:kp_pos/features/sale/domain/entities/currency.dart';
 import 'package:kp_pos/features/sale/domain/entities/exchange_quote.dart';
+import 'package:kp_pos/features/sale/domain/entities/finish_payment.dart';
 import 'package:kp_pos/features/sale/domain/entities/line_edit.dart';
 import 'package:kp_pos/features/sale/domain/entities/promotion.dart';
 import 'package:kp_pos/features/sale/domain/entities/sale_order_context.dart';
@@ -199,6 +200,36 @@ class FakeSaleRepository implements SaleRepository {
     return cartResult;
   }
 
+  /// What ValidateGWP / FinishPaymentOrder answer, and what they got.
+  SaleEngineAnswer gwpAnswer = const SaleEngineAnswer(completed: true);
+  SaleEngineAnswer finishAnswer = const SaleEngineAnswer(completed: true);
+  Object? gwpError;
+  Object? finishError;
+  final List<String> gwpValidations = [];
+  final List<({String orderGuid, List<OrderSignatureEntry>? signatures})>
+  finishes = [];
+
+  @override
+  Future<SaleEngineAnswer> validateGwp({
+    required String sessionKey,
+    required String orderGuid,
+  }) async {
+    gwpValidations.add(orderGuid);
+    if (gwpError != null) throw gwpError!;
+    return gwpAnswer;
+  }
+
+  @override
+  Future<SaleEngineAnswer> finishPaymentOrder({
+    required String sessionKey,
+    required String orderGuid,
+    List<OrderSignatureEntry>? signatures,
+  }) async {
+    finishes.add((orderGuid: orderGuid, signatures: signatures));
+    if (finishError != null) throw finishError!;
+    return finishAnswer;
+  }
+
   final List<String> savedOrders = [];
   Object? saveOrderError;
   int reverseVirtualStockCalls = 0;
@@ -274,6 +305,9 @@ class FakeSaleRepository implements SaleRepository {
     return cartResult;
   }
 
+  /// Thrown by the next exchange quotes (currencies still load).
+  Object? exchangeError;
+
   @override
   Future<ExchangeQuote> exchangeChange({
     required String currencyCode,
@@ -288,6 +322,7 @@ class FakeSaleRepository implements SaleRepository {
       button: isChangeButton,
     ));
     if (currenciesError != null) throw currenciesError!;
+    if (exchangeError != null) throw exchangeError!;
     final quote = exchangeQuote;
     if (quote != null) return quote(currencyCode, currencyAmount, changeInBaht);
     return ExchangeQuote(

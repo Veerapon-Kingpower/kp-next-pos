@@ -55,6 +55,7 @@ import '../../nationality/fake_nationality_repository.dart';
 import '../../sale/fake_sale_repository.dart';
 import '../../settings/fake_settings_repository.dart';
 import '../../../helpers/test_app.dart';
+import 'package:kp_pos/features/sale/domain/usecases/finish_payment_usecase.dart';
 
 const _session = UserSession(
   sessionKey: 'abc123',
@@ -128,6 +129,7 @@ void main() {
       exchangeChange: ExchangeChangeUseCase(sale),
       addCashPayment: AddCashPaymentUseCase(sale),
       saveChangeExchange: SaveChangeExchangeUseCase(sale),
+      finishPayment: FinishPaymentUseCase(sale),
     );
   }
 

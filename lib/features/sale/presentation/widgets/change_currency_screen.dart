@@ -197,17 +197,23 @@ class _ChangeCurrencyScreenState extends State<_ChangeCurrencyScreen> {
 
   void _close() => Navigator.of(context).pop();
 
+  /// Legacy `onSave()`: `edit_exchange` with the amount in the field
+  /// (`currAmtCash`) and the picked currency — whether or not the last
+  /// quote came back.
   Future<void> _save() async {
-    final quote = _quote;
-    if (quote == null) return;
+    final amount =
+        double.tryParse(_amount.text.replaceAll(',', '')) ??
+        _quote?.currencyAmount;
+    if (amount == null) {
+      setState(() => _error = 'Enter the change amount.');
+      return;
+    }
+    _debounce?.cancel();
     setState(() {
       _saving = true;
       _error = null;
     });
-    final error = await widget.onSave!(
-      currencyCode: _currency,
-      amount: quote.currencyAmount,
-    );
+    final error = await widget.onSave!(currencyCode: _currency, amount: amount);
     if (!mounted) return;
     if (error == null) {
       _close();
@@ -385,13 +391,9 @@ class _ChangeCurrencyScreenState extends State<_ChangeCurrencyScreen> {
                   label: 'Save',
                   icon: Icons.check,
                   height: 52,
-                  onPressed:
-                      widget.onSave != null &&
-                          _quote != null &&
-                          !_loading &&
-                          !_saving
-                      ? _save
-                      : null,
+                  // Legacy's Save is always on; only a save in flight
+                  // holds it.
+                  onPressed: widget.onSave != null && !_saving ? _save : null,
                 ),
               ),
               const SizedBox(width: 10),

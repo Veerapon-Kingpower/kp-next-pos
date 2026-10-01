@@ -13,6 +13,9 @@ import '../handheld/payment/payment_models.dart';
 import '../handheld/payment/payment_widgets.dart' show TenderRow;
 import '../sale_cart_view_model.dart';
 import '../widgets/change_currency_screen.dart';
+import '../widgets/complete_sale.dart';
+import '../widgets/order_signature.dart';
+import '../widgets/session_expiry_guard.dart';
 
 class _Method {
   final String id;
@@ -133,8 +136,12 @@ class DesktopPaymentPage extends StatefulWidget {
   /// remaining / change from the order.
   final SaleCartViewModel? viewModel;
 
+  /// Legacy `signout()` once the sale is finished.
+  final Future<void> Function()? onSignOut;
+
   const DesktopPaymentPage({
     this.viewModel,
+    this.onSignOut,
     super.key,
     required this.netPay,
     this.tenders = const [],
@@ -159,6 +166,13 @@ class _DesktopPaymentPageState extends State<DesktopPaymentPage> {
     ...widget.tenders,
     ...tendersFromPayments(widget.viewModel?.cart?.payments ?? const []),
   ];
+
+  /// Legacy Finish (`onFinishPayment()` → `FinishPaymentOrder`).
+  Future<void> _completeSale() => completeSale(
+    context,
+    widget.viewModel!,
+    onSignOut: widget.onSignOut ?? () async {},
+  );
 
   /// The sale engine's `RemainingAmount` once it reports one.
   double get _remaining {
@@ -231,7 +245,11 @@ class _DesktopPaymentPageState extends State<DesktopPaymentPage> {
     return GetBuilder<SaleCartViewModel>(
       init: viewModel,
       global: false,
-      builder: (_) => _build(context),
+      builder: (viewModel) => SessionExpiryGuard(
+        viewModel: viewModel,
+        onSignOut: widget.onSignOut,
+        child: _build(context),
+      ),
     );
   }
 
@@ -589,8 +607,12 @@ class _DesktopPaymentPageState extends State<DesktopPaymentPage> {
                   label: 'Change in another currency',
                   icon: Icons.currency_exchange,
                   secondary: true,
+                  // Legacy goChangePage(): on an order, only once the sale
+                  // engine has recorded change — so its Save is real.
                   onPressed:
-                      changeInBaht > 0 &&
+                      (widget.viewModel == null
+                              ? changeInBaht > 0
+                              : recordedChange > 0) &&
                           widget.loadCurrencies != null &&
                           widget.exchangeChange != null
                       ? () => showChangeCurrencyScreen(
@@ -740,12 +762,32 @@ class _DesktopPaymentPageState extends State<DesktopPaymentPage> {
                   ),
           ),
         ),
+        // Legacy Checkout's Signature, beside Finish: only for an order
+        // that requires one, once paid ("Please pay first." before).
+        if (widget.viewModel?.cart?.requireSignature ?? false) ...[
+          const SizedBox(height: 12),
+          DesktopButton(
+            id: PaymentIds.signatureButton,
+            label: widget.viewModel!.signature == null
+                ? 'Customer signature'
+                : 'Customer signature · captured',
+            icon: Icons.draw_outlined,
+            secondary: true,
+            onPressed: () => captureOrderSignature(context, widget.viewModel!),
+          ),
+        ],
         const SizedBox(height: 12),
-        const DesktopButton(
+        DesktopButton(
           id: PaymentIds.completeSaleButton,
           label: 'Complete sale',
           icon: Icons.check_circle_outline,
           height: 64,
+          onPressed:
+              widget.viewModel != null &&
+                  _remaining == 0 &&
+                  !widget.viewModel!.isBusy
+              ? _completeSale
+              : null,
         ),
         const SizedBox(height: 6),
         const Text(

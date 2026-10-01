@@ -53,6 +53,23 @@ void main() {
     expect(status(tester, SignatureIds.customerStatus), 'Empty — pad ready');
   });
 
+  testWidgets('signatureToDataUrl gives a PNG data URL (legacy toDataURL)', (
+    tester,
+  ) async {
+    final url = await tester.runAsync(
+      () => signatureToDataUrl([
+        [const Offset(10, 10), const Offset(80, 40)],
+        [const Offset(120, 30)],
+      ]),
+    );
+    expect(url, startsWith('data:image/png;base64,'));
+    // PNG signature bytes, base64 "iVBORw0KGgo".
+    expect(
+      url!.substring('data:image/png;base64,'.length),
+      startsWith('iVBORw0KGgo'),
+    );
+  });
+
   testWidgets('one Save only — the bottom Save signature', (tester) async {
     await open(tester);
     expect(byTestId(SignatureIds.saveButton), findsNothing);

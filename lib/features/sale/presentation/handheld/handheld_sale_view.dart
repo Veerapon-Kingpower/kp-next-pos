@@ -170,6 +170,7 @@ class _HandheldSaleViewState extends State<HandheldSaleView> {
       context,
       viewModel: viewModel,
       isAirportMpos: widget.isAirportMpos,
+      onSignOut: widget.onSignOut,
     );
   }
 

@@ -50,6 +50,7 @@ void main() {
     bool isAirportMpos = false,
     bool isMember = false,
     Size size = const Size(1440, 900),
+    Future<void> Function()? onSignOut,
   }) async {
     setDeviceSize(tester, size);
     sale = FakeSaleRepository(cartResult: cart ?? sampleCart);
@@ -68,6 +69,7 @@ void main() {
                 context,
                 viewModel: viewModel,
                 isAirportMpos: isAirportMpos,
+                onSignOut: onSignOut,
               ),
               child: const Text('open'),
             ),
@@ -387,6 +389,59 @@ void main() {
     expect(find.text('Step 3 of 3'), findsOneWidget);
   });
 
+  testWidgets('SESSION_EXPIRE from any call: "Session expired", then log '
+      'out (back to login)', (tester) async {
+    var signedOut = 0;
+    await open(tester, onSignOut: () async => signedOut++);
+    sale.mutationError = const ApiException(
+      messageCode: 'SESSION_EXPIRE',
+      messageDesc: 'Session expired.',
+    );
+    await tester.tap(byTestId(CheckoutIds.billDiscountButton));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.descendant(
+        of: byTestId(DiscountIds.scanField),
+        matching: find.byType(TextField),
+      ),
+      'QR1',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+
+    expect(byTestId(CheckoutIds.sessionExpiredDialog), findsOneWidget);
+    await tester.tap(
+      find.descendant(
+        of: byTestId(CheckoutIds.sessionExpiredDialog),
+        matching: find.text('OK'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(signedOut, 1);
+  });
+
+  testWidgets('any other error does not log out', (tester) async {
+    var signedOut = 0;
+    await open(tester, onSignOut: () async => signedOut++);
+    sale.mutationError = const ApiException(
+      messageCode: 'E01',
+      messageDesc: 'Bad QR.',
+    );
+    await tester.tap(byTestId(CheckoutIds.billDiscountButton));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.descendant(
+        of: byTestId(DiscountIds.scanField),
+        matching: find.byType(TextField),
+      ),
+      'QR1',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+    expect(byTestId(CheckoutIds.sessionExpiredDialog), findsNothing);
+    expect(signedOut, 0);
+  });
+
   testWidgets('Esc asks first; Cancel stays on Checkout', (tester) async {
     await open(tester);
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
@@ -432,7 +487,9 @@ void main() {
     expect(sale.orderStatuses, isEmpty);
   });
 
-  testWidgets('signature box opens the pad', (tester) async {
+  testWidgets('signature before payment: "Please pay first." (legacy)', (
+    tester,
+  ) async {
     await open(
       tester,
       cart: const Cart(
@@ -444,7 +501,33 @@ void main() {
     );
     await tester.tap(byTestId(DesktopPaymentIds.signatureBox));
     await tester.pumpAndSettle();
+    expect(find.text('Please pay first.'), findsOneWidget);
+    expect(byTestId(SignatureIds.page), findsNothing);
+  });
+
+  testWidgets('once paid, the signature box opens the pad and keeps it', (
+    tester,
+  ) async {
+    final viewModel = await open(
+      tester,
+      cart: const Cart(
+        guid: 'order-1',
+        isCheckOut: false,
+        items: [chanel, johnnie],
+        requireSignature: true,
+        remaining: 0,
+      ),
+    );
+    await tester.tap(byTestId(DesktopPaymentIds.signatureBox));
+    await tester.pumpAndSettle();
     expect(byTestId(SignatureIds.page), findsOneWidget);
+    final pad = tester.getCenter(byTestId(SignatureIds.customerPad));
+    await tester.dragFrom(pad - const Offset(60, 0), const Offset(120, 8));
+    await tester.pump();
+    await tester.tap(byTestId(SignatureIds.bottomSaveButton));
+    await tester.pumpAndSettle();
+    expect(viewModel.signature, isNotNull);
+    expect(viewModel.signatureMissing, isFalse);
   });
 
   testWidgets('no Suspend bill or Print quote', (tester) async {

@@ -9,6 +9,9 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../domain/entities/currency.dart';
 import '../../sale_cart_view_model.dart';
 import '../../widgets/change_currency_screen.dart';
+import '../../widgets/complete_sale.dart';
+import '../../widgets/order_signature.dart';
+import '../../widgets/session_expiry_guard.dart';
 import 'payment_models.dart';
 import 'payment_widgets.dart';
 import 'wallet_query_page.dart';
@@ -24,6 +27,7 @@ Future<void> openPaymentPage(
   Future<List<Currency>> Function()? loadCurrencies,
   ExchangeChange? exchangeChange,
   SaleCartViewModel? viewModel,
+  Future<void> Function()? onSignOut,
 }) {
   return Navigator.of(context).push(
     MaterialPageRoute<void>(
@@ -34,6 +38,7 @@ Future<void> openPaymentPage(
         loadCurrencies: loadCurrencies,
         exchangeChange: exchangeChange,
         viewModel: viewModel,
+        onSignOut: onSignOut,
       ),
     ),
   );
@@ -72,6 +77,9 @@ class PaymentPage extends StatefulWidget {
   /// remaining / change from the order.
   final SaleCartViewModel? viewModel;
 
+  /// Legacy `signout()` once the sale is finished.
+  final Future<void> Function()? onSignOut;
+
   const PaymentPage({
     super.key,
     required this.netPay,
@@ -81,6 +89,7 @@ class PaymentPage extends StatefulWidget {
     this.loadCurrencies,
     this.exchangeChange,
     this.viewModel,
+    this.onSignOut,
   });
 
   @override
@@ -99,6 +108,13 @@ class _PaymentPageState extends State<PaymentPage> {
     ...widget.tenders,
     ...tendersFromPayments(widget.viewModel?.cart?.payments ?? const []),
   ];
+
+  /// Legacy Finish (`onFinishPayment()` → `FinishPaymentOrder`).
+  Future<void> _completeSale() => completeSale(
+    context,
+    widget.viewModel!,
+    onSignOut: widget.onSignOut ?? () async {},
+  );
 
   /// The sale engine's `RemainingAmount` once it reports one.
   double get _remaining {
@@ -161,8 +177,11 @@ class _PaymentPageState extends State<PaymentPage> {
     final changeInBaht = recordedChange > 0
         ? recordedChange
         : preview.change * widget.rateToBaht;
+    // Legacy goChangePage(): on an order, only once the sale engine has
+    // recorded change ("changeAmount == 0" is refused) — so its Save is
+    // always real. Without an order it stays a quote of the preview.
     final canExchange =
-        changeInBaht > 0 &&
+        (viewModel == null ? changeInBaht > 0 : recordedChange > 0) &&
         widget.loadCurrencies != null &&
         widget.exchangeChange != null;
     return [
@@ -253,7 +272,11 @@ class _PaymentPageState extends State<PaymentPage> {
     return GetBuilder<SaleCartViewModel>(
       init: viewModel,
       global: false,
-      builder: (_) => _build(context),
+      builder: (viewModel) => SessionExpiryGuard(
+        viewModel: viewModel,
+        onSignOut: widget.onSignOut,
+        child: _build(context),
+      ),
     );
   }
 
@@ -411,11 +434,29 @@ class _PaymentPageState extends State<PaymentPage> {
               ),
             ],
           ),
-          items: const [
+          items: [
+            // Legacy Checkout's Signature, beside Finish: only for an
+            // order that requires one ("Please pay first." before).
+            if (widget.viewModel?.cart?.requireSignature ?? false)
+              HandheldBarItem(
+                id: PaymentIds.signatureButton,
+                icon: widget.viewModel!.signature == null
+                    ? Icons.draw_outlined
+                    : Icons.task_alt,
+                label: 'Signature',
+                onPressed: () =>
+                    captureOrderSignature(context, widget.viewModel!),
+              ),
             HandheldBarItem(
               id: PaymentIds.completeSaleButton,
               icon: Icons.check_circle_outline,
               label: 'Complete sale',
+              onPressed:
+                  widget.viewModel != null &&
+                      _remaining == 0 &&
+                      !widget.viewModel!.isBusy
+                  ? _completeSale
+                  : null,
             ),
           ],
         ),

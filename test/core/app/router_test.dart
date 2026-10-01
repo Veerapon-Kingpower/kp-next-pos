@@ -50,6 +50,7 @@ import '../../features/nationality/fake_nationality_repository.dart';
 import '../../features/sale/fake_sale_repository.dart';
 import '../../features/settings/fake_settings_repository.dart';
 import '../../helpers/test_id_finders.dart';
+import 'package:kp_pos/features/sale/domain/usecases/finish_payment_usecase.dart';
 
 const _completeSettings = DeviceSettings(
   saleEngineEndpoint: 'https://sale',
@@ -113,6 +114,7 @@ SaleCartViewModel _saleCartViewModel() {
     exchangeChange: ExchangeChangeUseCase(FakeSaleRepository()),
     addCashPayment: AddCashPaymentUseCase(FakeSaleRepository()),
     saveChangeExchange: SaveChangeExchangeUseCase(FakeSaleRepository()),
+    finishPayment: FinishPaymentUseCase(FakeSaleRepository()),
   );
 }
 

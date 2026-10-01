@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/error/app_exception.dart';
 import 'package:kp_pos/features/sale/data/datasources/sale_remote_data_source.dart';
+import 'package:kp_pos/features/sale/domain/entities/finish_payment.dart';
 import 'package:kp_pos/features/sale/domain/entities/order_status.dart';
 import 'package:kp_pos/features/sale/domain/entities/sale_order_context.dart';
 
@@ -486,6 +487,82 @@ void main() {
     expect(cart.payments.single.amount, 1000);
     expect(cart.remaining, 0);
     expect(cart.change, 100);
+  });
+
+  group('Finish (legacy validateGWP / finishOrder)', () {
+    test(
+      'ValidateGWP sends OrderGuid / SessionKey and reads the messages',
+      () async {
+        apiClient.response = {
+          'isCompleted': false,
+          'Data': null,
+          'Message': [
+            {
+              'MessageType': 'Warning',
+              'MessageCode': 'GWP_authorize',
+              'MessageDesc': 'Gift not taken. Continue?',
+            },
+          ],
+        };
+        final answer = await dataSource.validateGwp(
+          saleEngineEndpoint: 'https://sale-engine',
+          sessionKey: 'abc123',
+          orderGuid: 'order-1',
+        );
+        expect(apiClient.lastUrl, 'https://sale-engine/SaleEngine/ValidateGWP');
+        expect(apiClient.lastData, {
+          'OrderGuid': 'order-1',
+          'SessionKey': 'abc123',
+        });
+        expect(answer.completed, isFalse);
+        expect(answer.message('GWP_authorize')!.type, 'Warning');
+        expect(
+          answer.message('GWP_authorize')!.desc,
+          'Gift not taken. Continue?',
+        );
+      },
+    );
+
+    test('FinishPaymentOrder sends OrderSignature [{code, value}]', () async {
+      apiClient.response = {'isCompleted': true, 'Data': [], 'Message': []};
+      final answer = await dataSource.finishPaymentOrder(
+        saleEngineEndpoint: 'https://sale-engine',
+        sessionKey: 'abc123',
+        orderGuid: 'order-1',
+        signatures: const [
+          OrderSignatureEntry(code: '1', value: 'data:image/png;base64,AA'),
+          OrderSignatureEntry(code: '2', value: 'data:image/png;base64,BB'),
+        ],
+      );
+      expect(
+        apiClient.lastUrl,
+        'https://sale-engine/SaleEngine/FinishPaymentOrder',
+      );
+      expect(apiClient.lastData, {
+        'OrderGuid': 'order-1',
+        'SessionKey': 'abc123',
+        'OrderSignature': [
+          {'code': '1', 'value': 'data:image/png;base64,AA'},
+          {'code': '2', 'value': 'data:image/png;base64,BB'},
+        ],
+      });
+      expect(answer.completed, isTrue);
+    });
+
+    test(
+      'FinishPaymentOrder without a required signature sends null',
+      () async {
+        apiClient.response = {'isCompleted': true, 'Data': [], 'Message': []};
+        await dataSource.finishPaymentOrder(
+          saleEngineEndpoint: 'https://sale-engine',
+          sessionKey: 'abc123',
+          orderGuid: 'order-1',
+        );
+        final sent = apiClient.lastData as Map<String, dynamic>;
+        expect(sent.containsKey('OrderSignature'), isTrue);
+        expect(sent['OrderSignature'], isNull);
+      },
+    );
   });
 
   group('actionOrderPayment (legacy SpecialDiscountPage)', () {

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../../../../core/error/app_exception.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/return_object.dart';
+import '../../domain/entities/finish_payment.dart';
 import '../../domain/entities/sale_order_context.dart';
 import '../models/article_model.dart';
 import '../models/cart_model.dart';
@@ -564,6 +565,60 @@ class SaleRemoteDataSource {
           .toList(growable: false),
     );
     return result.unwrap();
+  }
+
+  /// Legacy `validateGWP()`: `CheckOutPaymentOrderParam` posted to
+  /// `SaleEngine/ValidateGWP`. Answered as is — the caller branches on
+  /// `isCompleted` and the `GWP` / `GWP_authorize` messages.
+  Future<SaleEngineAnswer> validateGwp({
+    required String saleEngineEndpoint,
+    required String sessionKey,
+    required String orderGuid,
+  }) async {
+    final response = await _apiClient.post(
+      '$saleEngineEndpoint/SaleEngine/ValidateGWP',
+      data: {'OrderGuid': orderGuid, 'SessionKey': sessionKey},
+    );
+    return _answer(response);
+  }
+
+  /// Legacy `finishOrder()`: `FinishPaymentOrderParameter` posted to
+  /// `SaleEngine/FinishPaymentOrder` — `OrderSignature` null unless the
+  /// order requires a signature, then `[{code, value}]`.
+  Future<SaleEngineAnswer> finishPaymentOrder({
+    required String saleEngineEndpoint,
+    required String sessionKey,
+    required String orderGuid,
+    List<OrderSignatureEntry>? signatures,
+  }) async {
+    final response = await _apiClient.post(
+      '$saleEngineEndpoint/SaleEngine/FinishPaymentOrder',
+      data: {
+        'OrderGuid': orderGuid,
+        'SessionKey': sessionKey,
+        'OrderSignature': signatures == null
+            ? null
+            : [
+                for (final s in signatures) {'code': s.code, 'value': s.value},
+              ],
+      },
+    );
+    return _answer(response);
+  }
+
+  SaleEngineAnswer _answer(Map<String, dynamic> response) {
+    final result = ReturnObject<Object?>.fromJson(response, (data) => data);
+    return SaleEngineAnswer(
+      completed: result.isCompleted,
+      messages: [
+        for (final m in result.messages)
+          SaleEngineMessage(
+            type: m.messageType,
+            code: m.messageCode,
+            desc: m.messageDesc,
+          ),
+      ],
+    );
   }
 
   CartModel _firstOrder(Map<String, dynamic> response) {

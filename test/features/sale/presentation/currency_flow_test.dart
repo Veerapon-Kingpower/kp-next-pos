@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kp_pos/core/error/app_exception.dart';
 import 'package:kp_pos/core/presentation/test_ids.dart';
 import 'package:kp_pos/features/sale/domain/entities/cart.dart';
 import 'package:kp_pos/features/sale/presentation/desktop/desktop_checkout_page.dart';
@@ -364,6 +365,50 @@ void main() {
 
       expect(repo.changeExchanges.single.currency, 'USD');
       expect(byTestId(CurrencyIds.changeScreen), findsNothing);
+    });
+
+    testWidgets('before the cash is recorded, Change is not offered '
+        '(legacy goChangePage: changeAmount 0)', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pump(tester);
+      await tester.ensureVisible(cashField());
+      await tester.enterText(cashField(), '1000'); // preview ฿100 change
+      await tester.pump();
+      expect(
+        tester.getSemantics(byTestId(CurrencyIds.changeButton)),
+        isSemantics(isButton: true, hasEnabledState: true, isEnabled: false),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('Save stays on after picking a currency, even when the '
+        're-quote fails, and saves the typed amount', (tester) async {
+      await pump(tester);
+      await tester.ensureVisible(cashField());
+      await tester.enterText(cashField(), '1000');
+      await tester.pump();
+      await tester.tap(byTestId(PaymentIds.takeCashButton));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(byTestId(CurrencyIds.changeButton));
+      await tester.tap(byTestId(CurrencyIds.changeButton));
+      await tester.pumpAndSettle();
+
+      repo.exchangeError = const ApiException(messageDesc: 'Rate not found');
+      await tester.tap(byTestId(CurrencyIds.changeCurrency('USD')));
+      await tester.pumpAndSettle();
+      expect(find.text('Rate not found'), findsOneWidget);
+      await tester.enterText(
+        find.descendant(
+          of: byTestId(CurrencyIds.changeCurrencyField),
+          matching: find.byType(TextField),
+        ),
+        '2.5',
+      );
+      await tester.tap(byTestId(CurrencyIds.changeSaveButton));
+      await tester.pumpAndSettle();
+
+      expect(repo.changeExchanges.single.currency, 'USD');
+      expect(repo.changeExchanges.single.amount, 2.5);
     });
   });
 

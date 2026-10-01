@@ -31,6 +31,11 @@ import '../domain/usecases/list_currencies_usecase.dart';
 import '../domain/usecases/remove_cart_item_usecase.dart';
 import '../domain/usecases/update_cart_item_quantity_usecase.dart';
 import '../domain/usecases/update_order_status_usecase.dart';
+import '../domain/entities/finish_payment.dart';
+import '../domain/usecases/finish_payment_usecase.dart';
+import 'handheld/payment/signature_page.dart'
+    show SignatureCapture, SignatureStrokes, signatureToDataUrl;
+import 'sale_currency.dart' show orderNetPay;
 
 /// What legacy `goCheckout()` finds before Checkout: no signed-in user
 /// ("Something went wrong"), a Sale-only machine or no `actCashier` ("you
@@ -61,6 +66,12 @@ class SaleCartViewModel extends GetxController {
   final ExchangeChangeUseCase _exchangeChange;
   final AddCashPaymentUseCase _addCashPayment;
   final SaveChangeExchangeUseCase _saveChangeExchange;
+  final FinishPaymentUseCase _finishPayment;
+
+  /// Turns a pad into the PNG data URL `FinishPaymentOrder` takes —
+  /// replaceable in tests, where real image encoding can't run.
+  Future<String> Function(SignatureStrokes strokes) encodeSignature =
+      signatureToDataUrl;
 
   SaleCartViewModel({
     required RestoreSessionUseCase restoreSession,
@@ -82,6 +93,7 @@ class SaleCartViewModel extends GetxController {
     required ExchangeChangeUseCase exchangeChange,
     required AddCashPaymentUseCase addCashPayment,
     required SaveChangeExchangeUseCase saveChangeExchange,
+    required FinishPaymentUseCase finishPayment,
   }) : _restoreSession = restoreSession,
        _getCart = getCart,
        _updateOrderStatus = updateOrderStatus,
@@ -100,7 +112,84 @@ class SaleCartViewModel extends GetxController {
        _changeOrderCurrency = changeOrderCurrency,
        _exchangeChange = exchangeChange,
        _addCashPayment = addCashPayment,
-       _saveChangeExchange = saveChangeExchange;
+       _saveChangeExchange = saveChangeExchange,
+       _finishPayment = finishPayment;
+
+  /// Legacy `validateGWP()`'s call. Null when the sale engine can't be
+  /// reached (no network / timeout); a server error comes back as an
+  /// incomplete answer carrying its message.
+  Future<SaleEngineAnswer?> validateGwp() => _finishCall(
+    (sessionKey, guid) =>
+        _finishPayment.validateGwp(sessionKey: sessionKey, orderGuid: guid),
+  );
+
+  /// Legacy `finishOrder()`: `FinishPaymentOrder` with the signatures as
+  /// PNG data URLs — the customer's (`1`) and, when drawn, the paid-by
+  /// (`2`) — for an order that requires them, else null. Null when the
+  /// sale engine can't be reached.
+  Future<SaleEngineAnswer?> finishPaymentOrder() async {
+    List<OrderSignatureEntry>? signatures;
+    final capture = signature;
+    if ((cart?.requireSignature ?? false) && capture != null) {
+      signatures = [
+        OrderSignatureEntry(
+          code: OrderSignatureEntry.customerCode,
+          value: await encodeSignature(capture.customer),
+        ),
+        if (capture.paidBy.isNotEmpty)
+          OrderSignatureEntry(
+            code: OrderSignatureEntry.paidByCode,
+            value: await encodeSignature(capture.paidBy),
+          ),
+      ];
+    }
+    return _finishCall(
+      (sessionKey, guid) => _finishPayment.finish(
+        sessionKey: sessionKey,
+        orderGuid: guid,
+        signatures: signatures,
+      ),
+    );
+  }
+
+  Future<SaleEngineAnswer?> _finishCall(
+    Future<SaleEngineAnswer> Function(String sessionKey, String orderGuid) call,
+  ) async {
+    final sessionKey = await _sessionKey();
+    final guid = cart?.guid ?? '';
+    if (sessionKey == null || guid.isEmpty) {
+      return const SaleEngineAnswer(
+        completed: false,
+        messages: [
+          SaleEngineMessage(type: 'Error', code: '', desc: 'No active order.'),
+        ],
+      );
+    }
+    isBusy = true;
+    update();
+    SaleEngineAnswer? answer;
+    try {
+      answer = await call(sessionKey, guid);
+    } on ApiException catch (e) {
+      // Complete sale handles SESSION_EXPIRE itself (legacy savePaymentV2).
+      final failure = mapExceptionToFailure(e);
+      answer = failure is NetworkFailure || failure is TimeoutFailure
+          ? null
+          : SaleEngineAnswer(
+              completed: false,
+              messages: [
+                SaleEngineMessage(
+                  type: 'Error',
+                  code: e.messageCode ?? '',
+                  desc: e.messageDesc,
+                ),
+              ],
+            );
+    }
+    isBusy = false;
+    update();
+    return answer;
+  }
 
   /// Why the last cash tender or change save failed, if it did.
   String? paymentError;
@@ -143,6 +232,7 @@ class SaleCartViewModel extends GetxController {
         baseAmount: amount * rate,
       );
     } on ApiException catch (e) {
+      _noteExpiry(e);
       paymentError = e.messageDesc;
     }
     isBusy = false;
@@ -174,6 +264,7 @@ class SaleCartViewModel extends GetxController {
         amount: amount,
       );
     } on ApiException catch (e) {
+      _noteExpiry(e);
       paymentError = e.messageDesc;
     }
     isBusy = false;
@@ -298,6 +389,9 @@ class SaleCartViewModel extends GetxController {
       await releaseOrder();
     }
     this.customer = customer;
+    signature = null;
+    sessionExpired = false;
+    sessionExpiryHandled = false;
     session = await _restoreSession();
     isMember = context.isMember;
     selectedPrivilege = isMember ? privilege : null;
@@ -329,6 +423,7 @@ class SaleCartViewModel extends GetxController {
         _locked = (card: context.shoppingCard, orderNo: order.orderNo);
       }
     } on ApiException catch (e) {
+      _noteExpiry(e);
       scanError = e.messageDesc;
     }
     isBusy = false;
@@ -344,6 +439,34 @@ class SaleCartViewModel extends GetxController {
 
   /// The signed-in cashier and machine — the profile's "Sale" block.
   UserSession? session;
+
+  /// Legacy `MessageErrorMode.SESSION_EXPIRE`: the sale engine said the
+  /// cashier's session is gone. Checkout and Payment then log out to the
+  /// login page ([SessionExpiryGuard]).
+  bool sessionExpired = false;
+
+  /// Set by the first [SessionExpiryGuard] that acts, so the Checkout and
+  /// Payment pages stacked together log out once.
+  bool sessionExpiryHandled = false;
+
+  void _noteExpiry(ApiException e) {
+    if (e.messageCode == FinishMessageCode.sessionExpire) {
+      sessionExpired = true;
+    }
+  }
+
+  /// Legacy Checkout's `signatureCustomerData` / `signaturePaidData`: the
+  /// signature taken for this bill, kept across Checkout and Payment.
+  SignatureCapture? signature;
+
+  /// Legacy `remainingAmount`: the sale engine's `RemainingAmount`, or the
+  /// whole net pay before it reports one.
+  double get remainingToPay => cart?.remaining ?? orderNetPay(cart);
+
+  /// Legacy Finish's check: the order requires a signature
+  /// (`isRequireSignature`) and none was taken yet.
+  bool get signatureMissing =>
+      (cart?.requireSignature ?? false) && signature == null;
 
   /// Legacy `SpecialDiscountPage.onSave()`: `add_special_discount` (or
   /// `update_special_discount` when editing) with the `ValueAdjust` JSON.
@@ -387,6 +510,7 @@ class SaleCartViewModel extends GetxController {
         orderGuid: orderGuid,
       );
     } on ApiException catch (e) {
+      _noteExpiry(e);
       error = e.messageCode == null || e.messageCode!.isEmpty
           ? e.messageDesc
           : '${e.messageCode}: ${e.messageDesc}';
@@ -492,6 +616,7 @@ class SaleCartViewModel extends GetxController {
         value: value,
       );
     } on ApiException catch (e) {
+      _noteExpiry(e);
       error = e.messageCode == null
           ? e.messageDesc
           : '${e.messageCode}: ${e.messageDesc}';
@@ -539,6 +664,7 @@ class SaleCartViewModel extends GetxController {
         shoppingCard: shoppingCard,
       );
     } on ApiException catch (e) {
+      _noteExpiry(e);
       scanError = e.messageDesc;
     }
     isBusy = false;
@@ -556,6 +682,7 @@ class SaleCartViewModel extends GetxController {
       await _reverseVirtualStock(sessionKey: sessionKey);
       return null;
     } on ApiException catch (e) {
+      _noteExpiry(e);
       return e.messageDesc;
     }
   }
@@ -581,6 +708,7 @@ class SaleCartViewModel extends GetxController {
             status: OrderStatus.unlock,
           );
         } on ApiException catch (e) {
+          _noteExpiry(e);
           final failure = mapExceptionToFailure(e);
           if (failure is NetworkFailure || failure is TimeoutFailure) {
             return false;
@@ -592,6 +720,9 @@ class SaleCartViewModel extends GetxController {
     _locked = null;
     shoppingCard = '';
     customer = null;
+    signature = null;
+    sessionExpired = false;
+    sessionExpiryHandled = false;
     cart = null;
     scanError = null;
     isMember = false;
@@ -663,6 +794,7 @@ class SaleCartViewModel extends GetxController {
         currencyCode: currencyCode,
       );
     } on ApiException catch (e) {
+      _noteExpiry(e);
       currencyError = e.messageDesc;
     }
     isBusy = false;
@@ -711,6 +843,7 @@ class SaleCartViewModel extends GetxController {
       _orderContext = next;
       selectedPrivilege = privilege;
     } on ApiException catch (e) {
+      _noteExpiry(e);
       error = e.messageCode == null
           ? e.messageDesc
           : '${e.messageCode}: ${e.messageDesc}';
@@ -772,6 +905,7 @@ class SaleCartViewModel extends GetxController {
             '= ${l.lineTotal}').join(', ')}]',
       );
     } on ApiException catch (e) {
+      _noteExpiry(e);
       _log(
         '[SaleCartViewModel.scan] failed code=${e.messageCode} '
         'desc=${e.messageDesc}',
@@ -806,6 +940,7 @@ class SaleCartViewModel extends GetxController {
         quantity: quantity,
       );
     } on ApiException catch (e) {
+      _noteExpiry(e);
       scanError = e.messageDesc;
     }
     isBusy = false;
@@ -849,6 +984,7 @@ class SaleCartViewModel extends GetxController {
         status: OrderStatus.checkout,
       );
     } on ApiException catch (e) {
+      _noteExpiry(e);
       final failure = mapExceptionToFailure(e);
       if (failure is NetworkFailure || failure is TimeoutFailure) return false;
     }
@@ -879,6 +1015,7 @@ class SaleCartViewModel extends GetxController {
         orderGuid: cart?.guid,
       );
     } on ApiException catch (e) {
+      _noteExpiry(e);
       final failure = mapExceptionToFailure(e);
       if (failure is NetworkFailure || failure is TimeoutFailure) {
         error = e.messageDesc;
@@ -898,6 +1035,7 @@ class SaleCartViewModel extends GetxController {
           status: OrderStatus.lock,
         );
       } on ApiException catch (e) {
+        _noteExpiry(e);
         final failure = mapExceptionToFailure(e);
         if (failure is NetworkFailure || failure is TimeoutFailure) {
           error = e.messageDesc;
@@ -909,6 +1047,7 @@ class SaleCartViewModel extends GetxController {
       try {
         cart = await _getCart(sessionKey: sessionKey, context: context);
       } on ApiException catch (e) {
+        _noteExpiry(e);
         scanError = e.messageDesc;
       }
     }
@@ -939,6 +1078,7 @@ class SaleCartViewModel extends GetxController {
     try {
       serial = await _lookupSerial(site: session.site, barcode: scanned);
     } on ApiException catch (e) {
+      _noteExpiry(e);
       _log('[Sale] serial lookup failed: ${e.messageDesc}');
     }
     isBusy = false;
@@ -968,6 +1108,7 @@ class SaleCartViewModel extends GetxController {
       cart = result.cart;
       warning = result.warning;
     } on ApiException catch (e) {
+      _noteExpiry(e);
       error = e.messageCode == null || e.messageCode!.isEmpty
           ? e.messageDesc
           : '${e.messageCode}: ${e.messageDesc}';
@@ -986,6 +1127,7 @@ class SaleCartViewModel extends GetxController {
     try {
       cart = await _removeCartItem(sessionKey: sessionKey, row: row);
     } on ApiException catch (e) {
+      _noteExpiry(e);
       scanError = e.messageDesc;
     }
     isBusy = false;

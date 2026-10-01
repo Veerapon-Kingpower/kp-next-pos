@@ -19,6 +19,7 @@ import 'package:kp_pos/features/sale/presentation/sale_cart_view_model.dart';
 
 import '../../../auth/fake_auth_repository.dart';
 import '../../fake_sale_repository.dart';
+import 'package:kp_pos/features/sale/domain/usecases/finish_payment_usecase.dart';
 
 const testSession = UserSession(
   sessionKey: 'abc123',
@@ -90,10 +91,15 @@ SaleCartViewModel buildSaleViewModel(
     exchangeChange: ExchangeChangeUseCase(sale),
     addCashPayment: AddCashPaymentUseCase(sale),
     saveChangeExchange: SaveChangeExchangeUseCase(sale),
+    finishPayment: FinishPaymentUseCase(sale),
   );
   viewModel
     ..cart = cart
-    ..shoppingCard = shoppingCard;
+    ..shoppingCard = shoppingCard
+    // Real PNG encoding needs the engine's async image pipeline, which
+    // widget tests' fake time doesn't run.
+    ..encodeSignature = (strokes) async =>
+        'data:image/png;base64,strokes=${strokes.length}';
   return viewModel;
 }
 

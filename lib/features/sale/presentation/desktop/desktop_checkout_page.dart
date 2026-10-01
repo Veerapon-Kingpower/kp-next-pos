@@ -355,32 +355,6 @@ class _ReviewColumn extends StatelessWidget {
             child: GiftWithPurchaseList(gifts: gifts),
           ),
         ],
-        const SizedBox(height: 12),
-        TestId(
-          CheckoutIds.flagsNotice,
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppColors.info.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.info.withValues(alpha: 0.25)),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.info_outline, size: 17, color: AppColors.info),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Blocking-flag checks (serial number, CITES, shipping '
-                    'address) are not available yet — confirm them with the '
-                    'customer before taking payment.',
-                    style: TextStyle(fontSize: 13.5, color: AppColors.info),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
       ],
     );
   }

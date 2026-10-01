@@ -6,4 +6,7 @@ abstract final class OrderStatus {
 
   /// Released when the Sale page is left.
   static const unlock = 'A';
+
+  /// Sent by legacy `goCheckout()` on the way to Checkout.
+  static const checkout = 'e';
 }

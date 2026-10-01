@@ -33,6 +33,7 @@ void main() {
     String shoppingCard = 'CPX0001',
     VoidCallback? onFindCustomer,
     Future<void> Function()? onSignOut,
+    UserSession session = testSession,
   }) async {
     setDeviceSize(tester, size);
     sale = FakeSaleRepository(
@@ -43,6 +44,7 @@ void main() {
       sale,
       cart: cart,
       shoppingCard: shoppingCard,
+      session: session,
     );
     await tester.pumpWidget(
       TestApp(
@@ -553,7 +555,101 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.f12);
       await tester.pumpAndSettle();
       expect(byTestId(CheckoutIds.page), findsOneWidget);
+      // Legacy updateOrderStatusAndGotoCheckOutPage(): status e.
+      expect(sale.orderStatuses.single.status, 'e');
       handle.dispose();
+    });
+
+    testWidgets('Take payment is disabled until the sale engine allows it '
+        '(legacy canCheckout = isCheckOut), F12 included', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pump(
+        tester,
+        cart: const Cart(guid: 'order-1', isCheckOut: false, items: [chanel]),
+      );
+      expect(
+        tester.getSemantics(byTestId(SaleIds.checkoutButton)),
+        isSemantics(hasEnabledState: true, isEnabled: false),
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.f12);
+      await tester.pumpAndSettle();
+      expect(byTestId(CheckoutIds.page), findsNothing);
+      handle.dispose();
+    });
+
+    testWidgets('a Sale-only machine (posType 1) cannot take payment', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        session: const UserSession(
+          sessionKey: 'abc123',
+          branchNo: '03',
+          userCode: 'U001',
+          userName: 'Test User',
+          posType: UserSession.posTypeSale,
+          authorizedActions: [
+            AuthorizedAction(
+              moduleCode: 'SALE',
+              authCode: 'actCashier',
+              action: '',
+            ),
+          ],
+        ),
+      );
+      await tester.tap(byTestId(SaleIds.checkoutButton));
+      await tester.pumpAndSettle();
+      expect(find.text("Sorry, you don't have permission."), findsOneWidget);
+      expect(sale.orderStatuses, isEmpty);
+    });
+
+    testWidgets('no network for UpdateOrderStatus: alert, then sign out', (
+      tester,
+    ) async {
+      var signedOut = false;
+      await pump(tester, onSignOut: () async => signedOut = true);
+      sale.orderStatusError = const ApiException(
+        messageDesc: 'No network connection.',
+      );
+      await tester.tap(byTestId(SaleIds.checkoutButton));
+      await tester.pumpAndSettle();
+      expect(find.text('Network not connection'), findsOneWidget);
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+      expect(signedOut, isTrue);
+      expect(byTestId(CheckoutIds.page), findsNothing);
+    });
+
+    testWidgets('a line with recordInfos shows a warning icon; tap lists the '
+        'messages', (tester) async {
+      await pump(
+        tester,
+        cart: const Cart(
+          guid: 'order-1',
+          isCheckOut: true,
+          items: [
+            CartItem(
+              row: '1',
+              articleCode: 'W1',
+              articleName: 'WATCH',
+              quantity: 1,
+              unitPrice: 9000,
+              lineTotal: 9000,
+              recordInfos: [
+                LineRecordInfo(
+                  type: 'Warning',
+                  code: 'W01',
+                  desc: 'Stock is low.',
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+      await tester.tap(byTestId(SaleIds.lineStatus('1')));
+      await tester.pumpAndSettle();
+      expect(find.text('WARNING'), findsOneWidget);
+      expect(find.text('Stock is low.'), findsOneWidget);
     });
 
     testWidgets('Take payment is disabled on an empty bill', (tester) async {

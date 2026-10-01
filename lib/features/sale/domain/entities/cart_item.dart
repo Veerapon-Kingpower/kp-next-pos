@@ -53,6 +53,13 @@ class CartItem {
   /// `VASs` — the value-added-service articles tied to the line.
   final List<VasItem> vasItems;
 
+  /// `recordInfos` — the sale engine's messages on the line (a missing
+  /// serial, CITES or VAS, …), shown by legacy Sale as a status icon.
+  final List<LineRecordInfo> recordInfos;
+
+  /// Legacy `isRequireOnly()`: an `Error` message — the icon is red.
+  bool get hasRecordError => recordInfos.any((r) => r.isError);
+
   const CartItem({
     required this.row,
     required this.articleCode,
@@ -74,7 +81,24 @@ class CartItem {
     this.cites = '',
     this.citesPermitNo = '',
     this.vasItems = const [],
+    this.recordInfos = const [],
   });
+}
+
+/// Legacy `ReturnMessage` in a line's `recordInfos`.
+class LineRecordInfo {
+  /// `MessageType`: legacy `MessageErrorMode.Error` ("Error") or `Warning`.
+  final String type;
+  final String code;
+  final String desc;
+
+  const LineRecordInfo({
+    required this.type,
+    required this.code,
+    required this.desc,
+  });
+
+  bool get isError => type == 'Error';
 }
 
 /// Legacy `VasItem` (`OutputDLL.ts`), as Edit Detail lists it.

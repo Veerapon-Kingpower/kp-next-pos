@@ -32,6 +32,12 @@ import '../domain/usecases/remove_cart_item_usecase.dart';
 import '../domain/usecases/update_cart_item_quantity_usecase.dart';
 import '../domain/usecases/update_order_status_usecase.dart';
 
+/// What legacy `goCheckout()` finds before Checkout: no signed-in user
+/// ("Something went wrong"), a Sale-only machine or no `actCashier` ("you
+/// don't have permission"), a member without a privilege (asks to
+/// continue), or ready.
+enum CheckoutGate { noSession, noPermission, noPrivilege, ready }
+
 /// Sale cart state: opening the customer's order, scan-to-add, quantity
 /// adjustment, removal, currency and cash payment.
 class SaleCartViewModel extends GetxController {
@@ -804,6 +810,49 @@ class SaleCartViewModel extends GetxController {
     }
     isBusy = false;
     update();
+  }
+
+  /// Legacy `canCheckout`: the sale engine's `isCheckOut` — false while a
+  /// line still misses a serial, CITES, VAS, … (see the lines'
+  /// `recordInfos`).
+  bool get canCheckout => cart?.isCheckOut ?? false;
+
+  /// Legacy `AuthorizeCode.LoginCashier`, which `goCheckout()` checks.
+  static const loginCashierAuthCode = 'actCashier';
+
+  /// Legacy `goCheckout()`'s checks before Checkout, in its order.
+  Future<CheckoutGate> checkoutGate() async {
+    final session = await _restoreSession();
+    if (session == null) return CheckoutGate.noSession;
+    if (session.posType == UserSession.posTypeSale ||
+        !session.hasAuthCode(loginCashierAuthCode)) {
+      return CheckoutGate.noPermission;
+    }
+    if (isMember && selectedPrivilege == null) {
+      return CheckoutGate.noPrivilege;
+    }
+    return CheckoutGate.ready;
+  }
+
+  /// Legacy `updateOrderStatusAndGotoCheckOutPage()`: `UpdateOrderStatus`
+  /// `e`, then Checkout whatever the sale engine answers. False only when
+  /// the call itself fails (no network / timeout) — legacy then alerts
+  /// "Network not connection" and signs out.
+  Future<bool> markCheckout() async {
+    final sessionKey = await _sessionKey();
+    if (sessionKey == null) return true;
+    try {
+      await _updateOrderStatus(
+        sessionKey: sessionKey,
+        shoppingCard: shoppingCard,
+        orderNo: cart?.orderNo ?? '',
+        status: OrderStatus.checkout,
+      );
+    } on ApiException catch (e) {
+      final failure = mapExceptionToFailure(e);
+      if (failure is NetworkFailure || failure is TimeoutFailure) return false;
+    }
+    return true;
   }
 
   /// Legacy `AuthorizeCode.TakeOrUntake`, which `setPickupMode()` checks.

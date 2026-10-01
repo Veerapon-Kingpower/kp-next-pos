@@ -47,4 +47,17 @@ void main() {
     expect(restored.authorizedActions.single.moduleCode, 'MposKpi');
     expect(restored.authorizedActions.single.action, 'void_payment');
   });
+
+  test('reads MachineEnv.posType and keeps it across persistence', () {
+    final session = UserSessionModel.fromLoginResultJson({
+      'session_key': 'abc123',
+      'userInfo': {
+        'MachineEnv': {'MachineNo': 'KPPOS05', 'posType': 2},
+      },
+    });
+    expect(session.posType, 2);
+    expect(UserSessionModel.fromJson(session.toJson()).posType, 2);
+    // A session saved before posType was stored: unknown.
+    expect(UserSessionModel.fromJson({'sessionKey': 'a'}).posType, 0);
+  });
 }

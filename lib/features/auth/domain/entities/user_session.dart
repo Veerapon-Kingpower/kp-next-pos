@@ -21,6 +21,14 @@ class UserSession {
   /// stored.
   final String site;
 
+  /// `userInfo.MachineEnv.posType` — legacy `PosTypeEnum`: 1 Sale (can't
+  /// take payment), 2 Cashier. 0 when unknown (a session saved before it
+  /// was stored).
+  final int posType;
+
+  /// Legacy `PosTypeEnum.Sale`.
+  static const posTypeSale = 1;
+
   const UserSession({
     required this.sessionKey,
     required this.branchNo,
@@ -29,6 +37,7 @@ class UserSession {
     required this.authorizedActions,
     this.machineNo = '',
     this.site = '',
+    this.posType = 0,
   });
 
   /// Whether this session carries everything later calls need. A session

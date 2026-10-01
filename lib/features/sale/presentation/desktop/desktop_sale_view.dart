@@ -13,7 +13,9 @@ import '../../../customer/domain/entities/privilege.dart';
 import '../../domain/entities/cart.dart';
 import '../../domain/entities/cart_item.dart';
 import '../sale_cart_view_model.dart';
+import '../widgets/go_checkout.dart';
 import '../widgets/leave_sale_prompt.dart';
+import '../widgets/line_record_status.dart';
 import 'desktop_checkout_page.dart';
 import '../sale_currency.dart';
 import '../widgets/applied_privilege_card.dart';
@@ -240,8 +242,16 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
     }
   }
 
+  /// Legacy `goCheckout()`, offered only while the sale engine allows it
+  /// ([SaleCartViewModel.canCheckout]).
   Future<void> _takePayment() async {
-    if (_orderLines.isEmpty) return;
+    if (!widget.viewModel.canCheckout || widget.viewModel.isBusy) return;
+    final go = await confirmGoCheckout(
+      context,
+      widget.viewModel,
+      onSignOut: widget.onSignOut ?? () async {},
+    );
+    if (!go || !mounted) return;
     await openDesktopCheckoutPage(
       context,
       viewModel: widget.viewModel,
@@ -347,7 +357,9 @@ class _DesktopSaleViewState extends State<DesktopSaleView> {
                       viewModel.privileges.isEmpty || viewModel.isBusy
                       ? null
                       : _changePrivilege,
-                  onTakePayment: _orderLines.isEmpty ? null : _takePayment,
+                  onTakePayment: viewModel.canCheckout && !viewModel.isBusy
+                      ? _takePayment
+                      : null,
                   onExit: widget.onExit == null || viewModel.isBusy
                       ? null
                       : _exit,
@@ -889,6 +901,7 @@ class _LineRow extends StatelessWidget {
                                 label: 'Lock',
                                 color: AppColors.warning,
                               ),
+                            LineRecordStatus(line: line, size: 18),
                           ],
                         ),
                       ],

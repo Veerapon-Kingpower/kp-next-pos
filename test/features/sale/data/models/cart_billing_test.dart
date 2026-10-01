@@ -119,6 +119,25 @@ void main() {
     expect(item.lineTotal, 90);
   });
 
+  test('a line reads legacy recordInfos (MessageType / Code / Desc)', () {
+    final item = CartItemModel.fromJson({
+      'Guid': 'r1',
+      'recordInfos': [
+        {
+          'MessageType': 'Error',
+          'MessageCode': 'REQUIRE_SN',
+          'MessageDesc': 'Serial number is required.',
+        },
+        {'MessageType': 'Warning', 'MessageCode': 'W', 'MessageDesc': 'Low'},
+      ],
+    });
+    expect(item.recordInfos, hasLength(2));
+    expect(item.recordInfos.first.code, 'REQUIRE_SN');
+    expect(item.recordInfos.first.desc, 'Serial number is required.');
+    expect(item.hasRecordError, isTrue);
+    expect(CartItemModel.fromJson({'Guid': 'r2'}).recordInfos, isEmpty);
+  });
+
   test('CartModel reads order_no from HeaderAttributes, as a whole number', () {
     final cart = CartModel.fromJson({
       'Guid': 'o',

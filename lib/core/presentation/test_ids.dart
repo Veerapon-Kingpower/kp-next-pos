@@ -134,6 +134,16 @@ abstract class SaleIds {
   static String lineCancelled(String row) => 'sale.line.$row.cancelled';
   static String lineFreeze(String row) => 'sale.line.$row.freeze';
   static String lineLock(String row) => 'sale.line.$row.lock';
+
+  /// The line's `recordInfos` icon, and the dialog listing them.
+  static String lineStatus(String row) => 'sale.line.$row.status';
+  static const lineStatusDialog = 'sale.lineStatusDialog';
+
+  /// Legacy `goCheckout()`'s dialogs.
+  static const checkoutAlert = 'sale.checkout.alert';
+  static const checkoutNoPrivilegeDialog = 'sale.checkout.noPrivilege';
+  static const checkoutNoPrivilegeOk = 'sale.checkout.noPrivilege.ok';
+  static const checkoutNoPrivilegeCancel = 'sale.checkout.noPrivilege.cancel';
 }
 
 abstract class EditLineIds {
@@ -189,7 +199,6 @@ abstract class CheckoutIds {
   static const page = 'checkout.page';
   static const netPay = 'checkout.netPay';
   static const summaryLine = 'checkout.summaryLine';
-  static const flagsNotice = 'checkout.flagsNotice';
   static const customerCard = 'checkout.customerCard';
   static const amountsCard = 'checkout.amountsCard';
   static const totalAmount = 'checkout.amount.total';

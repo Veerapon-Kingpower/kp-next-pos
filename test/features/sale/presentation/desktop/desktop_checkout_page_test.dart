@@ -115,17 +115,6 @@ void main() {
     );
   });
 
-  testWidgets('blocking flags are reported as unavailable, not cleared', (
-    tester,
-  ) async {
-    await open(tester);
-    expect(find.textContaining('All blocking flags cleared'), findsNothing);
-    expect(
-      inCard(CheckoutIds.flagsNotice, find.textContaining('not available yet')),
-      findsOneWidget,
-    );
-  });
-
   testWidgets('customer profile, flight & passport and the sale — legacy '
       'Checkout → Customer', (tester) async {
     await open(tester, customer: _jane);

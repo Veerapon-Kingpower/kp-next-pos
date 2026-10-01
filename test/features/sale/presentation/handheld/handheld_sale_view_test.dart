@@ -3,8 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kp_pos/core/error/app_exception.dart';
 import 'package:kp_pos/core/presentation/test_ids.dart';
 import 'package:kp_pos/core/theme/app_colors.dart';
+import 'package:kp_pos/features/auth/domain/entities/user_session.dart';
 import 'package:kp_pos/features/customer/domain/entities/privilege.dart';
 import 'package:kp_pos/features/sale/domain/entities/cart.dart';
+import 'package:kp_pos/features/sale/domain/entities/cart_item.dart';
 import 'package:kp_pos/features/sale/domain/entities/sale_order_context.dart';
 import 'package:kp_pos/features/sale/presentation/handheld/handheld_sale_view.dart';
 import 'package:kp_pos/features/sale/presentation/handheld/sale_order_type.dart';
@@ -28,13 +30,14 @@ void main() {
     bool isAirportMpos = false,
     VoidCallback? onExit,
     VoidCallback? onCustomer,
+    UserSession session = testSession,
   }) async {
     setDeviceSize(tester, size);
     sale = FakeSaleRepository(
       cartResult: cartAfterMutation,
       mutationError: mutationError,
     );
-    final viewModel = buildSaleViewModel(sale, cart: cart);
+    final viewModel = buildSaleViewModel(sale, cart: cart, session: session);
     await tester.pumpWidget(
       TestApp(
         home: Scaffold(
@@ -410,6 +413,61 @@ void main() {
       await tester.tap(byTestId(SaleIds.checkoutButton));
       await tester.pumpAndSettle();
       expect(byTestId(CheckoutIds.page), findsOneWidget);
+      // Legacy updateOrderStatusAndGotoCheckOutPage(): status e.
+      expect(sale.orderStatuses.single.status, 'e');
+      expect(sale.orderStatuses.single.card, 'CPX0001');
+    });
+
+    testWidgets('Checkout is disabled until the sale engine allows it '
+        '(legacy canCheckout = isCheckOut)', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pump(
+        tester,
+        cart: const Cart(guid: 'order-1', isCheckOut: false, items: [chanel]),
+      );
+      expect(
+        tester.getSemantics(byTestId(SaleIds.checkoutButton)),
+        isSemantics(isButton: true, hasEnabledState: true, isEnabled: false),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('without actCashier (or on a Sale-only machine) Checkout is '
+        'refused', (tester) async {
+      await pump(
+        tester,
+        session: const UserSession(
+          sessionKey: 'abc123',
+          branchNo: '03',
+          userCode: 'U001',
+          userName: 'Test User',
+          authorizedActions: [],
+        ),
+      );
+      await tester.tap(byTestId(SaleIds.checkoutButton));
+      await tester.pumpAndSettle();
+      expect(find.text("Sorry, you don't have permission."), findsOneWidget);
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+      expect(byTestId(CheckoutIds.page), findsNothing);
+      expect(sale.orderStatuses, isEmpty);
+    });
+
+    testWidgets('a member without a privilege is asked first', (tester) async {
+      final viewModel = await pump(tester);
+      viewModel.isMember = true;
+      await tester.tap(byTestId(SaleIds.checkoutButton));
+      await tester.pumpAndSettle();
+      expect(byTestId(SaleIds.checkoutNoPrivilegeDialog), findsOneWidget);
+      await tester.tap(byTestId(SaleIds.checkoutNoPrivilegeCancel));
+      await tester.pumpAndSettle();
+      expect(byTestId(CheckoutIds.page), findsNothing);
+
+      await tester.tap(byTestId(SaleIds.checkoutButton));
+      await tester.pumpAndSettle();
+      await tester.tap(byTestId(SaleIds.checkoutNoPrivilegeOk));
+      await tester.pumpAndSettle();
+      expect(byTestId(CheckoutIds.page), findsOneWidget);
     });
 
     testWidgets('Checkout is disabled on an empty bill', (tester) async {
@@ -420,6 +478,41 @@ void main() {
         isSemantics(isButton: true, hasEnabledState: true, isEnabled: false),
       );
       handle.dispose();
+    });
+
+    testWidgets('a line with recordInfos shows the status icon; tap lists '
+        'the messages (legacy showPopUpErr)', (tester) async {
+      await pump(
+        tester,
+        cart: const Cart(
+          guid: 'order-1',
+          isCheckOut: false,
+          items: [
+            CartItem(
+              row: 'w1',
+              articleCode: 'W1',
+              articleName: 'WATCH',
+              quantity: 1,
+              unitPrice: 9000,
+              lineTotal: 9000,
+              recordInfos: [
+                LineRecordInfo(
+                  type: 'Error',
+                  code: 'REQUIRE_SN',
+                  desc: 'Serial number is required.',
+                ),
+              ],
+            ),
+            chanel,
+          ],
+        ),
+      );
+      expect(byTestId(SaleIds.lineStatus(chanel.row)), findsNothing);
+      await tester.tap(byTestId(SaleIds.lineStatus('w1')));
+      await tester.pumpAndSettle();
+      expect(byTestId(SaleIds.lineStatusDialog), findsOneWidget);
+      expect(find.text('ERROR'), findsOneWidget);
+      expect(find.text('Serial number is required.'), findsOneWidget);
     });
 
     testWidgets('Customer goes to customer lookup', (tester) async {

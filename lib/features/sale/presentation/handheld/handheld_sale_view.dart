@@ -9,7 +9,9 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../customer/domain/entities/privilege.dart';
 import '../../domain/entities/cart_item.dart';
 import '../sale_cart_view_model.dart';
+import '../widgets/go_checkout.dart';
 import '../widgets/leave_sale_prompt.dart';
+import '../widgets/line_record_status.dart';
 import '../sale_currency.dart';
 import '../widgets/applied_privilege_card.dart';
 import '../widgets/privilege_picker.dart';
@@ -154,6 +156,21 @@ class _HandheldSaleViewState extends State<HandheldSaleView> {
     } else {
       _openDiscount(lines.last, lines.length);
     }
+  }
+
+  /// Legacy `goCheckout()`, then the Checkout page.
+  Future<void> _goCheckout(SaleCartViewModel viewModel) async {
+    final go = await confirmGoCheckout(
+      context,
+      viewModel,
+      onSignOut: widget.onSignOut ?? () async {},
+    );
+    if (!go || !mounted) return;
+    await openCheckoutPage(
+      context,
+      viewModel: viewModel,
+      isAirportMpos: widget.isAirportMpos,
+    );
   }
 
   Future<bool> _confirmVoid(CartItem line) async {
@@ -328,13 +345,10 @@ class _HandheldSaleViewState extends State<HandheldSaleView> {
           id: SaleIds.checkoutButton,
           label: 'Checkout · ${formatMoney(netPay, currency)}',
           icon: Icons.payments_outlined,
-          onPressed: orderLines.isEmpty
-              ? null
-              : () => openCheckoutPage(
-                  context,
-                  viewModel: viewModel,
-                  isAirportMpos: widget.isAirportMpos,
-                ),
+          // Legacy `canCheckout`: only while the sale engine allows it.
+          onPressed: viewModel.canCheckout && !viewModel.isBusy
+              ? () => _goCheckout(viewModel)
+              : null,
         ),
         secondary: _showBasket
             ? HandheldSecondaryButton(
@@ -880,6 +894,7 @@ class _LineTile extends StatelessWidget {
                     ),
                   ),
                 ),
+                LineRecordStatus(line: line),
               ],
             ),
             if (_statuses.isNotEmpty) ...[

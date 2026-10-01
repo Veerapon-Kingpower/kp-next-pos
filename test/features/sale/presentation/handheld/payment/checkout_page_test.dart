@@ -93,18 +93,6 @@ void main() {
     );
   });
 
-  testWidgets('pre-checkout flags are not claimed as cleared', (tester) async {
-    await pump(tester);
-    expect(
-      find.descendant(
-        of: byTestId(CheckoutIds.flagsNotice),
-        matching: find.textContaining('not available yet'),
-      ),
-      findsOneWidget,
-    );
-    expect(find.textContaining('All flags cleared'), findsNothing);
-  });
-
   testWidgets('customer, flight & passport and sale cards — legacy '
       'Checkout → Customer', (tester) async {
     await pump(tester, customer: _jane);

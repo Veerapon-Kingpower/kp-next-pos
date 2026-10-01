@@ -31,6 +31,8 @@ const testSession = UserSession(
     AuthorizedAction(moduleCode: 'SALE', authCode: 'actBahtDisc', action: ''),
     AuthorizedAction(moduleCode: 'SALE', authCode: 'actPerDisc', action: ''),
     AuthorizedAction(moduleCode: 'SALE', authCode: 'actPerDiscAll', action: ''),
+    // Legacy goCheckout()'s LoginCashier.
+    AuthorizedAction(moduleCode: 'SALE', authCode: 'actCashier', action: ''),
   ],
 );
 
@@ -54,7 +56,8 @@ const johnnie = CartItem(
 
 const sampleCart = Cart(
   guid: 'order-1',
-  isCheckOut: false,
+  // The sale engine allows Checkout (legacy canCheckout).
+  isCheckOut: true,
   items: [chanel, johnnie],
 );
 

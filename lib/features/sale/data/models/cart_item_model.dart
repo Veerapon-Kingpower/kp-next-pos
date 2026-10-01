@@ -29,6 +29,7 @@ class CartItemModel extends CartItem {
     super.cites,
     super.citesPermitNo,
     super.vasItems,
+    super.recordInfos,
   });
 
   factory CartItemModel.fromJson(Map<String, dynamic> json) {
@@ -84,6 +85,16 @@ class CartItemModel extends CartItem {
             totalRequireQty: vas['TotalRequireQty'] as num? ?? 0,
             existQty: vas['ExistQty'] as num? ?? 0,
             remainQty: vas['RemainQty'] as num? ?? 0,
+          ),
+      ],
+      recordInfos: [
+        for (final info
+            in (json['recordInfos'] as List<dynamic>? ?? const [])
+                .whereType<Map<String, dynamic>>())
+          LineRecordInfo(
+            type: info['MessageType'] as String? ?? '',
+            code: info['MessageCode'] as String? ?? '',
+            desc: info['MessageDesc'] as String? ?? '',
           ),
       ],
     );

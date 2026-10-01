@@ -109,40 +109,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TestId(
-                CheckoutIds.flagsNotice,
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.info.withValues(alpha: 0.06),
-                    borderRadius: BorderRadius.circular(
-                      HandheldMetrics.radiusSm,
-                    ),
-                    border: Border.all(
-                      color: AppColors.info.withValues(alpha: 0.25),
-                    ),
-                  ),
-                  child: const Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(Icons.info_outline, size: 16, color: AppColors.info),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Pre-checkout checks (serial, delivery address, '
-                          'flight) are not available yet — confirm them '
-                          'with the customer.',
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            color: AppColors.info,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
               PaymentCard(
                 id: CheckoutIds.customerCard,
                 child: Column(

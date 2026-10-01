@@ -53,6 +53,13 @@ void main() {
     expect(status(tester, SignatureIds.customerStatus), 'Empty — pad ready');
   });
 
+  testWidgets('one Save only — the bottom Save signature', (tester) async {
+    await open(tester);
+    expect(byTestId(SignatureIds.saveButton), findsNothing);
+    expect(byTestId(SignatureIds.bottomSaveButton), findsOneWidget);
+    expect(find.text('Save'), findsNothing);
+  });
+
   testWidgets('drawing on a pad marks it captured; Clear resets it', (
     tester,
   ) async {

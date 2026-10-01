@@ -32,6 +32,27 @@ const _jane = Customer(
   isMember: false,
 );
 
+const _member = Customer(
+  action: 'found',
+  isFound: true,
+  person: CustomerPerson(
+    englishName: 'JANE DOE',
+    passportNo: 'P1234567',
+    nationality: 'THA',
+    contacts: [],
+    privileges: [],
+    walletMembers: [
+      {'PaymentCode': 'CARAT', 'Balance': 1250},
+      {'PaymentCode': 'CASHW', 'Balance': 300},
+    ],
+    shoppingCard: 'CPX0001',
+    isActivate: true,
+  ),
+  tour: {},
+  agentCode: '',
+  isMember: true,
+);
+
 const _signedCart = Cart(
   guid: 'order-1',
   isCheckOut: false,
@@ -47,12 +68,14 @@ void main() {
     Cart? cart = sampleCart,
     Privilege? privilege,
     Customer? customer,
+    bool isMember = false,
     Size size = compactSize,
   }) async {
     setDeviceSize(tester, size);
     sale = FakeSaleRepository(cartResult: cart ?? sampleCart);
     final viewModel = buildSaleViewModel(sale, cart: cart);
     viewModel
+      ..isMember = isMember
       ..selectedPrivilege = privilege
       ..customer = customer
       ..session = testSession;
@@ -93,31 +116,69 @@ void main() {
     );
   });
 
-  testWidgets('customer, flight & passport and sale cards — legacy '
-      'Checkout → Customer', (tester) async {
+  testWidgets('one Customer card: name, card and order — no flight', (
+    tester,
+  ) async {
     await pump(tester, customer: _jane);
-    expect(
-      inCard(CheckoutIds.customerCard, find.text('JANE DOE')),
-      findsOneWidget,
-    );
-    expect(
-      inCard(CheckoutIds.customerCard, find.text('Registered')),
-      findsOneWidget,
-    );
-    expect(inCard(CheckoutIds.tripCard, find.text('P1234567')), findsOneWidget);
-    expect(
-      inCard(CheckoutIds.saleCard, find.text('U001 · Test User')),
-      findsOneWidget,
-    );
+    expect(find.text('TG101'), findsNothing, reason: 'no flight');
+    for (final text in ['JANE DOE', 'CPX0001']) {
+      expect(
+        inCard(CheckoutIds.customerCard, find.text(text)),
+        findsOneWidget,
+        reason: text,
+      );
+    }
+    for (final text in ['Registered', 'P1234567', 'U001 · Test User']) {
+      expect(find.text(text), findsNothing, reason: text);
+    }
   });
 
-  testWidgets('without a customer: no flight & passport card', (tester) async {
+  testWidgets('a member shows the privilege in use, Carat and e-Purse', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      customer: _member,
+      isMember: true,
+      privilege: const Privilege(
+        name: 'Gold Member',
+        discount: 10,
+        typeCode: 'VIP',
+        promoCode: 'P1',
+      ),
+    );
+    for (final text in ['Gold Member · [VIP]:P1', '1,250.00', '฿300.00']) {
+      expect(
+        inCard(CheckoutIds.customerCard, find.text(text)),
+        findsOneWidget,
+        reason: text,
+      );
+    }
+  });
+
+  testWidgets('a member without a privilege shows Privilege: None', (
+    tester,
+  ) async {
+    await pump(tester, customer: _member, isMember: true);
+    expect(inCard(CheckoutIds.customerCard, find.text('None')), findsOneWidget);
+  });
+
+  testWidgets('a non-member has no privilege, Carat or e-Purse', (
+    tester,
+  ) async {
+    await pump(tester, customer: _jane);
+    for (final text in ['Privilege', 'Carat', 'e-Purse']) {
+      expect(find.text(text), findsNothing, reason: text);
+    }
+  });
+
+  testWidgets('without a customer: shopping card / order only', (tester) async {
     await pump(tester);
-    expect(byTestId(CheckoutIds.tripCard), findsNothing);
     expect(
       inCard(CheckoutIds.customerCard, find.text('CPX0001')),
       findsOneWidget,
     );
+    expect(find.text('Flight'), findsNothing);
   });
 
   testWidgets('customer card shows the selected privilege', (tester) async {
@@ -267,20 +328,10 @@ void main() {
     );
   });
 
-  testWidgets('Suspend and Print quote are inert', (tester) async {
-    final handle = tester.ensureSemantics();
+  testWidgets('no Suspend or Print quote', (tester) async {
     await pump(tester);
-    for (final id in [
-      CheckoutIds.suspendButton,
-      CheckoutIds.printQuoteButton,
-    ]) {
-      expect(
-        tester.getSemantics(byTestId(id)),
-        isSemantics(hasEnabledState: true, isEnabled: false),
-        reason: id,
-      );
-    }
-    handle.dispose();
+    expect(find.text('Suspend'), findsNothing);
+    expect(find.text('Print quote'), findsNothing);
   });
 
   testWidgets('an empty bill cannot take payment', (tester) async {

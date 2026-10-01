@@ -36,17 +36,11 @@ Future<void> openDesktopCheckoutPage(
 }
 
 /// Desktop Checkout — final review before tender (POS Desktop mockup
-/// screen 5, "Step 2 of 3"): customer, flight & passport, read-only lines,
-/// blocking-flags panel, amount due, customer signature, Take payment.
-///
-/// Real: legacy Checkout's customer profile (customer, flight & passport,
-/// sale), lines with their discounts, totals with the bill (special)
-/// discount and its Bill discount editor, Gift with Purchase, signature
-/// (only when the order requires one), Take payment → step 3 (Enter).
-/// Not available, so reported as such: blocking flags (serial, CITES,
-/// shipping address), VAT; Suspend and Print quote are inert.
-// TODO(pos-desktop): real blocking-flags check (openspec 4.4 / 5.4);
-// Suspend / Print quote.
+/// screen 5, "Step 2 of 3"): a compact customer summary, the read-only
+/// lines with their discounts, totals with the bill (special) discount and
+/// its Bill discount editor, Gift with Purchase, signature (only when the
+/// order requires one), Take payment → step 3 (Enter). VAT is not
+/// available ("—").
 class DesktopCheckoutPage extends StatefulWidget {
   final SaleCartViewModel viewModel;
 
@@ -132,9 +126,7 @@ class _DesktopCheckoutPageState extends State<DesktopCheckoutPage> {
                         child: _ReviewColumn(
                           lines: lines,
                           units: units,
-                          customer: checkoutCustomerFacts(viewModel),
-                          trip: checkoutTripFacts(viewModel, DateTime.now()),
-                          sale: checkoutSaleFacts(
+                          summary: checkoutSummaryFacts(
                             viewModel,
                             isAirportMpos: widget.isAirportMpos,
                           ),
@@ -183,47 +175,40 @@ class _DesktopCheckoutPageState extends State<DesktopCheckoutPage> {
   }
 }
 
-/// Label over value, two per row — the Checkout details.
-class _Facts extends StatelessWidget {
+/// One compact strip of label-over-value cells, wrapping as needed — the
+/// Checkout summary, kept short so the lines table gets the height.
+class _SummaryStrip extends StatelessWidget {
   final List<CheckoutFact> facts;
 
-  const _Facts(this.facts);
+  const _SummaryStrip(this.facts);
 
-  // Rows of two Expanded cells — no LayoutBuilder, as the Customer /
-  // Flight panels sit in an IntrinsicHeight row.
   @override
   Widget build(BuildContext context) {
-    Widget cell(CheckoutFact fact) => Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(fact.label.toUpperCase(), style: DesktopText.fieldLabel),
-        const SizedBox(height: 3),
-        Text(
-          fact.value,
-          style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600),
-        ),
-      ],
-    );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (var i = 0; i < facts.length; i += 2)
-          Padding(
-            padding: EdgeInsets.only(top: i == 0 ? 0 : 10),
-            child: Row(
+    return DesktopPanel(
+      id: CheckoutIds.customerCard,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      child: Wrap(
+        spacing: 32,
+        runSpacing: 8,
+        children: [
+          for (final fact in facts)
+            Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(child: cell(facts[i])),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: i + 1 < facts.length
-                      ? cell(facts[i + 1])
-                      : const SizedBox.shrink(),
+                Text(fact.label.toUpperCase(), style: DesktopText.fieldLabel),
+                const SizedBox(height: 2),
+                Text(
+                  fact.value,
+                  style: const TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -231,17 +216,13 @@ class _Facts extends StatelessWidget {
 class _ReviewColumn extends StatelessWidget {
   final List<CartItem> lines;
   final int units;
-  final List<CheckoutFact> customer;
-  final List<CheckoutFact> trip;
-  final List<CheckoutFact> sale;
+  final List<CheckoutFact> summary;
   final List<GiftWithPurchase> gifts;
 
   const _ReviewColumn({
     required this.lines,
     required this.units,
-    required this.customer,
-    required this.trip,
-    required this.sale,
+    required this.summary,
     required this.gifts,
   });
 
@@ -251,42 +232,8 @@ class _ReviewColumn extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: DesktopPanel(
-                  id: CheckoutIds.customerCard,
-                  title: 'Customer',
-                  child: _Facts(customer),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: DesktopPanel(
-                  id: DesktopPaymentIds.flightCard,
-                  title: 'Flight & passport',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (trip.isEmpty)
-                        const Text(
-                          'No customer attached to this bill.',
-                          style: muted,
-                        )
-                      else
-                        TestId(CheckoutIds.tripCard, child: _Facts(trip)),
-                      const Divider(height: 24, color: AppColors.line),
-                      TestId(CheckoutIds.saleCard, child: _Facts(sale)),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
+        _SummaryStrip(summary),
+        const SizedBox(height: 12),
         Expanded(
           child: DesktopPanel(
             title: '${lines.length} lines · $units units',
@@ -501,16 +448,20 @@ class _AmountColumn extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 12),
+          // Same box as the Sale page's Net pay.
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: AppColors.ink,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Net pay', style: TextStyle(color: AppColors.gold)),
+                const Text(
+                  'Net pay',
+                  style: TextStyle(fontSize: 14, color: AppColors.gold),
+                ),
                 const SizedBox(height: 4),
                 FittedBox(
                   fit: BoxFit.scaleDown,
@@ -524,7 +475,7 @@ class _AmountColumn extends StatelessWidget {
                       ),
                       style: const TextStyle(
                         fontFamily: 'KingPowerHeadline',
-                        fontSize: 56,
+                        fontSize: 36,
                         fontWeight: FontWeight.w700,
                         color: Colors.white,
                         fontFeatures: [FontFeature.tabularFigures()],
@@ -589,28 +540,6 @@ class _AmountColumn extends StatelessWidget {
             hotkey: 'ENTER',
             height: 74,
             onPressed: hasLines ? onTakePayment : null,
-          ),
-          const SizedBox(height: 10),
-          const Row(
-            children: [
-              Expanded(
-                child: DesktopButton(
-                  id: CheckoutIds.suspendButton,
-                  label: 'Suspend bill',
-                  icon: Icons.assignment_turned_in_outlined,
-                  secondary: true,
-                ),
-              ),
-              SizedBox(width: 10),
-              Expanded(
-                child: DesktopButton(
-                  id: CheckoutIds.printQuoteButton,
-                  label: 'Print quote',
-                  icon: Icons.print_outlined,
-                  secondary: true,
-                ),
-              ),
-            ],
           ),
         ],
       ),

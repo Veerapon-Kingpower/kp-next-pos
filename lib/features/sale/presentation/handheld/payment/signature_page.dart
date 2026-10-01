@@ -73,20 +73,7 @@ class _SignaturePageState extends State<SignaturePage> {
               onPressed: () => Navigator.of(context).pop(),
             ),
           ),
-          trailing: TestId(
-            SignatureIds.saveButton,
-            child: FilledButton(
-              onPressed: _canSave ? _save : null,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.gold,
-                foregroundColor: AppColors.ink,
-                // The app theme's full-width minimum can't size in the
-                // header's Row (unbounded width).
-                minimumSize: const Size(0, 40),
-              ),
-              child: const Text('Save'),
-            ),
-          ),
+          // Saved from the bottom "Save signature" button only.
           stats: [
             HandheldStat(
               id: 'signature.netPay',

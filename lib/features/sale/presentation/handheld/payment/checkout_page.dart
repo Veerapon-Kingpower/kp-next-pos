@@ -31,13 +31,9 @@ Future<void> openCheckoutPage(
 
 /// Checkout (mockup screen 5) — final review before tender.
 ///
-/// Real: legacy Checkout's customer profile (customer, flight & passport,
-/// sale), totals with the bill (special) discount and its Bill discount
-/// sheet, Gift with Purchase, signature (only when the order requires
-/// one), and Take payment. Not available yet, so shown as "—" or a notice:
-/// the pre-checkout flag check (serial / address), VAT, Suspend and Print
-/// quote.
-// TODO(pos-handheld): pre-checkout flag check; wire Suspend / Print quote.
+/// A compact customer summary, totals with the bill (special) discount and
+/// its Bill discount sheet, Gift with Purchase, signature (only when the
+/// order requires one), and Take payment. VAT is not available ("—").
 class CheckoutPage extends StatefulWidget {
   final SaleCartViewModel viewModel;
 
@@ -82,7 +78,6 @@ class _CheckoutPageState extends State<CheckoutPage> {
     final netPay = orderNetPay(viewModel.cart);
     final currency = orderCurrency(viewModel.cart);
     final units = lines.fold<int>(0, (sum, l) => sum + l.quantity);
-    final trip = checkoutTripFacts(viewModel, DateTime.now());
     final gifts = viewModel.cart?.giftsWithPurchase ?? const [];
     final requireSignature = viewModel.cart?.requireSignature ?? false;
     List<Widget> rows(List<CheckoutFact> facts) => [
@@ -119,32 +114,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const PaymentBlockLabel('Customer'),
-                    ...rows(checkoutCustomerFacts(viewModel)),
-                  ],
-                ),
-              ),
-              if (trip.isNotEmpty) ...[
-                const SizedBox(height: 14),
-                PaymentCard(
-                  id: CheckoutIds.tripCard,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const PaymentBlockLabel('Flight & passport'),
-                      ...rows(trip),
-                    ],
-                  ),
-                ),
-              ],
-              const SizedBox(height: 14),
-              PaymentCard(
-                id: CheckoutIds.saleCard,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const PaymentBlockLabel('Sale'),
                     ...rows(
-                      checkoutSaleFacts(
+                      checkoutSummaryFacts(
                         viewModel,
                         isAirportMpos: widget.isAirportMpos,
                       ),
@@ -335,18 +306,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     viewModel: viewModel,
                   ),
           ),
-          items: const [
-            HandheldBarItem(
-              id: CheckoutIds.suspendButton,
-              icon: Icons.assignment_turned_in_outlined,
-              label: 'Suspend',
-            ),
-            HandheldBarItem(
-              id: CheckoutIds.printQuoteButton,
-              icon: Icons.print_outlined,
-              label: 'Print quote',
-            ),
-          ],
+          items: const [],
         ),
       ),
     );

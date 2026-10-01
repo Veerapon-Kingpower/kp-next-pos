@@ -48,12 +48,14 @@ void main() {
     Privilege? privilege,
     Customer? customer,
     bool isAirportMpos = false,
+    bool isMember = false,
     Size size = const Size(1440, 900),
   }) async {
     setDeviceSize(tester, size);
     sale = FakeSaleRepository(cartResult: cart ?? sampleCart);
     final viewModel = buildSaleViewModel(sale, cart: cart);
     viewModel
+      ..isMember = isMember
       ..selectedPrivilege = privilege
       ..customer = customer
       ..session = testSession;
@@ -116,31 +118,54 @@ void main() {
     );
   });
 
-  testWidgets('customer profile, flight & passport and the sale — legacy '
-      'Checkout → Customer', (tester) async {
+  testWidgets('one compact summary: customer, card and order — no flight', (
+    tester,
+  ) async {
     await open(tester, customer: _jane);
-    for (final text in ['JANE DOE', 'FIT', 'THA', 'CPX0001', 'Registered']) {
+    for (final text in ['JANE DOE', 'CPX0001']) {
       expect(
         inCard(CheckoutIds.customerCard, find.text(text)),
         findsOneWidget,
         reason: text,
       );
     }
-    expect(inCard(CheckoutIds.tripCard, find.text('P1234567')), findsOneWidget);
-    expect(
-      inCard(CheckoutIds.tripCard, find.text('TG101 · BKK - NRT')),
-      findsOneWidget,
-    );
-    expect(inCard(CheckoutIds.tripCard, find.text('Gate A1')), findsOneWidget);
-    expect(
-      inCard(CheckoutIds.saleCard, find.text('U001 · Test User')),
-      findsOneWidget,
-    );
-    // DFA / promoter / order date only on airport mPOS.
-    expect(inCard(CheckoutIds.saleCard, find.text('DFA')), findsNothing);
+    expect(find.textContaining('TG101'), findsNothing, reason: 'no flight');
+    // Left on the Customer page, so the lines get the room.
+    for (final text in [
+      'FIT',
+      'THA',
+      'Registered',
+      'P1234567',
+      'Gate A1',
+      'U001 · Test User',
+      'DFA',
+    ]) {
+      expect(find.text(text), findsNothing, reason: text);
+    }
   });
 
-  testWidgets('airport mPOS adds DFA, promoter and order date', (tester) async {
+  testWidgets('Net pay is the Sale page size (36 pt)', (tester) async {
+    await open(tester);
+    final text = tester.widget<Text>(
+      find.descendant(
+        of: byTestId(CheckoutIds.netPay),
+        matching: find.byType(Text),
+      ),
+    );
+    expect(text.style?.fontSize, 36);
+  });
+
+  testWidgets('the lines table takes the height left by the summary', (
+    tester,
+  ) async {
+    await open(tester, customer: _jane, size: const Size(1280, 800));
+    final summary = tester.getRect(byTestId(CheckoutIds.customerCard));
+    final table = tester.getRect(byTestId(DesktopPaymentIds.linesTable));
+    expect(summary.height, lessThan(120));
+    expect(table.height, greaterThan(400));
+  });
+
+  testWidgets('airport mPOS adds DFA and promoter', (tester) async {
     await open(
       tester,
       customer: _jane,
@@ -153,22 +178,72 @@ void main() {
         promoter: 'PR9',
       ),
     );
-    expect(inCard(CheckoutIds.saleCard, find.text('D01')), findsOneWidget);
-    expect(inCard(CheckoutIds.saleCard, find.text('PR9')), findsOneWidget);
+    expect(inCard(CheckoutIds.customerCard, find.text('D01')), findsOneWidget);
+    expect(inCard(CheckoutIds.customerCard, find.text('PR9')), findsOneWidget);
   });
 
-  testWidgets('without a customer: shopping card / order only, no trip', (
-    tester,
-  ) async {
+  testWidgets('without a customer: shopping card / order only', (tester) async {
     await open(tester);
-    expect(byTestId(CheckoutIds.tripCard), findsNothing);
     expect(
-      inCard(
-        DesktopPaymentIds.flightCard,
-        find.text('No customer attached to this bill.'),
-      ),
+      inCard(CheckoutIds.customerCard, find.text('CPX0001')),
       findsOneWidget,
     );
+    expect(inCard(CheckoutIds.customerCard, find.text('FLIGHT')), findsNothing);
+  });
+
+  testWidgets('a member without a privilege shows Privilege: None', (
+    tester,
+  ) async {
+    await open(tester, customer: _jane, isMember: true);
+    expect(
+      inCard(CheckoutIds.customerCard, find.text('PRIVILEGE')),
+      findsOneWidget,
+    );
+    expect(inCard(CheckoutIds.customerCard, find.text('None')), findsOneWidget);
+  });
+
+  testWidgets('a member shows Carat and e-Purse; a non-member does not', (
+    tester,
+  ) async {
+    const member = Customer(
+      action: 'found',
+      isFound: true,
+      person: CustomerPerson(
+        englishName: 'JANE DOE',
+        passportNo: 'P1234567',
+        nationality: 'THA',
+        contacts: [],
+        privileges: [],
+        walletMembers: [
+          {'PaymentCode': 'CARAT', 'Balance': 1250},
+          {'PaymentCode': 'CASHW', 'Balance': 300},
+        ],
+        shoppingCard: 'CPX0001',
+        isActivate: true,
+      ),
+      tour: {},
+      agentCode: '',
+      isMember: true,
+    );
+    await open(tester, customer: member, isMember: true);
+    expect(
+      inCard(CheckoutIds.customerCard, find.text('CARAT')),
+      findsOneWidget,
+    );
+    expect(
+      inCard(CheckoutIds.customerCard, find.text('1,250.00')),
+      findsOneWidget,
+    );
+    expect(
+      inCard(CheckoutIds.customerCard, find.text('฿300.00')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a non-member has no Carat or e-Purse', (tester) async {
+    await open(tester, customer: _jane);
+    expect(find.text('CARAT'), findsNothing);
+    expect(find.text('E-PURSE'), findsNothing);
   });
 
   testWidgets('customer card shows the selected privilege', (tester) async {
@@ -357,10 +432,7 @@ void main() {
     expect(sale.orderStatuses, isEmpty);
   });
 
-  testWidgets('signature box opens the pad; Suspend / Print quote inert', (
-    tester,
-  ) async {
-    final handle = tester.ensureSemantics();
+  testWidgets('signature box opens the pad', (tester) async {
     await open(
       tester,
       cart: const Cart(
@@ -370,20 +442,15 @@ void main() {
         requireSignature: true,
       ),
     );
-    for (final id in [
-      CheckoutIds.suspendButton,
-      CheckoutIds.printQuoteButton,
-    ]) {
-      expect(
-        tester.getSemantics(byTestId(id)),
-        isSemantics(hasEnabledState: true, isEnabled: false),
-        reason: id,
-      );
-    }
     await tester.tap(byTestId(DesktopPaymentIds.signatureBox));
     await tester.pumpAndSettle();
     expect(byTestId(SignatureIds.page), findsOneWidget);
-    handle.dispose();
+  });
+
+  testWidgets('no Suspend bill or Print quote', (tester) async {
+    await open(tester);
+    expect(find.text('Suspend bill'), findsNothing);
+    expect(find.text('Print quote'), findsNothing);
   });
 
   testWidgets('an empty bill cannot take payment', (tester) async {

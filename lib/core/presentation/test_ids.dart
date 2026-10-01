@@ -205,10 +205,6 @@ abstract class CheckoutIds {
   static const grandAmount = 'checkout.amount.grand';
   static const signatureRow = 'checkout.signatureRow';
   static const takePaymentButton = 'checkout.takePaymentButton';
-  static const suspendButton = 'checkout.suspendButton';
-  static const printQuoteButton = 'checkout.printQuoteButton';
-  static const tripCard = 'checkout.tripCard';
-  static const saleCard = 'checkout.saleCard';
   static const billDiscountButton = 'checkout.billDiscountButton';
   static const billDiscountRows = 'checkout.billDiscountRows';
   static const gwpCard = 'checkout.gwpCard';
